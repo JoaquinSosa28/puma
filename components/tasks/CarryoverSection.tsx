@@ -1,0 +1,100 @@
+import Link from "next/link";
+import type { Task, Tag } from "@/lib/schemas";
+import { Taggable } from "@/components/tags/TagMenuProvider";
+import { TaskList } from "@/components/tasks/TaskList";
+import { cn } from "@/lib/utils";
+
+type Props = {
+  tasks: Task[];
+  variant?: "agenda" | "page";
+  tags?: Tag[];
+  href?: string;
+  taskHref?: (task: Task) => string;
+  className?: string;
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+  flat?: boolean;
+};
+
+export function CarryoverSection({
+  tasks,
+  variant = "page",
+  tags = [],
+  href,
+  taskHref,
+  className,
+  selectedId,
+  onSelect,
+  flat = false,
+}: Props) {
+  if (!tasks.length) return null;
+
+  const headerClass =
+    "mb-1.5 block font-mono text-[10px] font-semibold tracking-wide text-tasks/80";
+
+  return (
+    <section
+      className={cn(
+        "rounded-[13px] border border-dashed border-tasks/35 bg-tasks/[0.07] p-[9px_11px]",
+        variant === "page" && "p-3",
+        className
+      )}
+      style={
+        variant === "page" && !flat ? { boxShadow: "2px 2px 0 var(--shadow)" } : undefined
+      }
+    >
+      {href ? (
+        <Link href={href} className={cn(headerClass, "transition-colors hover:text-tasks")}>
+          ↩ CARRYOVER · {tasks.length} UNFINISHED
+        </Link>
+      ) : (
+        <p className={cn(headerClass, "m-0")}>↩ CARRYOVER · {tasks.length} UNFINISHED</p>
+      )}
+
+      {variant === "agenda" ? (
+        <div className="flex flex-col gap-1">
+          {tasks.map((t) => {
+            const content = (
+              <>
+                <span className="h-[15px] w-[15px] shrink-0 rounded border-[1.6px] border-tasks/55" />
+                {t.title}
+              </>
+            );
+            return (
+              <Taggable
+                key={t.id}
+                entity="task"
+                id={t.id}
+                tagIds={t.tagIds}
+                className="flex items-center gap-2 text-[12.5px]"
+              >
+                {taskHref ? (
+                  <Link
+                    href={taskHref(t)}
+                    className="flex min-w-0 flex-1 items-center gap-2 transition-colors hover:text-tasks"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  content
+                )}
+              </Taggable>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-2 overflow-hidden rounded-lg border border-tasks/20 bg-surface">
+          <TaskList
+            tasks={tasks}
+            tags={tags}
+            showDelete
+            dueField="full"
+            variant="page"
+            selectedId={selectedId}
+            onSelect={onSelect}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
