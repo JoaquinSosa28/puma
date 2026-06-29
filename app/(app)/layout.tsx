@@ -1,6 +1,7 @@
 import { TagMenuProvider } from "@/components/tags/TagMenuProvider";
 import { SidebarWithTag } from "@/components/shell/SidebarWithTag";
 import { OmniBox } from "@/components/shell/OmniBox";
+import { AssistantProvider } from "@/components/assistant/AssistantProvider";
 import { TaskTimerProvider } from "@/components/tasks/TaskTimerProvider";
 import { loadAppData } from "@/lib/data";
 import { displayName } from "@/lib/user-display";
@@ -40,6 +41,7 @@ export default async function AppLayout({
         userName={displayName(data.user)}
         />
       </Suspense>
+      <AssistantProvider>
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-6 pt-5">
         <Suspense fallback={<div className="mb-[18px] h-[88px] shrink-0" />}>
           <OmniBox
@@ -56,6 +58,7 @@ export default async function AppLayout({
           </div>
         </Suspense>
       </main>
+      </AssistantProvider>
     </div>
       </TaskTimerProvider>
     </TagMenuProvider>

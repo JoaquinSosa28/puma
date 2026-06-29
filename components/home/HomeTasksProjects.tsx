@@ -61,37 +61,39 @@ export function HomeTasksProjects({
             {projects.length} active
           </span>
         </WidgetHeaderLink>
-        <div className="flex flex-col gap-3">
-          {projects.map((p) => {
-            const prog = projectProgress(p.id, allTasks);
-            return (
-              <WidgetRowLink
-                key={p.id}
-                href={hrefWithLife(`/projects?project=${p.id}`, lifeView)}
-                className="-mx-1 px-1 py-0.5"
-              >
-                <div className="mb-1.5 flex items-center gap-2 text-[13.5px] font-semibold">
-                  <span
-                    className="h-[9px] w-[9px] rounded-[2px]"
-                    style={{ background: p.color }}
-                  />
-                  {p.title}
-                  <span className="ml-auto font-mono text-[10px] text-faint">
-                    {prog.label}
-                  </span>
-                </div>
-                <div className="h-[7px] overflow-hidden rounded-full bg-border2">
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${prog.progress}%`,
-                      background: p.color,
-                    }}
-                  />
-                </div>
-              </WidgetRowLink>
-            );
-          })}
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="flex flex-col gap-3">
+            {projects.map((p) => {
+              const prog = projectProgress(p.id, allTasks);
+              return (
+                <WidgetRowLink
+                  key={p.id}
+                  href={hrefWithLife(`/projects?project=${p.id}`, lifeView)}
+                  className="-mx-1 px-1 py-0.5"
+                >
+                  <div className="mb-1.5 flex min-w-0 items-center gap-2 text-[13.5px] font-semibold">
+                    <span
+                      className="h-[9px] w-[9px] shrink-0 rounded-[2px]"
+                      style={{ background: p.color }}
+                    />
+                    <span className="min-w-0 truncate">{p.title}</span>
+                    <span className="ml-auto shrink-0 font-mono text-[10px] text-faint">
+                      {prog.label}
+                    </span>
+                  </div>
+                  <div className="h-[7px] overflow-hidden rounded-full bg-border2">
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${prog.progress}%`,
+                        background: p.color,
+                      }}
+                    />
+                  </div>
+                </WidgetRowLink>
+              );
+            })}
+          </div>
         </div>
       </section>
     </div>

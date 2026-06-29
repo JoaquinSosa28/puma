@@ -14,7 +14,12 @@ import { useLifeView } from "@/components/shell/LifeAreaToggle";
 import { lifeAreaForCreate } from "@/lib/life-area";
 import { TagQuickPick, SelectedTagsTray } from "@/components/shell/TagQuickPick";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
+import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
+import { useAssistant } from "@/components/assistant/AssistantProvider";
+import { MessageCircleQuestion, Pencil, Sparkles } from "lucide-react";
+
+type OmniMode = "capture" | "plan" | "ask";
 
 const TYPE_META: Record<
   OmniType,
@@ -28,15 +33,38 @@ const TYPE_META: Record<
 
 const OMNI_TYPES: OmniType[] = ["task", "habit", "goal", "note"];
 
+/** Tab order while typing in the omnibar: capture types → plan → ask → capture… */
+const OMNI_TAB_CYCLE: { mode: OmniMode; type?: OmniType }[] = [
+  { mode: "capture", type: "task" },
+  { mode: "capture", type: "habit" },
+  { mode: "capture", type: "goal" },
+  { mode: "capture", type: "note" },
+  { mode: "plan" },
+  { mode: "ask" },
+];
+
 function omniAccent(type: OmniType): string {
   return type === "note" ? "var(--ink)" : TYPE_META[type].color;
 }
 
-function cycleOmniType(current: OmniType, direction: 1 | -1): OmniType {
-  const index = OMNI_TYPES.indexOf(current);
+function omniTabIndex(mode: OmniMode, type: OmniType): number {
+  if (mode === "plan") return 4;
+  if (mode === "ask") return 5;
+  const i = OMNI_TYPES.indexOf(type);
+  return i >= 0 ? i : 0;
+}
+
+function cycleOmniTab(
+  mode: OmniMode,
+  type: OmniType,
+  direction: 1 | -1
+): { mode: OmniMode; type: OmniType } {
   const next =
-    (index + direction + OMNI_TYPES.length) % OMNI_TYPES.length;
-  return OMNI_TYPES[next];
+    OMNI_TAB_CYCLE[
+      (omniTabIndex(mode, type) + direction + OMNI_TAB_CYCLE.length) %
+        OMNI_TAB_CYCLE.length
+    ];
+  return { mode: next.mode, type: next.type ?? type };
 }
 
 type Props = {
@@ -56,9 +84,14 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [pickedDue, setPickedDue] = useState<string | null>(null);
   const [type, setType] = useState<OmniType>(defaultType);
+  const [mode, setMode] = useState<OmniMode>("capture");
   const [pending, startTransition] = useTransition();
+  const assistant = useAssistant();
   const inputRef = useRef<HTMLInputElement>(null);
   const omniRef = useRef<HTMLDivElement>(null);
+  const omniEscBlurredAtRef = useRef<number | null>(null);
+  const busy = assistant.status === "pending";
+  const aiMode = mode === "plan" || mode === "ask";
 
   const taggable = type === "task" || type === "note";
   const isTask = type === "task";
@@ -105,6 +138,7 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
 
       e.preventDefault();
       inputRef.current?.focus();
+      omniEscBlurredAtRef.current = null;
       setText((prev) => prev + e.key);
     };
 
@@ -113,15 +147,42 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
   }, []);
 
   useEffect(() => {
+    const OMNI_CLEAR_MS = 3000;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       const root = omniRef.current;
-      if (!root?.contains(document.activeElement)) return;
+      if (!root) return;
+
+      const omniFocused = root.contains(document.activeElement);
+
+      if (omniFocused) {
+        e.preventDefault();
+        omniEscBlurredAtRef.current = Date.now();
+        (document.activeElement as HTMLElement | null)?.blur();
+        return;
+      }
+
+      const blurredAt = omniEscBlurredAtRef.current;
+      if (blurredAt === null || Date.now() - blurredAt > OMNI_CLEAR_MS) return;
+
       e.preventDefault();
-      (document.activeElement as HTMLElement | null)?.blur();
+      omniEscBlurredAtRef.current = null;
+      setText("");
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const root = omniRef.current;
+    if (!root) return;
+    const onFocusIn = () => {
+      omniEscBlurredAtRef.current = null;
+    };
+    root.addEventListener("focusin", onFocusIn);
+    return () => root.removeEventListener("focusin", onFocusIn);
   }, []);
 
   const parsed = parseOmni(text, tags);
@@ -174,11 +235,38 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
     });
   };
 
+  const onPlan = () => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setText("");
+    assistant.generatePlan(trimmed);
+    router.push("/assistant");
+  };
+
+  const onAsk = () => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setText("");
+    assistant.askQuestion(trimmed);
+    router.push("/assistant");
+  };
+
+  const onAiSubmit = () => (mode === "ask" ? onAsk() : onPlan());
+
   return (
     <div
       ref={omniRef}
       className="omni-box group mb-[18px] shrink-0 rounded-[14px] border-2 border-ink bg-surface p-[13px_16px]"
-      style={{ "--omni-accent": omniAccent(type) } as React.CSSProperties}
+      style={
+        {
+          "--omni-accent":
+            mode === "ask"
+              ? "oklch(0.58 0.17 300)"
+              : mode === "plan"
+                ? "var(--primary)"
+                : omniAccent(type),
+        } as React.CSSProperties
+      }
     >
       <div className="omni-box-motion" aria-hidden>
         <div className="omni-box-trace" />
@@ -187,46 +275,130 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
 
       <div className="relative z-[1]">
       <div className="flex items-center gap-[11px]">
-        <span
-          className="shrink-0 rounded-[7px] px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]"
-          style={{ background: TYPE_META[type].color }}
-        >
-          {TYPE_META[type].label}
-        </span>
-        {capture.hint && (
+        <ModeSwitch mode={mode} onChange={setMode} />
+        {mode === "ask" ? (
+          <span
+            className="flex shrink-0 items-center gap-1 rounded-[7px] px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]"
+            style={{ background: "oklch(0.58 0.17 300)" }}
+          >
+            <MessageCircleQuestion className="h-3 w-3" />
+            ask
+          </span>
+        ) : mode === "plan" ? (
+          <span className="flex shrink-0 items-center gap-1 rounded-[7px] bg-primary px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]">
+            <Sparkles className="h-3 w-3" />
+            plan
+          </span>
+        ) : (
+          <span
+            className="shrink-0 rounded-[7px] px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]"
+            style={{ background: TYPE_META[type].color }}
+          >
+            {TYPE_META[type].label}
+          </span>
+        )}
+        {mode === "capture" && capture.hint && (
           <span className="shrink-0 font-mono text-[10px] text-faint transition-colors duration-200 group-focus-within:text-muted">
             → {capture.hint}
           </span>
         )}
-        <input
-          ref={inputRef}
-          className="w-full border-none bg-transparent text-base font-medium text-ink outline-none transition-colors duration-200 placeholder:text-faint placeholder:transition-colors group-focus-within:placeholder:text-faint2"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Tab") {
-              e.preventDefault();
-              setType((current) => cycleOmniType(current, e.shiftKey ? -1 : 1));
-              return;
+        {mode === "capture" && (taggable || isTask) ? (
+          <OmniHighlightInput
+            ref={inputRef}
+            tags={tags}
+            showTags={taggable}
+            showPriority={isTask}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Tab") {
+                e.preventDefault();
+                const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
+                setMode(next.mode);
+                if (next.mode === "capture") setType(next.type);
+                return;
+              }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={capture.placeholder}
+            disabled={pending || busy}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            className="w-full border-none bg-transparent text-base font-medium text-ink outline-none transition-colors duration-200 placeholder:text-faint placeholder:transition-colors group-focus-within:placeholder:text-faint2"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Tab") {
+                e.preventDefault();
+                const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
+                setMode(next.mode);
+                if (next.mode === "capture") setType(next.type);
+                return;
+              }
+              if (aiMode) {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAiSubmit();
+                }
+                return;
+              }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={
+              mode === "ask"
+                ? "Ask about your tasks, habits, goals…"
+                : mode === "plan"
+                  ? "Describe an idea — I'll plan goals, projects, tasks & habits…"
+                  : capture.placeholder
             }
-            if (e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={capture.placeholder}
-          disabled={pending}
-        />
-        {parsed.dateLabel && (
+            disabled={pending || busy}
+          />
+        )}
+        {mode === "capture" && parsed.dateLabel && (
           <span className="shrink-0 whitespace-nowrap rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary">
             📅 {parsed.dateLabel}
           </span>
         )}
         <span className="shrink-0 font-mono text-[10px] text-faint2 transition-all duration-200 group-focus-within:font-semibold group-focus-within:text-ink">
-          ↵ add
+          {mode === "ask" ? "↵ ask" : mode === "plan" ? "↵ plan" : "↵ add"}
         </span>
       </div>
       <div className="omni-box-scanline" aria-hidden />
+      {aiMode ? (
+        <div className="mt-2.5 flex items-center gap-2 border-t border-border2 py-2.5 pb-1">
+          <span className="shrink-0 font-mono text-[10px] text-faint2">
+            {mode === "ask"
+              ? "Answers about your data → opens on the Assistant page"
+              : "AI plan → preview opens on the Assistant page"}
+          </span>
+          <button
+            type="button"
+            onClick={onAiSubmit}
+            disabled={busy}
+            className={cn(
+              "ml-auto cursor-pointer rounded-lg border-none px-4 py-1 text-[12px] font-bold text-background disabled:cursor-not-allowed disabled:opacity-50",
+              mode === "ask" ? "" : "bg-primary"
+            )}
+            style={mode === "ask" ? { background: "oklch(0.58 0.17 300)" } : undefined}
+          >
+            {busy
+              ? mode === "ask"
+                ? "Thinking…"
+                : "Planning…"
+              : mode === "ask"
+                ? "Ask it"
+                : "Plan it"}
+          </button>
+        </div>
+      ) : (
       <div className="mt-2.5 flex min-w-0 items-center gap-2 border-t border-border2 py-2.5 pb-3">
         <span className="shrink-0 font-mono text-[10px] text-faint2">SAVE AS →</span>
         <div className="flex shrink-0 items-center gap-1">
@@ -308,7 +480,64 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
           </button>
         </div>
       </div>
+      )}
       </div>
+    </div>
+  );
+}
+
+function ModeSwitch({
+  mode,
+  onChange,
+}: {
+  mode: OmniMode;
+  onChange: (mode: OmniMode) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5 rounded-[9px] border border-border bg-surface2 p-0.5">
+      <button
+        type="button"
+        onClick={() => onChange("capture")}
+        aria-pressed={mode === "capture"}
+        className={cn(
+          "flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-all",
+          mode === "capture"
+            ? "bg-surface text-ink shadow-[1px_1px_0_var(--shadow)]"
+            : "text-faint hover:text-muted"
+        )}
+      >
+        <Pencil className="h-3 w-3" />
+        Capture
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("plan")}
+        aria-pressed={mode === "plan"}
+        className={cn(
+          "flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-all",
+          mode === "plan"
+            ? "bg-primary text-background shadow-[1px_1px_0_var(--shadow)]"
+            : "text-faint hover:text-muted"
+        )}
+      >
+        <Sparkles className="h-3 w-3" />
+        Plan
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("ask")}
+        aria-pressed={mode === "ask"}
+        className={cn(
+          "flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-all",
+          mode === "ask"
+            ? "text-background shadow-[1px_1px_0_var(--shadow)]"
+            : "text-faint hover:text-muted"
+        )}
+        style={mode === "ask" ? { background: "oklch(0.58 0.17 300)" } : undefined}
+      >
+        <MessageCircleQuestion className="h-3 w-3" />
+        Ask
+      </button>
     </div>
   );
 }

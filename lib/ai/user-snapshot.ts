@@ -1,0 +1,190 @@
+// Server-only: gather the current user's data into a compact JSON snapshot for the
+// Ask assistant, deciding whether to send the full data (let the model pick what it
+// needs) or a trimmed recent slice (to save tokens) based on size.
+import "server-only";
+import { listTasks } from "@/lib/db/tasks";
+import { listHabits } from "@/lib/db/habits";
+import { listHabitEntries } from "@/lib/db/habitEntries";
+import { listGoals } from "@/lib/db/goals";
+import { listProjects } from "@/lib/db/projects";
+import { listNotes } from "@/lib/db/notes";
+import { listTags } from "@/lib/db/tags";
+import { listAgenda } from "@/lib/db/agenda";
+import { getCurrentUser } from "@/lib/db/users";
+import { getSettings } from "@/lib/db/settings";
+import { iso, addDays } from "@/lib/date";
+
+// ~chars; roughly THRESHOLD/4 tokens. Above this we trim to the recent slice.
+const FULL_THRESHOLD = 20000;
+const ENTRY_DAYS = 60; // habit entries to keep when trimming
+const DONE_DAYS = 30; // completed tasks to keep when trimming
+
+export type SnapshotData = {
+  today: string;
+  user: { name: string | null };
+  settings: {
+    weekStart: string;
+    birthDate: string | null;
+    lifeSpanYears: number | null;
+  };
+  tags: { id: string; name: string }[];
+  goals: {
+    id: string;
+    title: string;
+    category: string;
+    lifeArea: import("@/lib/types").LifeArea;
+    progress: number;
+    targetDate: string | null;
+  }[];
+  projects: {
+    id: string;
+    title: string;
+    lifeArea: import("@/lib/types").LifeArea;
+    goalId: string | null;
+    progress: number;
+    label: string;
+  }[];
+  habits: {
+    id: string;
+    name: string;
+    frequency: string;
+    lifeArea: import("@/lib/types").LifeArea;
+    goalIds: string[];
+    archived: boolean;
+  }[];
+  habitEntries: { habit: string; date: string }[];
+  tasks: {
+    id: string;
+    title: string;
+    status: string;
+    priority: string;
+    due: string | null;
+    lifeArea: import("@/lib/types").LifeArea;
+    projectId: string | null;
+    goalId: string | null;
+    tags: string[];
+    createdAt: string;
+    completedAt: string | null;
+  }[];
+  notes: {
+    id: string;
+    title: string;
+    lifeArea: import("@/lib/types").LifeArea;
+    pinned: boolean;
+    tags: string[];
+    createdAt: string;
+  }[];
+  agenda: { time: string; title: string }[];
+};
+
+export type SnapshotResult = {
+  json: string;
+  dataMode: "full" | "trimmed";
+  data: SnapshotData;
+};
+
+export async function buildUserSnapshot(): Promise<SnapshotResult> {
+  // ⚠️ SECURITY TODO (multi-user): today getCurrentUserId() returns a single
+  // hardcoded demo user, so every list*() below is effectively that user's data.
+  // If the DB ever holds multiple users, scope each query to the authenticated
+  // user id AND authorize the request before returning anything here — the Ask
+  // assistant must never see another user's data. See [[puma-data-layer]].
+  const [tasks, habits, entries, goals, projects, notes, tags, agenda, user, settings] =
+    await Promise.all([
+      listTasks(),
+      listHabits(),
+      listHabitEntries(),
+      listGoals(),
+      listProjects(),
+      listNotes(),
+      listTags(),
+      listAgenda(),
+      getCurrentUser(),
+      getSettings(),
+    ]);
+
+  const today = iso();
+  const tagName = new Map(tags.map((t) => [t.id, t.name]));
+  const habitName = new Map(habits.map((h) => [h.id, h.name]));
+
+  const build = (full: boolean) => {
+    const sinceEntry = iso(addDays(-ENTRY_DAYS));
+    const sinceDone = iso(addDays(-DONE_DAYS));
+    const keptEntries = full
+      ? entries
+      : entries.filter((e) => e.date >= sinceEntry);
+    const keptTasks = full
+      ? tasks
+      : tasks.filter(
+          (t) => t.status !== "done" || (t.completedAt ?? "") >= sinceDone
+        );
+    return {
+      today,
+      user: { name: user?.name ?? null },
+      settings: {
+        weekStart: settings?.weekStart ?? "mon",
+        birthDate: settings?.birthDate ?? null,
+        lifeSpanYears: settings?.lifeSpanYears ?? null,
+      },
+      tags: tags.map((t) => ({ id: t.id, name: t.name })),
+      goals: goals.map((g) => ({
+        id: g.id,
+        title: g.title,
+        category: g.category,
+        lifeArea: g.lifeArea,
+        progress: g.progress,
+        targetDate: g.targetDate,
+      })),
+      projects: projects.map((p) => ({
+        id: p.id,
+        title: p.title,
+        lifeArea: p.lifeArea,
+        goalId: p.goalId,
+        progress: p.progress,
+        label: p.label,
+      })),
+      habits: habits.map((h) => ({
+        id: h.id,
+        name: h.name,
+        frequency: h.frequency.type,
+        lifeArea: h.lifeArea,
+        goalIds: h.goalIds,
+        archived: h.archived,
+      })),
+      habitEntries: keptEntries.map((e) => ({
+        habit: habitName.get(e.habitId) ?? e.habitId,
+        date: e.date,
+      })),
+      tasks: keptTasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        priority: t.priority,
+        due: t.due,
+        lifeArea: t.lifeArea,
+        projectId: t.projectId,
+        goalId: t.goalId,
+        tags: t.tagIds.map((id) => tagName.get(id) ?? id),
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
+      })),
+      notes: notes.map((n) => ({
+        id: n.id,
+        title: n.title,
+        lifeArea: n.lifeArea,
+        pinned: n.pinned,
+        tags: n.tagIds.map((id) => tagName.get(id) ?? id),
+        createdAt: n.createdAt,
+      })),
+      agenda: agenda.map((a) => ({ time: a.time, title: a.title })),
+    };
+  };
+
+  const fullData = build(true);
+  const fullJson = JSON.stringify(fullData);
+  if (fullJson.length <= FULL_THRESHOLD) {
+    return { json: fullJson, dataMode: "full", data: fullData };
+  }
+  const trimmedData = build(false);
+  return { json: JSON.stringify(trimmedData), dataMode: "trimmed", data: trimmedData };
+}

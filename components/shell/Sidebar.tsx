@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Calendar,
   Hourglass,
+  Sparkles,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const nav = [
   { href: "/projects", label: "Projects", icon: FolderKanban, color: "text-projects", countKey: "projects" as const },
   { href: "/calendar", label: "Calendar", icon: Calendar, color: "text-faint", countKey: null },
   { href: "/life", label: "Life calendar", icon: Hourglass, color: "text-primary", countKey: null },
+  { href: "/assistant", label: "Assistant", icon: Sparkles, color: "text-primary", countKey: null },
 ];
 
 type Counts = {

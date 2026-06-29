@@ -1,16 +1,20 @@
 import * as chrono from "chrono-node";
-import { TAG_PALETTE } from "@/lib/types";
 import type { Tag } from "@/lib/schemas";
 import { iso, defaultNoteTitle } from "@/lib/date";
+
+/** Preview color for #tags that do not exist yet (created on save). */
+export const NEW_TAG_PREVIEW_COLOR = "oklch(0.58 0.06 265)";
 
 export type ParseResult = {
   title: string;
   tagIds: string[];
   pills: { name: string; color: string; isNew?: boolean }[];
+  pendingTag: { name: string; color: string; isNew: boolean } | null;
   newTagNames: string[];
   due: string | null;
   dateLabel: string | null;
   priority: "low" | "med" | "high";
+  hasPriorityToken: boolean;
 };
 
 export type NoteParseResult = {
@@ -45,9 +49,7 @@ export function parseOmni(
         pills.push({ name: existing.name, color: existing.color });
       }
     } else {
-      const color =
-        TAG_PALETTE[(tags.length + pills.length) % TAG_PALETTE.length];
-      pills.push({ name, color, isNew: true });
+      pills.push({ name, color: NEW_TAG_PREVIEW_COLOR, isNew: true });
     }
   }
   title = title.replace(/#([a-z0-9][\w-]*)/gi, "").replace(/\s+/g, " ").trim();
@@ -84,14 +86,30 @@ export function parseOmni(
 
   const newTagNames = pills.filter((p) => p.isNew).map((p) => p.name);
 
+  let pendingTag: ParseResult["pendingTag"] = null;
+  const pendingMatch = text.match(/#([a-z0-9][\w-]*)$/i);
+  if (pendingMatch) {
+    const name = pendingMatch[1].toLowerCase();
+    if (!pills.some((p) => p.name === name)) {
+      const existing = tags.find((t) => t.name === name);
+      pendingTag = existing
+        ? { name: existing.name, color: existing.color, isNew: false }
+        : { name, color: NEW_TAG_PREVIEW_COLOR, isNew: true };
+    }
+  }
+
+  const hasPriorityToken = /!(high|med|low|h|m|l)\b/i.test(text);
+
   return {
     title: title || text.trim(),
     tagIds,
     pills,
+    pendingTag,
     newTagNames,
     due,
     dateLabel,
     priority,
+    hasPriorityToken,
   };
 }
 
@@ -150,4 +168,81 @@ export function toggleTagInText(text: string, tagName: string): string {
   }
   const trimmed = text.trim();
   return trimmed ? `${trimmed} #${tagName}` : `#${tagName}`;
+}
+
+export type OmniInputToken =
+  | { kind: "text"; text: string }
+  | {
+      kind: "tag";
+      text: string;
+      name: string;
+      color: string;
+      isNew: boolean;
+    }
+  | { kind: "priority"; text: string; level: "low" | "med" | "high" };
+
+/** Split omnibar text into plain text + inline #tag / !prio tokens for overlay rendering. */
+export function tokenizeOmniInput(
+  text: string,
+  tags: Tag[],
+  options?: { showTags?: boolean; showPriority?: boolean }
+): OmniInputToken[] {
+  const showTags = options?.showTags !== false;
+  const showPriority = options?.showPriority !== false;
+
+  type Match = { start: number; end: number; token: OmniInputToken };
+  const matches: Match[] = [];
+
+  if (showTags) {
+    for (const m of text.matchAll(/#([a-z0-9][\w-]*)/gi)) {
+      if (m.index === undefined) continue;
+      const name = m[1].toLowerCase();
+      const existing = tags.find((t) => t.name === name);
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        token: {
+          kind: "tag",
+          text: m[0],
+          name,
+          color: existing?.color ?? NEW_TAG_PREVIEW_COLOR,
+          isNew: !existing,
+        },
+      });
+    }
+  }
+
+  if (showPriority) {
+    for (const m of text.matchAll(/!(high|med|low|h|m|l)\b/gi)) {
+      if (m.index === undefined) continue;
+      const x = m[1].toLowerCase();
+      const level: "low" | "med" | "high" =
+        x[0] === "h" ? "high" : x[0] === "l" ? "low" : "med";
+      matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        token: { kind: "priority", text: m[0], level },
+      });
+    }
+  }
+
+  matches.sort((a, b) => a.start - b.start);
+
+  const segments: OmniInputToken[] = [];
+  let cursor = 0;
+  let lastEnd = 0;
+  for (const m of matches) {
+    if (m.start < lastEnd) continue;
+    if (m.start > cursor) {
+      segments.push({ kind: "text", text: text.slice(cursor, m.start) });
+    }
+    segments.push(m.token);
+    cursor = m.end;
+    lastEnd = m.end;
+  }
+  if (cursor < text.length) {
+    segments.push({ kind: "text", text: text.slice(cursor) });
+  }
+
+  return segments.length ? segments : text ? [{ kind: "text", text }] : [];
 }
