@@ -12,6 +12,7 @@ import { insertNote } from "@/lib/db/notes";
 import { insertHabit } from "@/lib/db/habits";
 import { insertGoal, listGoals, nextGoalOrder } from "@/lib/db/goals";
 import { getSettings } from "@/lib/db/settings";
+import { userToday } from "@/lib/timezone-server";
 import type { Task } from "@/lib/schemas";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
 
@@ -36,10 +37,10 @@ export async function createFromOmni(
   const userId = getCurrentUserId();
   const settings = await getSettings(userId);
   const tags = await listTags();
-  const p = parseOmni(text, tags);
+  const { timeZone, today: td } = await userToday();
+  const p = parseOmni(text, tags, undefined, undefined, timeZone);
   const newTagIds = await ensureTags(p.newTagNames);
   const tagIds = [...new Set([...(pickedTagIds ?? []), ...p.tagIds, ...newTagIds])];
-  const td = iso();
   const title = p.title || text.trim();
 
   const area = lifeArea ?? "personal";
@@ -70,7 +71,7 @@ export async function createFromOmni(
   }
 
   if (type === "note") {
-    const noteParsed = parseNoteCapture(text, tags);
+    const noteParsed = parseNoteCapture(text, tags, undefined, timeZone);
     const noteTagIds = [
       ...new Set([...(pickedTagIds ?? []), ...noteParsed.tagIds, ...newTagIds]),
     ];
@@ -149,10 +150,10 @@ export async function addTask(
 
   const userId = getCurrentUserId();
   const tags = await listTags();
-  const p = parseOmni(parsed.data.text, tags);
+  const { timeZone, today: td } = await userToday();
+  const p = parseOmni(parsed.data.text, tags, undefined, undefined, timeZone);
   const newTagIds = await ensureTags(p.newTagNames);
   const tagIds = [...new Set([...p.tagIds, ...newTagIds])];
-  const td = iso();
   const task = await insertTask({
     userId,
     title: p.title,
@@ -175,7 +176,7 @@ export async function toggleTask(id: string): Promise<ActionResult> {
   const { getTask } = await import("@/lib/db/tasks");
   const task = await getTask(id);
   if (!task) return { ok: false, error: "Not found" };
-  const td = iso();
+  const { today: td } = await userToday();
   const done = task.status !== "done";
   await updateTask(id, {
     status: done ? "done" : "todo",
@@ -223,7 +224,7 @@ export async function moveTaskStatus(
   const { getTask } = await import("@/lib/db/tasks");
   const task = await getTask(id);
   if (!task) return { ok: false, error: "Not found" };
-  const td = iso();
+  const { today: td } = await userToday();
   await updateTask(id, {
     status,
     completedAt: status === "done" ? td : null,

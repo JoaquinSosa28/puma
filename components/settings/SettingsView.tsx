@@ -19,6 +19,7 @@ import type { OmniType } from "@/lib/types";
 import { LIFE_SPAN_MAX } from "@/lib/date";
 import { DEFAULT_HABIT_VISIBILITY, HABIT_VISIBILITY_DEFAULTS } from "@/lib/habit-visibility";
 import { SettingsNumberField } from "@/components/settings/SettingsNumberField";
+import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { cn } from "@/lib/utils";
 
@@ -181,6 +182,16 @@ export function SettingsView({ settings, userName, tags, stats }: Props) {
                 onCheckedChange={(v) => update({ weekStart: v ? "sun" : "mon" })}
               />
             </SettingRow>
+            <div className="border-t border-border/60 py-3">
+              <label className="mb-1.5 block text-sm text-ink">Timezone</label>
+              <p className="mb-2 text-[12px] text-faint">
+                Used for today, due dates, habits, calendar, and greetings across the app.
+              </p>
+              <TimezoneSelect
+                value={settings?.timezone ?? "UTC"}
+                onChange={(timezone) => update({ timezone })}
+              />
+            </div>
             <SettingRow
               label="Default due today"
               description="New tasks from quick capture default to today."

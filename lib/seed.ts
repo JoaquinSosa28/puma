@@ -564,6 +564,7 @@ export function createSeedData(userId: string): SeedData {
     habitVisibleDays: 30,
     habitVisibleWeeks: 8,
     habitVisibleMonths: 3,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   };
 
   return {

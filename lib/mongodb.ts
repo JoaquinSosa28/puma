@@ -1,43 +1,95 @@
-// Phase 2: MongoDB Atlas connection via the official driver.
-// Set DATA_SOURCE=mongodb and configure MONGODB_URI + MONGODB_DB.
-//
-// The driver is imported dynamically so the memory demo never loads it
-// (and never requires the `mongodb` package to be installed at runtime).
-// Only `import type` is used at module scope, which erases to nothing.
-
-// Hard boundary: importing this (or anything that reaches it) from a Client
-// Component is a build error, so the driver can never leak into the browser bundle.
 import "server-only";
 import type { Db, MongoClient } from "mongodb";
+import {
+  DbConnectionError,
+  rethrowAsDbConnectionError,
+} from "@/lib/db-connection-error";
 
 const globalForMongo = globalThis as unknown as {
   __pumaMongoClient?: Promise<MongoClient>;
+  __pumaMongoWarm?: Promise<void>;
 };
+
+const MONGO_OPTIONS = {
+  serverSelectionTimeoutMS: 5_000,
+  connectTimeoutMS: 5_000,
+  maxPoolSize: 10,
+  // Keep several sockets warm so a request's parallel query batch reuses them
+  // instead of opening fresh TLS connections (costly over high-latency links/VPNs).
+  minPoolSize: 5,
+  maxIdleTimeMS: 0, // don't reap idle sockets — keep the warm pool alive
+  // CRITICAL over high latency: the default (2) throttles concurrent socket
+  // establishment, so a 10-query parallel batch serializes into ~5 TLS rounds.
+  // Allowing the whole pool to connect at once makes a batch take one round-trip.
+  maxConnecting: 10,
+  heartbeatFrequencyMS: 10_000,
+} as const;
+
+// How many sockets to pre-open at boot (the whole pool, so requests never wait
+// on a cold handshake). With maxConnecting above, these open in one round-trip.
+const WARM_SOCKETS = 10;
 
 function connect(): Promise<MongoClient> {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error(
-      "MONGODB_URI is not set. Configure it in .env.local for DATA_SOURCE=mongodb."
+    throw new DbConnectionError(
+      "Database is not configured. Set MONGODB_URI in your environment."
     );
   }
-  // Dynamic import keeps the driver out of the memory-mode bundle/graph.
-  return import("mongodb").then(({ MongoClient }) => {
-    const client = new MongoClient(uri);
-    return client.connect();
-  });
+  return import("mongodb")
+    .then(({ MongoClient }) => {
+      const client = new MongoClient(uri, MONGO_OPTIONS);
+      return client.connect();
+    })
+    .catch((err) => {
+      rethrowAsDbConnectionError(err);
+    });
+}
+
+function resetMongoClient(): void {
+  globalForMongo.__pumaMongoClient = undefined;
+  globalForMongo.__pumaMongoWarm = undefined;
+}
+
+/** Called once at server boot so the first page visit is not blocked on connect. */
+export function warmMongoConnection(): Promise<void> {
+  if (process.env.DATA_SOURCE !== "mongodb") {
+    return Promise.resolve();
+  }
+  if (!globalForMongo.__pumaMongoWarm) {
+    globalForMongo.__pumaMongoWarm = (async () => {
+      const db = await getDb();
+      // Open several pooled sockets concurrently so the first real request's
+      // parallel batch doesn't serialize on cold TLS handshakes.
+      await Promise.all(
+        Array.from({ length: WARM_SOCKETS }, () => db.command({ ping: 1 }))
+      );
+    })().catch((err) => {
+      globalForMongo.__pumaMongoWarm = undefined;
+      throw err;
+    });
+  }
+  return globalForMongo.__pumaMongoWarm;
 }
 
 /** Returns a connected Db, caching the client across hot reloads / requests. */
 export async function getDb(): Promise<Db> {
   if (process.env.DATA_SOURCE !== "mongodb") {
-    throw new Error(
-      "getDb() called but DATA_SOURCE !== 'mongodb'. Use DATA_SOURCE=memory for the demo."
+    throw new DbConnectionError(
+      "Database is not configured for this environment. Set DATA_SOURCE=mongodb to use MongoDB."
     );
   }
   if (!globalForMongo.__pumaMongoClient) {
-    globalForMongo.__pumaMongoClient = connect();
+    globalForMongo.__pumaMongoClient = connect().catch((err) => {
+      resetMongoClient();
+      throw err;
+    });
   }
-  const client = await globalForMongo.__pumaMongoClient;
-  return client.db(process.env.MONGODB_DB ?? "puma");
+  try {
+    const client = await globalForMongo.__pumaMongoClient;
+    return client.db(process.env.MONGODB_DB ?? "puma");
+  } catch (err) {
+    resetMongoClient();
+    rethrowAsDbConnectionError(err);
+  }
 }

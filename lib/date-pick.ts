@@ -77,9 +77,14 @@ export const DATE_PICK_PRESETS: Record<DatePickMode, DatePickConfig> = {
 
 export function resolveDatePickConfig(
   mode: DatePickMode,
-  overrides: Partial<DatePickConfig> = {}
+  overrides: Partial<DatePickConfig> = {},
+  timeZone?: string
 ): DatePickConfig {
-  return { ...DATE_PICK_PRESETS[mode], ...overrides };
+  const preset = { ...DATE_PICK_PRESETS[mode], ...overrides };
+  if (timeZone && mode !== "birth" && overrides.fallbackValue === undefined) {
+    preset.fallbackValue = iso(new Date(), timeZone);
+  }
+  return preset;
 }
 
 export function monthYearFromIso(isoDate: string): { year: number; month: number } {
@@ -87,9 +92,14 @@ export function monthYearFromIso(isoDate: string): { year: number; month: number
   return { year: d.getFullYear(), month: d.getMonth() };
 }
 
-export function isoFromParts(year: number, month: number, day: number): string {
+export function isoFromParts(
+  year: number,
+  month: number,
+  day: number,
+  timeZone?: string
+): string {
   const d = new Date(year, month, day);
-  return iso(d);
+  return iso(d, timeZone);
 }
 
 export function yearRange(min: number, max: number): number[] {

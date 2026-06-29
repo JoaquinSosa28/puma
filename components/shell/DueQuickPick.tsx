@@ -12,6 +12,7 @@ import {
   type DatePickMode,
 } from "@/lib/date-pick";
 import { cn } from "@/lib/utils";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import {
   Popover,
   PopoverContent,
@@ -50,7 +51,7 @@ function chipClass(active: boolean) {
   );
 }
 
-function buildMonthCells(year: number, month: number) {
+function buildMonthCells(year: number, month: number, timeZone: string) {
   const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;
   const start = new Date(year, month, 1);
   start.setDate(1 - firstDow);
@@ -64,7 +65,7 @@ function buildMonthCells(year: number, month: number) {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
       return {
-        ds: iso(d),
+        ds: iso(d, timeZone),
         day: d.getDate(),
         inMonth: d.getMonth() === month,
       };
@@ -102,6 +103,7 @@ export function DueQuickPick({
   displayFormat: displayFormatProp,
   className,
 }: Props) {
+  const timeZone = useTimezone();
   const config = resolveDatePickConfig(mode, {
     ...(quickPicksProp !== undefined ? { quickPicks: quickPicksProp } : {}),
     ...(clearableProp !== undefined ? { clearable: clearableProp } : {}),
@@ -114,14 +116,14 @@ export function DueQuickPick({
     ...(minYearProp !== undefined ? { minYear: minYearProp } : {}),
     ...(maxYearProp !== undefined ? { maxYear: maxYearProp } : {}),
     ...(displayFormatProp !== undefined ? { displayFormat: displayFormatProp } : {}),
-  });
+  }, timeZone);
 
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
-  const today = iso();
-  const tomorrow = iso(addDays(1));
+  const today = iso(new Date(), timeZone);
+  const tomorrow = iso(addDays(1, new Date(), timeZone), timeZone);
   const selected = config.nullable ? value : (value ?? config.fallbackValue);
   const calendarFocus = selected ?? config.fallbackValue;
   const isCustom =
@@ -143,8 +145,8 @@ export function DueQuickPick({
   }, [open, calendarFocus]);
 
   const { monthLabel, cells } = useMemo(
-    () => buildMonthCells(viewYear, viewMonth),
-    [viewYear, viewMonth]
+    () => buildMonthCells(viewYear, viewMonth, timeZone),
+    [viewYear, viewMonth, timeZone]
   );
 
   const shiftMonth = (delta: number) => {

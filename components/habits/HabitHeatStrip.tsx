@@ -2,6 +2,7 @@
 
 import type { Habit } from "@/lib/schemas";
 import { iso, type WeekStart } from "@/lib/date";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import {
   habitHeatCells,
   normalizeHabitFrequency,
@@ -25,13 +26,15 @@ export function HabitHeatStrip({
   entries,
   visibility,
   weekStart = "mon",
-  today = iso(),
+  today,
   onToggleDate,
   compact = false,
   className,
 }: Props) {
+  const timeZone = useTimezone();
+  const td = today ?? iso(new Date(), timeZone);
   const frequency = normalizeHabitFrequency(habit.frequency.type);
-  const cells = habitHeatCells(frequency, visibility, entries, weekStart, today);
+  const cells = habitHeatCells(frequency, visibility, entries, weekStart, td, timeZone);
 
   const size =
     frequency === "monthly"

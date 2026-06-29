@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import type { Habit, HabitEntry } from "@/lib/schemas";
 import { iso, weekDates, streakOf, dowLetters, type WeekStart } from "@/lib/date";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { toggleHabitToday } from "@/lib/actions/habits";
 import { cn } from "@/lib/utils";
 import type { Goal } from "@/lib/schemas";
@@ -34,8 +35,9 @@ export function HomeHabitsGoals({
   lifeView,
   weekStart = "mon",
 }: Props) {
-  const td = iso();
-  const week = weekDates(new Date(), weekStart);
+  const timeZone = useTimezone();
+  const td = iso(new Date(), timeZone);
+  const week = weekDates(new Date(), weekStart, timeZone);
   const letters = dowLetters(weekStart);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -106,7 +108,7 @@ export function HomeHabitsGoals({
           {habits.map((h) => {
             const set = entriesFor(h.id);
             const doneToday = set.has(td);
-            const streak = streakOf(set, td);
+            const streak = streakOf(set, td, timeZone);
             return (
               <div key={h.id} className={habitWeekRowClass}>
                 <button

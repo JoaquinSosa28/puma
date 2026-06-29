@@ -1,12 +1,11 @@
+import { cache } from "react";
 import * as memory from "./memory/goals";
 import * as mongo from "./mongo/goals";
 
 const impl = process.env.DATA_SOURCE === "mongodb" ? mongo : memory;
 
-export const {
-  nextGoalOrder,
-  listGoals,
-  insertGoal,
-  updateGoal,
-  updateGoalsLayout,
-} = impl;
+export const listGoals = cache(impl.listGoals);
+export const nextGoalOrder = impl.nextGoalOrder;
+export const insertGoal = impl.insertGoal;
+export const updateGoal = impl.updateGoal;
+export const updateGoalsLayout = impl.updateGoalsLayout;

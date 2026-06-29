@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/types";
-import { iso } from "@/lib/date";
+import { userToday } from "@/lib/timezone-server";
 import { getTask, updateTask } from "@/lib/db/tasks";
 import { getNote, updateNote } from "@/lib/db/notes";
 
@@ -31,7 +31,8 @@ export async function toggleEntityTag(
   const tagIds = applied
     ? [...note.tagIds, tagId]
     : note.tagIds.filter((id) => id !== tagId);
-  await updateNote(entityId, { tagIds, updatedAt: iso() });
+  const { today: updatedAt } = await userToday();
+  await updateNote(entityId, { tagIds, updatedAt });
   revalidatePath("/", "layout");
   return { ok: true, data: { applied } };
 }

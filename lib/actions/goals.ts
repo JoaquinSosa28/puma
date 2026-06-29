@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/types";
 import { getCurrentUserId } from "@/lib/store/memory";
-import { iso } from "@/lib/date";
+import { userToday } from "@/lib/timezone-server";
 import {
   insertGoal,
   listGoals,
@@ -19,6 +19,7 @@ export async function addGoalAction(
 ): Promise<ActionResult> {
   if (!title.trim()) return { ok: false, error: "Empty title" };
   const userId = getCurrentUserId();
+  const { today: createdAt } = await userToday();
   const existing = await listGoals(userId);
   await insertGoal({
     userId,
@@ -29,7 +30,7 @@ export async function addGoalAction(
     targetDate: null,
     lifeArea: "personal",
     order: nextGoalOrder(existing, category),
-    createdAt: iso(),
+    createdAt,
   });
   revalidatePath("/", "layout");
   return { ok: true };

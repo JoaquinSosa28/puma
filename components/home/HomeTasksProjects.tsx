@@ -2,7 +2,6 @@ import type { Project, Task } from "@/lib/schemas";
 import { projectProgress } from "@/lib/metrics";
 import { TaskList } from "@/components/tasks/TaskList";
 import type { Tag } from "@/lib/schemas";
-import { iso } from "@/lib/date";
 import { WidgetHeaderLink, WidgetRowLink } from "@/components/home/WidgetLink";
 import { hrefWithLife, type LifeView } from "@/lib/life-area";
 import { tasksListHref } from "@/lib/task-links";
@@ -13,6 +12,7 @@ type Props = {
   allTasks: Task[];
   tags: Tag[];
   lifeView: LifeView;
+  today: string;
 };
 
 export function HomeTasksProjects({
@@ -21,8 +21,8 @@ export function HomeTasksProjects({
   allTasks,
   tags,
   lifeView,
+  today: td,
 }: Props) {
-  const td = iso();
   const today = todayTasks.filter((t) => (t.due ?? "").slice(0, 10) === td);
   const done = today.filter((t) => t.status === "done").length;
   const pct = today.length ? Math.round((done / today.length) * 100) : 0;

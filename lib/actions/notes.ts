@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/types";
 import { getCurrentUserId } from "@/lib/store/memory";
-import { iso } from "@/lib/date";
+import { userToday } from "@/lib/timezone-server";
 import {
   insertNote,
   updateNote,
@@ -14,7 +14,7 @@ import { insertTask } from "@/lib/db/tasks";
 
 export async function createNote(): Promise<ActionResult<{ id: string }>> {
   const userId = getCurrentUserId();
-  const td = iso();
+  const { today: td } = await userToday();
   const note = await insertNote({
     userId,
     title: "Untitled note",
@@ -34,7 +34,8 @@ export async function updateNoteAction(
   field: "title" | "body",
   value: string
 ): Promise<ActionResult> {
-  await updateNote(id, { [field]: value, updatedAt: iso() });
+  const { today: td } = await userToday();
+  await updateNote(id, { [field]: value, updatedAt: td });
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -62,7 +63,7 @@ export async function convertNoteToTask(id: string): Promise<ActionResult> {
   const note = await getNote(id);
   if (!note) return { ok: false, error: "Not found" };
   const userId = getCurrentUserId();
-  const td = iso();
+  const { today: td } = await userToday();
   await insertTask({
     userId,
     title: note.title,

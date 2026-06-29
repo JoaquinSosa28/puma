@@ -2,20 +2,12 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  // Emit a self-contained server bundle (.next/standalone) for a small Docker image.
+  output: "standalone",
   outputFileTracingRoot: path.join(__dirname),
-  // Fast Refresh is on by default; keep React strict mode for dev safety.
+  // Keep the Mongo driver out of Turbopack route bundles — compiles much faster in dev.
+  serverExternalPackages: ["mongodb"],
   reactStrictMode: true,
-  webpack: (config, { dev }) => {
-    if (dev) {
-      // Fallback watcher when Turbopack/webpack native events are unreliable.
-      config.watchOptions = {
-        poll: 1000,
-        aggregateTimeout: 300,
-        ignored: ["**/node_modules/**", "**/.git/**"],
-      };
-    }
-    return config;
-  },
 };
 
 export default nextConfig;

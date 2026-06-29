@@ -1,6 +1,7 @@
 import * as chrono from "chrono-node";
 import type { Tag } from "@/lib/schemas";
-import { iso, defaultNoteTitle } from "@/lib/date";
+import { iso, defaultNoteTitle, fakeLocalFromTz } from "@/lib/date";
+import { getDefaultTimezone } from "@/lib/timezone";
 
 /** Preview color for #tags that do not exist yet (created on save). */
 export const NEW_TAG_PREVIEW_COLOR = "oklch(0.58 0.06 265)";
@@ -32,9 +33,13 @@ type ParseOptions = {
 export function parseOmni(
   text: string,
   tags: Tag[],
-  referenceDate: Date = new Date(),
-  options?: ParseOptions
+  referenceDate?: Date,
+  options?: ParseOptions,
+  timeZone?: string
 ): ParseResult {
+  const tz = timeZone ?? getDefaultTimezone();
+  const ref = referenceDate ?? fakeLocalFromTz(new Date(), tz);
+  const pad = (n: number) => String(n).padStart(2, "0");
   let title = text;
   const tagIds: string[] = [];
   const pills: ParseResult["pills"] = [];
@@ -70,14 +75,15 @@ export function parseOmni(
   let due: string | null = null;
   let dateLabel: string | null = null;
   if (!options?.forNote) {
-    const parsed = chrono.parse(text, referenceDate, { forwardDate: true });
+    const parsed = chrono.parse(text, ref, { forwardDate: true });
     if (parsed.length > 0) {
       const result = parsed[0];
       const dd = result.start.date();
       const hasTime = result.start.isCertain("hour");
+      const datePart = `${dd.getFullYear()}-${pad(dd.getMonth() + 1)}-${pad(dd.getDate())}`;
       due =
-        iso(dd) +
-        (hasTime ? `T${String(dd.getHours()).padStart(2, "0")}:00` : "");
+        datePart +
+        (hasTime ? `T${pad(dd.getHours())}:${pad(dd.getMinutes())}` : "");
       const label = result.text.trim();
       dateLabel = label.charAt(0).toUpperCase() + label.slice(1);
       title = title.replace(result.text, "").replace(/\s+/g, " ").trim();
@@ -119,9 +125,10 @@ export function parseOmni(
 export function parseNoteCapture(
   text: string,
   tags: Tag[],
-  referenceDate: Date = new Date()
+  referenceDate?: Date,
+  timeZone?: string
 ): NoteParseResult {
-  const p = parseOmni(text, tags, referenceDate, { forNote: true });
+  const p = parseOmni(text, tags, referenceDate, { forNote: true }, timeZone);
   const cleaned = p.title.trim();
   const colonIdx = cleaned.indexOf(":");
 
@@ -139,7 +146,7 @@ export function parseNoteCapture(
   }
 
   return {
-    title: defaultNoteTitle(referenceDate),
+    title: defaultNoteTitle(referenceDate ?? fakeLocalFromTz(new Date(), timeZone ?? getDefaultTimezone()), timeZone),
     body: cleaned,
     tagIds: p.tagIds,
     newTagNames: p.newTagNames,

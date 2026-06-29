@@ -10,6 +10,7 @@ import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 import { iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { Topbar } from "@/components/shell/Topbar";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 
 const tabs = ["today", "upcoming", "all"] as const;
 const groups = ["none", "tag", "project"] as const;
@@ -48,8 +49,8 @@ export function TasksView({
   const [taskId, setTaskId] = useQueryState("task");
   const [projectFilter, setProjectFilter] = useQueryState("project", parseAsString);
   const listRef = useRef<HTMLDivElement>(null);
-
-  const td = iso();
+  const timeZone = useTimezone();
+  const td = iso(new Date(), timeZone);
 
   const selectedTask = useMemo(
     () => (taskId ? tasks.find((t) => t.id === taskId) ?? null : null),

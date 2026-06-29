@@ -95,7 +95,8 @@ export function habitHeatCells(
   visibility: HabitVisibilitySettings,
   entries: Set<string>,
   weekStart: WeekStart,
-  today: string = iso()
+  today: string = iso(),
+  timeZone?: string
 ): HabitHeatCell[] {
   const todayDate = new Date(today + "T00:00");
 
@@ -108,8 +109,8 @@ export function habitHeatCells(
         todayDate.getMonth() - i,
         1
       );
-      const start = iso(startOfMonth(month));
-      const end = iso(endOfMonth(month));
+      const start = iso(startOfMonth(month), timeZone);
+      const end = iso(endOfMonth(month), timeZone);
       const isCurrent = i === 0;
       cells.push({
         id: `${month.getFullYear()}-${month.getMonth() + 1}`,
@@ -134,8 +135,8 @@ export function habitHeatCells(
       start.setDate(start.getDate() - i * 7);
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      const startIso = iso(start);
-      const endIso = iso(end);
+      const startIso = iso(start, timeZone);
+      const endIso = iso(end, timeZone);
       const isCurrent = i === 0;
       cells.push({
         id: startIso,
@@ -151,7 +152,7 @@ export function habitHeatCells(
   const dayCount = visibleDayCount(visibility);
   const cells: HabitHeatCell[] = [];
   for (let k = dayCount - 1; k >= 0; k--) {
-    const date = iso(addDays(-k, todayDate));
+    const date = iso(addDays(-k, todayDate, timeZone), timeZone);
     cells.push({
       id: date,
       label: date,

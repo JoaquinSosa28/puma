@@ -13,6 +13,7 @@ import { listAgenda } from "@/lib/db/agenda";
 import { getCurrentUser } from "@/lib/db/users";
 import { getSettings } from "@/lib/db/settings";
 import { iso, addDays } from "@/lib/date";
+import { pickTimezone, readTimezoneCookie } from "@/lib/timezone-server";
 
 // ~chars; roughly THRESHOLD/4 tokens. Above this we trim to the recent slice.
 const FULL_THRESHOLD = 20000;
@@ -103,13 +104,15 @@ export async function buildUserSnapshot(): Promise<SnapshotResult> {
       getSettings(),
     ]);
 
-  const today = iso();
+  const fromCookie = await readTimezoneCookie();
+  const timezone = pickTimezone(settings, fromCookie);
+  const today = iso(new Date(), timezone);
   const tagName = new Map(tags.map((t) => [t.id, t.name]));
   const habitName = new Map(habits.map((h) => [h.id, h.name]));
 
   const build = (full: boolean) => {
-    const sinceEntry = iso(addDays(-ENTRY_DAYS));
-    const sinceDone = iso(addDays(-DONE_DAYS));
+    const sinceEntry = iso(addDays(-ENTRY_DAYS, new Date(), timezone), timezone);
+    const sinceDone = iso(addDays(-DONE_DAYS, new Date(), timezone), timezone);
     const keptEntries = full
       ? entries
       : entries.filter((e) => e.date >= sinceEntry);
@@ -120,11 +123,13 @@ export async function buildUserSnapshot(): Promise<SnapshotResult> {
         );
     return {
       today,
+      timezone,
       user: { name: user?.name ?? null },
       settings: {
         weekStart: settings?.weekStart ?? "mon",
         birthDate: settings?.birthDate ?? null,
         lifeSpanYears: settings?.lifeSpanYears ?? null,
+        timezone: settings?.timezone ?? timezone,
       },
       tags: tags.map((t) => ({ id: t.id, name: t.name })),
       goals: goals.map((g) => ({

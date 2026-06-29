@@ -13,7 +13,7 @@ import {
 } from "@/lib/db/projects";
 import { syncGoalProgress, syncGoalsForProject } from "@/lib/goal-sync-server";
 import { getCurrentUserId } from "@/lib/store/memory";
-import { iso } from "@/lib/date";
+import { userToday } from "@/lib/timezone-server";
 import { pickProjectColor } from "@/lib/project-colors";
 
 const createProjectSchema = z.object({
@@ -29,6 +29,7 @@ export async function createProjectAction(
   if (!parsed.success) return { ok: false, error: "Invalid input" };
 
   const userId = getCurrentUserId();
+  const { today: createdAt } = await userToday();
   const existing = await listProjects(userId);
   const project = await insertProject({
     userId,
@@ -39,7 +40,7 @@ export async function createProjectAction(
     label: "0/0",
     goalId: null,
     lifeArea: parsed.data.lifeArea ?? "personal",
-    createdAt: iso(),
+    createdAt,
   });
 
   revalidatePath("/", "layout");

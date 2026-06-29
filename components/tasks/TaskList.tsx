@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { taskDetailHref } from "@/lib/task-links";
 import type { LifeView } from "@/lib/life-area";
 import { iso } from "@/lib/date";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import {
   CALENDAR_PRIO,
   calendarPrioBg,
@@ -94,7 +95,8 @@ export function TaskList({
   const isPage = variant === "page";
   const isCalendar = variant === "calendar";
   const compact = isPage && Boolean(onSelect);
-  const today = iso();
+  const timeZone = useTimezone();
+  const today = iso(new Date(), timeZone);
   const day = calendarDay ?? today;
 
   const listed = isCalendar ? sortCalendarDayTasks(optimistic) : optimistic;
@@ -165,7 +167,7 @@ export function TaskList({
         );
 
         if (isCalendar && isMeetingTask(t) && t.due) {
-          const past = isMeetingPast(t.due, day);
+          const past = isMeetingPast(t.due, day, new Date(), timeZone);
           const color = CALENDAR_PRIO[t.priority];
           const detailHref =
             linkTaskDetail && lifeView

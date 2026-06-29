@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import { greeting } from "@/lib/date";
 import { formatTopbarDateLine } from "@/lib/date-context";
 import { DEFAULT_USER_NAME } from "@/lib/user-display";
 import { ActiveTaskTimer } from "@/components/shell/ActiveTaskTimer";
 import { TopbarProjectPill } from "@/components/shell/TopbarProjectPill";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { cn } from "@/lib/utils";
 
 type ActiveProject = {
@@ -42,8 +45,13 @@ export function Topbar({
   birthDate = null,
   lifeSpanYears,
 }: Props) {
+  const timeZone = useTimezone();
   const now = new Date();
-  const dateLine = formatTopbarDateLine(now, { birthDate, lifeSpanYears });
+  const dateLine = formatTopbarDateLine(now, {
+    birthDate,
+    lifeSpanYears,
+    timeZone,
+  });
   return (
     <div className="mb-4 flex shrink-0 items-end justify-between">
       <div>
@@ -61,7 +69,7 @@ export function Topbar({
         )}
         <div className="flex h-9 min-w-0 items-center gap-3">
           <h1 className="m-0 shrink-0 text-[26px] font-extrabold tracking-tight text-ink">
-            {showGreeting ? greeting(userName) : title}
+            {showGreeting ? greeting(userName, timeZone) : title}
           </h1>
           {activeProject ? (
             <TopbarProjectPill

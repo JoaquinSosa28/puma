@@ -4,12 +4,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
 import { getCurrentUserId } from "@/lib/store/memory";
-import { iso } from "@/lib/date";
-import { toggleHabitEntry } from "@/lib/db/habitEntries";
+import { userToday } from "@/lib/timezone-server";
 import { insertHabit, updateHabit } from "@/lib/db/habits";
+import { toggleHabitEntry } from "@/lib/db/habitEntries";
 
 export async function toggleHabitToday(habitId: string): Promise<ActionResult> {
-  const td = iso();
+  const { today: td } = await userToday();
   await toggleHabitEntry(habitId, td);
   revalidatePath("/", "layout");
   return { ok: true };
@@ -32,6 +32,7 @@ export async function addHabitAction(
   const parsed = nameSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid name" };
   const userId = getCurrentUserId();
+  const { today: td } = await userToday();
   await insertHabit({
     userId,
     name: parsed.data.name,
@@ -42,7 +43,7 @@ export async function addHabitAction(
     goalIds: [],
     goalTargetStreak: null,
     lifeArea: "personal",
-    createdAt: iso(),
+    createdAt: td,
   });
   revalidatePath("/", "layout");
   return { ok: true };

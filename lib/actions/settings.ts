@@ -4,9 +4,11 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult, Theme, OmniType } from "@/lib/types";
 import type { Tag } from "@/lib/schemas";
 import { updateSettings } from "@/lib/db/settings";
+import { insertTag } from "@/lib/db/tags";
 import { updateUser } from "@/lib/db/users";
 import { getCurrentUserId } from "@/lib/store/memory";
-import { insertTag } from "@/lib/db/tags";
+import { persistTimezoneCookie } from "@/lib/timezone-server";
+import { isValidTimezone, normalizeTimezone } from "@/lib/timezone";
 
 export async function setTheme(theme: Theme): Promise<ActionResult> {
   const userId = getCurrentUserId();
@@ -25,8 +27,16 @@ export async function updateSettingsAction(patch: {
   habitVisibleDays?: number;
   habitVisibleWeeks?: number;
   habitVisibleMonths?: number;
+  timezone?: string;
 }): Promise<ActionResult> {
   const userId = getCurrentUserId();
+  if (patch.timezone !== undefined) {
+    if (!isValidTimezone(patch.timezone)) {
+      return { ok: false, error: "Invalid timezone." };
+    }
+    patch.timezone = normalizeTimezone(patch.timezone);
+    await persistTimezoneCookie(patch.timezone);
+  }
   await updateSettings(userId, patch);
   revalidatePath("/", "layout");
   return { ok: true };

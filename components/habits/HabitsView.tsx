@@ -22,6 +22,7 @@ import {
 } from "@/lib/habit-visibility";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 
 type Props = {
   habits: Habit[];
@@ -46,7 +47,8 @@ export function HabitsView({
 }: Props) {
   const [, startTransition] = useTransition();
   const [habitId] = useQueryState("habit");
-  const td = iso();
+  const timeZone = useTimezone();
+  const td = iso(new Date(), timeZone);
 
   // Optimistic entries: the checkbox / heat cell / streaks update instantly,
   // then reconcile when the server action + revalidation returns.
@@ -211,7 +213,7 @@ export function HabitsView({
                 <div className="flex items-center gap-5 border-t border-border2 pt-2.5">
                   <div className="text-center">
                     <div className="text-lg font-extrabold text-habits">
-                      {streakOf(set, td)}
+                      {streakOf(set, td, timeZone)}
                     </div>
                     <div className="font-mono text-[9px] text-faint">STREAK</div>
                   </div>

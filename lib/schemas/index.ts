@@ -21,6 +21,7 @@ export const settingsSchema = z.object({
   habitVisibleDays: z.number().min(1).default(30),
   habitVisibleWeeks: z.number().min(1).default(8),
   habitVisibleMonths: z.number().min(1).default(3),
+  timezone: z.string().default("UTC"),
 });
 
 export const tagSchema = z.object({

@@ -1,10 +1,8 @@
 import { loadPageData } from "@/lib/page-data";
-import { getSettings } from "@/lib/db/settings";
 import { Topbar } from "@/components/shell/Topbar";
 import { AgendaPanel } from "@/components/home/AgendaPanel";
 import { HomeTasksProjects } from "@/components/home/HomeTasksProjects";
 import { HomeHabitsGoals } from "@/components/home/HomeHabitsGoals";
-import { iso } from "@/lib/date";
 import { displayName } from "@/lib/user-display";
 import { hrefWithLife } from "@/lib/life-area";
 
@@ -13,13 +11,10 @@ type Props = {
 };
 
 export default async function HomePage({ searchParams }: Props) {
-  const [data, settings] = await Promise.all([
-    loadPageData(searchParams),
-    getSettings(),
-  ]);
-  const today = iso();
+  const data = await loadPageData(searchParams);
+  const today = data.today;
   const { lifeView } = data;
-  const weekStart = settings?.weekStart ?? "mon";
+  const weekStart = data.settings?.weekStart ?? "mon";
 
   return (
     <>
@@ -53,6 +48,7 @@ export default async function HomePage({ searchParams }: Props) {
           allTasks={data.allTasks}
           tags={data.tags}
           lifeView={lifeView}
+          today={data.today}
         />
         <HomeHabitsGoals
           habits={data.habits}

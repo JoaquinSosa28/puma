@@ -1,4 +1,4 @@
-import { iso, parseTimeToMinutes } from "@/lib/date";
+import { formatTimeHM, iso, parseTimeToMinutes } from "@/lib/date";
 import type { Task } from "@/lib/schemas";
 
 export const CALENDAR_PRIO = {
@@ -28,13 +28,16 @@ export function meetingSortKey(due: string | null): number {
 export function isMeetingPast(
   due: string,
   day: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  timeZone?: string
 ): boolean {
-  const today = iso(now);
+  const today = iso(now, timeZone);
   if (day < today) return true;
   if (day > today) return false;
   if (!due.includes("T")) return false;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = parseTimeToMinutes(
+    formatTimeHM(now, timeZone)
+  );
   return parseTimeToMinutes(due.split("T")[1] ?? "00:00") < nowMins;
 }
 

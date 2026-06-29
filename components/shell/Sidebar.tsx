@@ -53,8 +53,8 @@ export function Sidebar({ counts, tags, tasks, notes, userName }: Props) {
   const [life] = useLifeView();
 
   return (
-    <aside className="flex w-[236px] shrink-0 flex-col border-r border-border bg-surface2 px-3 py-4">
-      <div className="mb-3 flex items-center gap-2 px-2 py-1.5">
+    <aside className="flex h-full min-h-0 w-[236px] shrink-0 flex-col border-r border-border bg-surface2 px-3 py-4">
+      <div className="mb-3 flex shrink-0 items-center gap-2 px-2 py-1.5">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-[13px] font-extrabold text-background">
           P
         </div>
@@ -66,10 +66,11 @@ export function Sidebar({ counts, tags, tasks, notes, userName }: Props) {
 
       <LifeAreaToggle />
 
-      <div className="px-2 pb-2 font-mono text-[10px] tracking-widest text-faint2">
-        SPACES
-      </div>
-      <nav className="flex flex-col gap-px">
+      <div className="shrink-0">
+        <div className="px-2 pb-2 font-mono text-[10px] tracking-widest text-faint2">
+          SPACES
+        </div>
+        <nav className="flex flex-col gap-px">
         {nav.map((item) => {
           const active =
             item.href === "/"
@@ -101,11 +102,14 @@ export function Sidebar({ counts, tags, tasks, notes, userName }: Props) {
             </Link>
           );
         })}
-      </nav>
+        </nav>
+      </div>
 
-      <TagRail tags={tags} tasks={tasks} notes={notes} />
+      <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TagRail tags={tags} tasks={tasks} notes={notes} />
+      </div>
 
-      <div className="mt-auto flex items-center gap-2.5 border-t border-border px-2.5 py-3">
+      <div className="flex shrink-0 items-center gap-2.5 border-t border-border px-2.5 py-3">
         <div
           className="h-7 w-7 shrink-0 rounded-full"
           style={{

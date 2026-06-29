@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LifeDay, LifeWeek, Task } from "@/lib/schemas";
 import { iso } from "@/lib/date";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import {
   buildLifeWeekGrid,
   buildLifeWeekMap,
@@ -43,7 +44,8 @@ export function LifeCalendarView({
 }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const today = iso();
+  const timeZone = useTimezone();
+  const today = iso(new Date(), timeZone);
   const [selectedWeek, setSelectedWeek] = useState<LifeWeekSlot | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fullView, setFullView] = useState(lifeCalendarFullView);

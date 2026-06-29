@@ -26,15 +26,21 @@ const tags: Tag[] = [
   },
 ];
 
+const TZ = "UTC";
+
 describe("date", () => {
   it("iso formats YYYY-MM-DD", () => {
-    expect(iso(new Date("2025-06-15T12:00:00"))).toBe("2025-06-15");
+    expect(iso(new Date("2025-06-15T12:00:00Z"), TZ)).toBe("2025-06-15");
   });
 
   it("streakOf counts consecutive days", () => {
-    const td = iso();
-    const set = new Set([iso(addDays(-2)), iso(addDays(-1)), td]);
-    expect(streakOf(set, td)).toBe(3);
+    const td = "2026-06-21";
+    const set = new Set([
+      iso(addDays(-2, new Date(`${td}T12:00:00Z`), TZ), TZ),
+      iso(addDays(-1, new Date(`${td}T12:00:00Z`), TZ), TZ),
+      td,
+    ]);
+    expect(streakOf(set, td, TZ)).toBe(3);
   });
 
   it("bestStreak finds longest run", () => {
@@ -43,16 +49,16 @@ describe("date", () => {
   });
 
   it("weekDates returns 7 days Mon-start", () => {
-    const week = weekDates(new Date("2025-06-18"));
+    const week = weekDates(new Date("2025-06-18T12:00:00Z"), "mon", TZ);
     expect(week.length).toBe(7);
-    expect(iso(week[0])).toBe("2025-06-16");
-    expect(iso(week[6])).toBe("2025-06-22");
+    expect(iso(week[0], TZ)).toBe("2025-06-16");
+    expect(iso(week[6], TZ)).toBe("2025-06-22");
   });
 
   it("weekDates respects Sun-start", () => {
-    const week = weekDates(new Date("2025-06-18"), "sun");
-    expect(iso(week[0])).toBe("2025-06-15");
-    expect(iso(week[6])).toBe("2025-06-21");
+    const week = weekDates(new Date("2025-06-18T12:00:00Z"), "sun", TZ);
+    expect(iso(week[0], TZ)).toBe("2025-06-15");
+    expect(iso(week[6], TZ)).toBe("2025-06-21");
   });
 
   it("currentAgendaIndex finds active event", () => {
@@ -73,8 +79,9 @@ describe("parseOmni", () => {
   });
 
   it("detects tomorrow", () => {
-    const r = parseOmni("pay rent tomorrow", tags);
-    expect(r.due).toBe(iso(addDays(1)));
+    const ref = new Date("2026-06-21T12:00:00Z");
+    const r = parseOmni("pay rent tomorrow", tags, ref, undefined, TZ);
+    expect(r.due).toBe("2026-06-22");
     expect(r.dateLabel).toBeTruthy();
   });
 
@@ -101,8 +108,8 @@ describe("parseNoteCapture", () => {
   });
 
   it("uses timestamped title when no colon", () => {
-    const r = parseNoteCapture("quick thought about the app", tags, ref);
-    expect(r.title).toBe(defaultNoteTitle(ref));
+    const r = parseNoteCapture("quick thought about the app", tags, ref, TZ);
+    expect(r.title).toBe(defaultNoteTitle(ref, TZ));
     expect(r.body).toBe("quick thought about the app");
   });
 
@@ -160,7 +167,7 @@ describe("agenda timeline", () => {
 
 describe("metrics", () => {
   it("dayDonePercent blends tasks and habits", () => {
-    const td = iso();
+    const td = "2026-06-21";
     const pct = dayDonePercent(
       [
         {

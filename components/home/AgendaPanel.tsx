@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { hrefWithLife, type LifeView } from "@/lib/life-area";
 import { taskDetailHref, tasksListHref } from "@/lib/task-links";
 import { Taggable } from "@/components/tags/TagMenuProvider";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 
 const PRIO_COLOR = {
   high: "oklch(0.64 0.18 25)",
@@ -103,11 +104,12 @@ export function AgendaPanel({
   lifeView,
   weekStart = "mon",
 }: Props) {
-  const td = iso();
+  const timeZone = useTimezone();
+  const td = iso(new Date(), timeZone);
   const [selectedDay, setSelectedDay] = useQueryState("day", {
     defaultValue: td,
   });
-  const week = weekDates(new Date(), weekStart);
+  const week = weekDates(new Date(), weekStart, timeZone);
   const letters = dowLetters(weekStart);
   const isToday = selectedDay === td;
   const calendarHref = hrefWithLife(`/calendar?day=${selectedDay}`, lifeView);
@@ -139,14 +141,14 @@ export function AgendaPanel({
         <div className="grid grid-cols-7 gap-1">
           {week.map((d, i) => (
             <div
-              key={`dow-${iso(d)}`}
+              key={`dow-${iso(d, timeZone)}`}
               className="text-center font-mono text-[9px] text-faint2"
             >
               {letters[i]}
             </div>
           ))}
           {week.map((d) => {
-            const dayIso = iso(d);
+            const dayIso = iso(d, timeZone);
             const isSelected = dayIso === selectedDay;
             const isDayToday = dayIso === td;
             return (

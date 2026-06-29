@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgendaItem } from "@/lib/schemas";
 import { formatTimeHM, parseTimeToMinutes } from "@/lib/date";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import {
   buildAgendaBlocks,
   findNowPlacement,
@@ -139,15 +140,16 @@ type Props = {
 };
 
 export function AgendaTodayList({ agenda, href, live = false }: Props) {
-  const [nowLabel, setNowLabel] = useState(formatTimeHM);
+  const timeZone = useTimezone();
+  const [nowLabel, setNowLabel] = useState(() => formatTimeHM(new Date(), timeZone));
 
   useEffect(() => {
     if (!live) return;
-    const tick = () => setNowLabel(formatTimeHM());
+    const tick = () => setNowLabel(formatTimeHM(new Date(), timeZone));
     tick();
     const id = window.setInterval(tick, 60_000);
     return () => window.clearInterval(id);
-  }, [live]);
+  }, [live, timeZone]);
 
   const blocks = useMemo(() => buildAgendaBlocks(agenda), [agenda]);
   const nowMins = live ? parseTimeToMinutes(nowLabel) : -1;

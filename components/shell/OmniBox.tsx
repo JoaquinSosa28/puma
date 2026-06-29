@@ -17,6 +17,7 @@ import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { MessageCircleQuestion, Pencil, Sparkles } from "lucide-react";
 
 type OmniMode = "capture" | "plan" | "ask";
@@ -87,6 +88,7 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
   const [mode, setMode] = useState<OmniMode>("capture");
   const [pending, startTransition] = useTransition();
   const assistant = useAssistant();
+  const timeZone = useTimezone();
   const inputRef = useRef<HTMLInputElement>(null);
   const omniRef = useRef<HTMLDivElement>(null);
   const omniEscBlurredAtRef = useRef<number | null>(null);
@@ -185,9 +187,9 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
     return () => root.removeEventListener("focusin", onFocusIn);
   }, []);
 
-  const parsed = parseOmni(text, tags);
+  const parsed = parseOmni(text, tags, undefined, undefined, timeZone);
 
-  const defaultTaskDue = capture.due?.slice(0, 10) ?? agendaDay ?? iso();
+  const defaultTaskDue = capture.due?.slice(0, 10) ?? agendaDay ?? iso(new Date(), timeZone);
 
   useEffect(() => {
     if (!isTask) {

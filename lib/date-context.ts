@@ -3,52 +3,29 @@ import {
   clampLifeSpanYears,
 } from "@/lib/life-calendar";
 import { LIFE_SPAN_MAX } from "@/lib/life-constants";
-import { dateLabel, iso } from "@/lib/date";
+import {
+  dateLabel,
+  daysInMonth,
+  iso,
+  isoWeekNumber,
+  isoWeeksInYear,
+  workweekDay,
+} from "@/lib/date";
+import { normalizeTimezone } from "@/lib/timezone";
 
 export type TopbarDateContext = {
   birthDate?: string | null;
   lifeSpanYears?: number;
+  timeZone?: string;
 };
 
-/** ISO week number (1–53). */
-export function isoWeekNumber(d: Date = new Date()): number {
-  const date = new Date(d.getTime());
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
-  const week1 = new Date(date.getFullYear(), 0, 4);
-  return (
-    1 +
-    Math.round(
-      ((date.getTime() - week1.getTime()) / 86400000 -
-        3 +
-        ((week1.getDay() + 6) % 7)) /
-        7
-    )
-  );
-}
-
-export function isoWeeksInYear(year: number): number {
-  return isoWeekNumber(new Date(year, 11, 28));
-}
-
-export function daysInMonth(d: Date = new Date()): number {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-}
-
-/** Mon=1 … Fri=5; weekends return null. */
-export function workweekDay(
-  d: Date = new Date()
-): { day: number; label: string } | null {
-  const dow = d.getDay();
-  if (dow === 0 || dow === 6) return null;
-  const labels = ["", "MON", "TUE", "WED", "THU", "FRI"] as const;
-  return { day: dow, label: labels[dow]! };
-}
+export { isoWeekNumber, isoWeeksInYear, daysInMonth, workweekDay };
 
 export function lifeWeekProgress(
   birthDate: string,
   spanYears: number = LIFE_SPAN_MAX,
-  today: string = iso()
+  today: string = iso(),
+  timeZone?: string
 ): { lived: number; total: number } {
   const span = clampLifeSpanYears(spanYears);
   const weeks = buildLifeWeeks(birthDate, span);
@@ -72,29 +49,44 @@ export function formatTopbarDateLine(
   d: Date = new Date(),
   ctx: TopbarDateContext = {}
 ): string {
-  const parts: string[] = [dateLabel(d)];
+  const tz = normalizeTimezone(ctx.timeZone);
+  const parts: string[] = [dateLabel(d, tz)];
 
-  const day = d.getDate();
-  const monthDays = daysInMonth(d);
-  const month = d
-    .toLocaleDateString("en-US", { month: "short" })
-    .toUpperCase();
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    day: "numeric",
+    month: "short",
+  })
+    .formatToParts(d)
+    .reduce<Record<string, string>>((acc, part) => {
+      if (part.type !== "literal") acc[part.type] = part.value;
+      return acc;
+    }, {});
+  const day = Number(p.day);
+  const monthDays = daysInMonth(d, tz);
+  const month = (p.month ?? "").toUpperCase();
   parts.push(`DAY ${day}/${monthDays} ${month}`);
 
-  const week = isoWeekNumber(d);
-  const weeksInYear = isoWeeksInYear(d.getFullYear());
+  const week = isoWeekNumber(d, tz);
+  const weeksInYear = isoWeeksInYear(
+    Number(
+      new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric" })
+        .format(d)
+    )
+  );
   parts.push(`WEEK ${week}/${weeksInYear}`);
 
   if (ctx.birthDate) {
     const { lived, total } = lifeWeekProgress(
       ctx.birthDate,
       ctx.lifeSpanYears ?? LIFE_SPAN_MAX,
-      iso(d)
+      iso(d, tz),
+      tz
     );
     parts.push(`LIFE WEEK ${formatCount(lived)}/${formatCount(total)}`);
   }
 
-  const work = workweekDay(d);
+  const work = workweekDay(d, tz);
   if (work) {
     parts.push(`${work.label} ${work.day}/5`);
   } else {

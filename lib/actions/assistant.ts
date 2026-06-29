@@ -5,6 +5,7 @@ import type { ActionResult } from "@/lib/types";
 import type { Goal, Project } from "@/lib/schemas";
 import { getCurrentUserId, newId } from "@/lib/store/memory";
 import { iso } from "@/lib/date";
+import { userToday } from "@/lib/timezone-server";
 import { interpret } from "@/lib/ai/interpret";
 import { ask } from "@/lib/ai/ask";
 import { planSchema, type PlanGraph, type PlanResult } from "@/lib/ai/plan-schema";
@@ -67,7 +68,7 @@ export async function applyPlan(
   const data = parsed.data;
 
   const userId = getCurrentUserId();
-  const td = iso();
+  const { today: td } = await userToday();
 
   const [existingGoals, existingProjects] = await Promise.all([
     listGoals(userId),

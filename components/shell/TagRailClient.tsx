@@ -42,8 +42,8 @@ export function TagRailClient({ tags }: { tags: TagItem[] }) {
   };
 
   return (
-    <>
-      <div className="flex items-center gap-2 px-2 pb-2 pt-[18px]">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-[18px]">
         <span className="font-mono text-[10px] tracking-widest text-faint2">
           TAGS
         </span>
@@ -74,29 +74,31 @@ export function TagRailClient({ tags }: { tags: TagItem[] }) {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="flex flex-col gap-px">
-        {tags.length === 0 ? (
-          <p className="px-2.5 py-1.5 font-mono text-[10px] text-faint2">
-            No tags yet
-          </p>
-        ) : (
-          tags.map((tag) => (
-            <div
-              key={tag.id}
-              className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-muted"
-            >
-              <span
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ background: tag.color }}
-              />
-              <span className="truncate">{tag.name}</span>
-              <span className="ml-auto shrink-0 font-mono text-[10px] text-faint2">
-                {tag.count}
-              </span>
-            </div>
-          ))
-        )}
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:thin]">
+        <div className="flex flex-col gap-px pb-2">
+          {tags.length === 0 ? (
+            <p className="px-2.5 py-1.5 font-mono text-[10px] text-faint2">
+              No tags yet
+            </p>
+          ) : (
+            tags.map((tag) => (
+              <div
+                key={tag.id}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-muted"
+              >
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: tag.color }}
+                />
+                <span className="truncate">{tag.name}</span>
+                <span className="ml-auto shrink-0 font-mono text-[10px] text-faint2">
+                  {tag.count}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }

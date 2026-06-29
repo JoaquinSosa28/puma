@@ -18,6 +18,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { useLifeView } from "@/components/shell/LifeAreaToggle";
 import { taskDetailHref } from "@/lib/task-links";
 import { cn } from "@/lib/utils";
+import { useTimezone } from "@/components/shell/TimeZoneProvider";
 
 const PRIO = CALENDAR_PRIO;
 
@@ -39,12 +40,12 @@ export function CalendarView({
   lifeSpanYears,
 }: Props) {
   const [life] = useLifeView();
+  const timeZone = useTimezone();
+  const td = iso(new Date(), timeZone);
   const [offset, setOffset] = useQueryState("month", parseAsInteger.withDefault(0));
   const [selected, setSelected] = useQueryState("day", {
-    defaultValue: iso(),
+    defaultValue: td,
   });
-
-  const td = iso();
   const base = new Date();
   base.setDate(1);
   base.setMonth(base.getMonth() + offset);
@@ -61,7 +62,7 @@ export function CalendarView({
   const cells = [...Array(42)].map((_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const ds = iso(d);
+    const ds = iso(d, timeZone);
     const inM = d.getMonth() === mm;
     const dts = sortCalendarDayTasks(
       tasks.filter((t) => (t.due ?? "").slice(0, 10) === ds)
@@ -195,7 +196,7 @@ export function CalendarView({
                 <div className="flex flex-col gap-0.5 overflow-hidden">
                   {c.dts.slice(0, 3).map((t) => {
                     if (isMeetingTask(t) && t.due) {
-                      const past = isMeetingPast(t.due, c.ds);
+                      const past = isMeetingPast(t.due, c.ds, new Date(), timeZone);
                       const color = PRIO[t.priority];
                       return (
                         <span
