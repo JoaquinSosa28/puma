@@ -2,10 +2,8 @@
 // demo accounts. Everything is opt-in behind BILLING_ENABLED so local dev and
 // pre-billing deployments behave exactly as before.
 import "server-only";
-import { redirect } from "next/navigation";
 import { getUser } from "@/lib/db/users";
 import { getSubscriptionByUserId } from "@/lib/db/subscriptions";
-import { requireUserId } from "@/lib/auth/session";
 
 export type AccessLevel = "owner" | "subscribed" | "demo" | "none";
 
@@ -40,10 +38,5 @@ export async function getAccessLevel(userId: string): Promise<AccessLevel> {
   return "none";
 }
 
-/** App-shell gate: authenticated but unpaid users land on /billing. */
-export async function requireAccess(): Promise<AccessLevel> {
-  const userId = await requireUserId();
-  const level = await getAccessLevel(userId);
-  if (level === "none") redirect("/billing");
-  return level;
-}
+// The enforcement (redirect to /billing) lives in lib/auth/session.ts's
+// requireUserId, so pages AND server actions are gated by the same seam.

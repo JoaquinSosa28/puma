@@ -32,6 +32,23 @@ function buildAuth() {
     session: {
       cookieCache: { enabled: true, maxAge: 60 }, // cut a DB hit per request
     },
+    // Behind the reverse proxy every request carries Traefik's IP — trust its
+    // forwarded header so the limits below are per-client, not global.
+    advanced: {
+      ipAddress: { ipAddressHeaders: ["x-forwarded-for"] },
+    },
+    // Per-IP limits on the auth endpoints (in-memory store — one container).
+    // Sign-up is the abuse magnet: accounts are free to create, so keep it
+    // slow; sign-in stays tight enough to blunt credential stuffing.
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 60,
+      customRules: {
+        "/sign-up/email": { window: 3600, max: 5 },
+        "/sign-in/email": { window: 60, max: 10 },
+      },
+    },
     databaseHooks: {
       user: {
         create: {

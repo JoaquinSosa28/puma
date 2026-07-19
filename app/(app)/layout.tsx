@@ -10,7 +10,7 @@ import { loadShellData } from "@/lib/data";
 import { displayName } from "@/lib/user-display";
 import { resolveLifeView } from "@/lib/life-view-server";
 import { isAuthEnabled } from "@/lib/auth/session";
-import { requireAccess } from "@/lib/billing/access";
+import { requireAccess } from "@/lib/auth/session";
 import { DemoBanner } from "@/components/shell/DemoBanner";
 import { Suspense } from "react";
 import type { Note, Task } from "@/lib/schemas";
