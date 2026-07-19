@@ -28,6 +28,7 @@ import { LIFE_SPAN_MAX } from "@/lib/date";
 import { DEFAULT_HABIT_VISIBILITY, HABIT_VISIBILITY_DEFAULTS } from "@/lib/habit-visibility";
 import { SettingsNumberField } from "@/components/settings/SettingsNumberField";
 import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
+import { SubscriptionCard } from "@/components/settings/SubscriptionCard";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,8 @@ type Props = {
   userName: string;
   userEmail: string | null;
   authEnabled: boolean;
+  // Hosted deployments with an active subscription show the billing card.
+  showSubscription?: boolean;
   tags: Tag[];
   stats: { dayPct: number; habitsLabel: string; topStreak: number };
 };
@@ -96,6 +99,7 @@ export function SettingsView({
   userName,
   userEmail,
   authEnabled,
+  showSubscription = false,
   tags,
   stats,
 }: Props) {
@@ -198,6 +202,16 @@ export function SettingsView({
           >
             <ApiKeyField last4={settings?.aiApiKeyLast4 ?? null} />
           </SettingsSection>
+
+          {showSubscription && (
+            <SettingsSection
+              title="Subscription"
+              description="Your hosted PUMA plan — payments are handled by the billing provider; this app never sees your card."
+              className="lg:col-span-2"
+            >
+              <SubscriptionCard />
+            </SettingsSection>
+          )}
 
           <SettingsSection
             title="General"
