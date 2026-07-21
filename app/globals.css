@@ -443,3 +443,17 @@ body {
 .scroll-hint-arrow-y {
   animation: scrollHintY 1.1s ease-in-out infinite;
 }
+
+/* Touch-device polish: no gray tap flash, no double-tap zoom delay, and
+   scroll chains stay inside their containers. */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (pointer: coarse) {
+  html {
+    touch-action: manipulation;
+  }
+  body {
+    overscroll-behavior-y: contain;
+  }
+}

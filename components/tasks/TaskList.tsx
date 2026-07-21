@@ -339,7 +339,7 @@ export function TaskList({
               }}
               className={cn(
                 "flex shrink-0 items-center justify-center rounded-[5px] border-[1.8px]",
-                isPage ? "h-5 w-5" : "h-[18px] w-[18px]",
+                isPage ? "h-5 w-5 max-lg:h-6 max-lg:w-6" : "h-[18px] w-[18px] max-lg:h-5 max-lg:w-5",
                 done
                   ? "border-none bg-habits"
                   : "border-border bg-transparent"
@@ -492,7 +492,7 @@ export function TaskList({
                 className={cn(
                   "leading-none text-faint2 transition-colors hover:bg-surface2 hover:text-ink",
                   isPage
-                    ? "flex h-6 w-6 items-center justify-center rounded-md text-lg"
+                    ? "flex h-6 w-6 items-center justify-center rounded-md text-lg max-lg:h-8 max-lg:w-8"
                     : "px-0.5 text-[15px]"
                 )}
                 title="delete"

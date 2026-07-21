@@ -10,6 +10,7 @@ import { Topbar } from "@/components/shell/Topbar";
 import { KanbanBoard } from "@/components/projects/KanbanBoard";
 import { ProjectDetailPanel } from "@/components/projects/ProjectDetailPanel";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NewProjectCard } from "@/components/projects/NewProjectCard";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { cn } from "@/lib/utils";
@@ -148,22 +149,35 @@ export function ProjectsView({
               </div>
             </div>
             {editingTask ? (
-              // Phone: full-screen editor overlay; desktop: in-grid panel.
-              <div
-                key={editingTask.id}
-                className="min-h-0 overflow-hidden animate-puma-view max-lg:fixed max-lg:inset-0 max-lg:z-50 max-lg:bg-background"
-              >
-                <TaskDetailPanel
-                  task={editingTask}
-                  tags={tags}
-                  projects={projects}
-                  onClose={() => void setTaskId(null)}
-                  onBack={{
-                    label: selected.title,
-                    action: () => void setTaskId(null),
-                  }}
-                />
-              </div>
+              // Phone: draggable bottom sheet; desktop: in-grid panel.
+              <>
+                <div
+                  key={editingTask.id}
+                  className="hidden min-h-0 overflow-hidden animate-puma-view lg:block"
+                >
+                  <TaskDetailPanel
+                    task={editingTask}
+                    tags={tags}
+                    projects={projects}
+                    onClose={() => void setTaskId(null)}
+                    onBack={{
+                      label: selected.title,
+                      action: () => void setTaskId(null),
+                    }}
+                  />
+                </div>
+                <div className="lg:hidden">
+                  <BottomSheet open onClose={() => void setTaskId(null)}>
+                    <TaskDetailPanel
+                      task={editingTask}
+                      tags={tags}
+                      projects={projects}
+                      onClose={() => void setTaskId(null)}
+                      embedded
+                    />
+                  </BottomSheet>
+                </div>
+              </>
             ) : (
               <ProjectDetailPanel
                 project={selected}

@@ -303,7 +303,7 @@ function KanbanColumnStatic({
   children: React.ReactNode;
 }) {
   return (
-    <div className="kanban-column flex min-h-0 flex-col rounded-xl border border-border bg-surface2 p-3 max-lg:w-[76vw] max-lg:max-w-[320px] max-lg:shrink-0">
+    <div className="kanban-column flex min-h-0 flex-col rounded-xl border border-border bg-surface2 p-3 max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0">
       <div className="mb-2.5 flex items-center gap-1.5 px-0.5">
         <span
           className="h-2 w-2 rounded-full"
@@ -340,7 +340,7 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "kanban-column flex min-h-0 flex-col rounded-xl border p-3 transition-all duration-200 ease-out max-lg:w-[76vw] max-lg:max-w-[320px] max-lg:shrink-0",
+        "kanban-column flex min-h-0 flex-col rounded-xl border p-3 transition-all duration-200 ease-out max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0",
         isOver
           ? "kanban-column--over border-primary/40 bg-primary/[0.04] shadow-[inset_0_0_0_1px_oklch(0.55_0.16_274/0.15)]"
           : "border-border bg-surface2",

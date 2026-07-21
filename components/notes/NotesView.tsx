@@ -80,6 +80,9 @@ export function NotesView({
       (a.updatedAt < b.updatedAt ? 1 : -1)
   );
   const selected = sorted.find((n) => n.id === selectedId) ?? sorted[0] ?? null;
+  // Phone master-detail: /notes shows the list; /notes/[id] shows the editor
+  // with a back link. Wider screens show both side by side.
+  const explicit = Boolean(selectedId && sorted.some((n) => n.id === selectedId));
   const tagMap = new Map(tags.map((t) => [t.id, t]));
 
   const togglePin = (noteId: string) => {
@@ -103,8 +106,13 @@ export function NotesView({
         birthDate={birthDate}
         lifeSpanYears={lifeSpanYears}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-puma-view lg:flex-row lg:gap-[18px]">
-        <div className="flex min-h-0 shrink-0 flex-col max-lg:max-h-[34vh] lg:w-[300px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-puma-view md:flex-row md:gap-[18px]">
+        <div
+          className={cn(
+            "flex min-h-0 shrink-0 flex-col md:w-[260px] lg:w-[300px]",
+            explicit ? "max-md:hidden" : "max-md:min-h-0 max-md:flex-1"
+          )}
+        >
           <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
             {sorted.map((n) => (
               <Taggable
@@ -157,12 +165,27 @@ export function NotesView({
           </div>
         </div>
         {selected && (
-          <NoteEditor
-            key={selected.id}
-            note={selected}
-            onRefresh={() => router.refresh()}
-            onTogglePin={() => togglePin(selected.id)}
-          />
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 flex-col",
+              !explicit && "max-md:hidden"
+            )}
+          >
+            {explicit && (
+              <Link
+                href={hrefWithLife("/notes", lifeView)}
+                className="mb-2 inline-flex items-center gap-1 self-start rounded-lg border border-border bg-surface px-2.5 py-1 text-[12px] font-semibold text-muted md:hidden"
+              >
+                ← All notes
+              </Link>
+            )}
+            <NoteEditor
+              key={selected.id}
+              note={selected}
+              onRefresh={() => router.refresh()}
+              onTogglePin={() => togglePin(selected.id)}
+            />
+          </div>
         )}
       </div>
     </>
@@ -206,7 +229,7 @@ function NoteEditor({
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[13px] border border-border bg-surface">
       <div className="flex items-center gap-2.5 border-b border-border2 px-5 py-4">
         <input
-          className="flex-1 border-none bg-transparent text-xl font-bold tracking-tight text-ink outline-none"
+          className="min-w-0 flex-1 border-none bg-transparent text-xl font-bold tracking-tight text-ink outline-none max-lg:text-lg"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => save("title", title)}
