@@ -45,3 +45,6 @@ next-env.d.ts
 /prototype/
 *.dc.html
 /.claude/
+
+# Local planning docs — never committed
+*.local.md
