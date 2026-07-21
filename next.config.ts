@@ -41,6 +41,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Emit a self-contained server bundle (.next/standalone) for a small Docker image.
   output: "standalone",
+  // Hide the floating Next.js dev-tools button (bottom-left "N") in dev.
+  devIndicators: false,
   outputFileTracingRoot: path.join(__dirname),
   // Keep the Mongo driver out of Turbopack route bundles — compiles much faster in dev.
   serverExternalPackages: ["mongodb"],
