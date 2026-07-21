@@ -1,57 +1,36 @@
 import type { Project, Task } from "@/lib/schemas";
 import { projectProgress } from "@/lib/metrics";
-import { TaskList } from "@/components/tasks/TaskList";
 import type { Tag } from "@/lib/schemas";
 import { WidgetHeaderLink, WidgetRowLink } from "@/components/home/WidgetLink";
+import { TodayTasksCard } from "@/components/home/TodayTasksCard";
 import { hrefWithLife, type LifeView } from "@/lib/life-area";
-import { tasksListHref } from "@/lib/task-links";
 
 type Props = {
-  todayTasks: Task[];
   projects: Project[];
   allTasks: Task[];
+  carryover: Task[];
   tags: Tag[];
   lifeView: LifeView;
   today: string;
 };
 
 export function HomeTasksProjects({
-  todayTasks,
   projects,
   allTasks,
+  carryover,
   tags,
   lifeView,
   today: td,
 }: Props) {
-  const today = todayTasks.filter((t) => (t.due ?? "").slice(0, 10) === td);
-  const done = today.filter((t) => t.status === "done").length;
-  const pct = today.length ? Math.round((done / today.length) * 100) : 0;
-
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      <section className="flex min-h-0 flex-[1.15] flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px]">
-        <WidgetHeaderLink href={tasksListHref(lifeView, "today")}>
-          <span className="h-2.5 w-2.5 rounded-[3px] bg-tasks" />
-          <h3 className="m-0 text-sm font-bold">Today&apos;s tasks</h3>
-          <span className="font-mono text-[11px] text-faint">
-            {done} of {today.length} done
-          </span>
-          <div className="ml-auto h-1.5 max-w-[140px] flex-1 overflow-hidden rounded-full bg-border2">
-            <div
-              className="h-full bg-tasks transition-all duration-300"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </WidgetHeaderLink>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <TaskList
-            tasks={today}
-            tags={tags}
-            linkTaskDetail
-            lifeView={lifeView}
-          />
-        </div>
-      </section>
+      <TodayTasksCard
+        allTasks={allTasks}
+        carryover={carryover}
+        tags={tags}
+        lifeView={lifeView}
+        today={td}
+      />
 
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[13px] border border-border bg-surface px-[18px] py-[15px]">
         <WidgetHeaderLink href={hrefWithLife("/projects", lifeView)}>

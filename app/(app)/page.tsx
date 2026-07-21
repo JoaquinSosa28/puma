@@ -42,9 +42,9 @@ export default async function HomePage({ searchParams }: Props) {
           weekStart={weekStart}
         />
         <HomeTasksProjects
-          todayTasks={data.todayTasks}
           projects={data.projects}
           allTasks={data.allTasks}
+          carryover={data.carryover}
           tags={data.tags}
           lifeView={lifeView}
           today={data.today}
