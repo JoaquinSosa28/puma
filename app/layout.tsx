@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Schibsted_Grotesk, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -22,6 +22,15 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "P.U.M.A — Procrastination Ultimate Management App",
   description: "Personal life-management dashboard",
+  appleWebApp: { capable: true, title: "PUMA", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf9f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#111110" },
+  ],
 };
 
 export default async function RootLayout({

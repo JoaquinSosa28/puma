@@ -30,6 +30,7 @@ import { updateGoalsLayoutAction } from "@/lib/actions/goals";
 import { goalHasLinks } from "@/lib/goal-sync";
 import { Topbar } from "@/components/shell/Topbar";
 import { GoalDetailPanel } from "@/components/goals/GoalDetailPanel";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import type { GoalCategory } from "@/lib/types";
 import type { WeekStart } from "@/lib/date";
 import type { HabitVisibilitySettings } from "@/lib/habit-visibility";
@@ -350,15 +351,8 @@ export function GoalsView({
           )}
         </div>
 
-        {/* Desktop: right-hand pane. Phone: full-screen editor overlay. */}
-        <div
-          className={cn(
-            "min-h-0 overflow-hidden bg-surface2/20",
-            selectedGoal
-              ? "fixed inset-0 z-50 bg-background lg:static lg:z-auto lg:bg-surface2/20"
-              : "hidden lg:block"
-          )}
-        >
+        {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
+        <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
           {selectedGoal ? (
             <GoalDetailPanel
               goal={selectedGoal}
@@ -379,6 +373,22 @@ export function GoalsView({
               </p>
             </div>
           )}
+        </div>
+        <div className="lg:hidden">
+          <BottomSheet open={!!selectedGoal} onClose={() => setGoalId(null)}>
+            {selectedGoal && (
+              <GoalDetailPanel
+                goal={selectedGoal}
+                projects={projects}
+                habits={habits}
+                habitEntries={habitEntries}
+                tasks={tasks}
+                habitVisibility={habitVisibility}
+                weekStart={weekStart}
+                onClose={() => setGoalId(null)}
+              />
+            )}
+          </BottomSheet>
         </div>
       </div>
     </>

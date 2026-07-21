@@ -318,7 +318,7 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
       </div>
 
       <div className="relative z-[1]">
-      <div className="flex items-center gap-[11px]">
+      <div className="flex items-center gap-[11px] max-lg:flex-wrap">
         <ModeSwitch mode={mode} onChange={setMode} />
         {mode === "ask" ? (
           <span

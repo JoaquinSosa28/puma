@@ -7,6 +7,7 @@ import type { Task, Tag, Project } from "@/lib/schemas";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { addDays, iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { Topbar } from "@/components/shell/Topbar";
@@ -373,15 +374,8 @@ export function TasksView({
             </div>
           </div>
 
-          {/* Desktop: right-hand pane. Phone: full-screen editor overlay. */}
-          <div
-            className={cn(
-              "min-h-0 overflow-hidden bg-surface2/20",
-              selectedTask
-                ? "fixed inset-0 z-50 bg-background p-0 lg:static lg:z-auto lg:bg-surface2/20"
-                : "hidden lg:block"
-            )}
-          >
+          {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
+          <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
             {selectedTask ? (
               <TaskDetailPanel
                 task={selectedTask}
@@ -398,6 +392,19 @@ export function TasksView({
                 </p>
               </div>
             )}
+          </div>
+          <div className="lg:hidden">
+            <BottomSheet open={!!selectedTask} onClose={() => setTaskId(null)}>
+              {selectedTask && (
+                <TaskDetailPanel
+                  task={selectedTask}
+                  tags={tags}
+                  projects={projects}
+                  onClose={() => setTaskId(null)}
+                  embedded
+                />
+              )}
+            </BottomSheet>
           </div>
         </div>
       </div>

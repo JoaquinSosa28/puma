@@ -6,6 +6,8 @@ import { TimezoneSync } from "@/components/shell/TimezoneSync";
 import { AssistantProvider } from "@/components/assistant/AssistantProvider";
 import { TaskTimerProvider } from "@/components/tasks/TaskTimerProvider";
 import { MobileShell } from "@/components/shell/MobileShell";
+import { MobileDock } from "@/components/shell/MobileDock";
+import { MobileCapture } from "@/components/shell/MobileCapture";
 import { loadShellData } from "@/lib/data";
 import { displayName } from "@/lib/user-display";
 import { resolveLifeView } from "@/lib/life-view-server";
@@ -80,16 +82,26 @@ async function AppShell({ children }: { children: React.ReactNode }) {
                 {data.user?.isDemo && (
                   <DemoBanner expiresAt={data.user.demoExpiresAt ?? null} />
                 )}
-                <OmniBox
+                <div className="hidden lg:block">
+                  <OmniBox
+                    tags={data.tags}
+                    tasks={shellTasks}
+                    notes={shellNotes}
+                    projects={data.projects}
+                    defaultType={data.settings?.defaultCaptureType ?? "task"}
+                  />
+                </div>
+                <MobileCapture
                   tags={data.tags}
                   tasks={shellTasks}
                   notes={shellNotes}
                   projects={data.projects}
                   defaultType={data.settings?.defaultCaptureType ?? "task"}
                 />
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden max-lg:pb-[72px]">
                   {children}
                 </div>
+                <MobileDock lifeAuto={lifeAuto} />
               </main>
             </AssistantProvider>
           </div>
