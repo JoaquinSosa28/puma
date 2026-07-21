@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger } from "nuqs";
-import type { Task, HabitEntry } from "@/lib/schemas";
-import { iso } from "@/lib/date";
+import { X } from "lucide-react";
+import { toast } from "sonner";
+import type { AgendaItem, Task, HabitEntry } from "@/lib/schemas";
+import { iso, parseTimeToMinutes } from "@/lib/date";
+import { deleteAgendaItemAction } from "@/lib/actions/agenda";
+import { AddMeetingButton } from "@/components/agenda/AddMeetingButton";
 import {
   CALENDAR_PRIO,
   calendarPrioBg,
@@ -24,6 +30,7 @@ const PRIO = CALENDAR_PRIO;
 
 type Props = {
   tasks: Task[];
+  agenda: AgendaItem[];
   habitEntries: HabitEntry[];
   tags: Tag[];
   stats: { dayPct: number; habitsLabel: string; topStreak: number };
@@ -33,6 +40,7 @@ type Props = {
 
 export function CalendarView({
   tasks,
+  agenda,
   habitEntries,
   tags,
   stats,
@@ -40,7 +48,20 @@ export function CalendarView({
   lifeSpanYears,
 }: Props) {
   const [life] = useLifeView();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const timeZone = useTimezone();
+  const meetingsFor = (day: string) =>
+    agenda
+      .filter((a) => a.kind === "meeting" && a.date === day)
+      .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+  const deleteMeeting = (id: string) => {
+    startTransition(async () => {
+      const res = await deleteAgendaItemAction(id);
+      if (!res.ok) toast.error(res.error ?? "Could not remove meeting");
+      else router.refresh();
+    });
+  };
   const td = iso(new Date(), timeZone);
   const [offset, setOffset] = useQueryState("month", parseAsInteger.withDefault(0));
   const [selected, setSelected] = useQueryState("day", {
@@ -67,6 +88,11 @@ export function CalendarView({
     const dts = sortCalendarDayTasks(
       tasks.filter((t) => (t.due ?? "").slice(0, 10) === ds)
     );
+    const meetings = meetingsFor(ds);
+    // Cells fit ~3 rows: meetings first (max 2), tasks fill the rest.
+    const shownMeetings = Math.min(2, meetings.length);
+    const shownTasks = Math.min(dts.length, Math.max(0, 3 - shownMeetings));
+    const overflow = meetings.length + dts.length - shownMeetings - shownTasks;
     const hc = habitEntries.filter((e) => e.date === ds).length;
     const isSel = ds === selected;
     const isTdy = ds === td;
@@ -75,6 +101,10 @@ export function CalendarView({
       day: d.getDate(),
       inM,
       dts,
+      meetings,
+      shownMeetings,
+      shownTasks,
+      overflow,
       hc,
       isSel,
       isTdy,
@@ -194,7 +224,24 @@ export function CalendarView({
                   )}
                 </div>
                 <div className="flex flex-col gap-0.5 overflow-hidden">
-                  {c.dts.slice(0, 3).map((t) => {
+                  {c.meetings.slice(0, c.shownMeetings).map((m) => (
+                    <span
+                      key={m.id}
+                      className="flex min-w-0 items-center gap-1 truncate rounded border-l-2 px-1 py-px text-[9px]"
+                      style={{
+                        borderColor: m.color,
+                        background: m.color.replace(")", " / 0.1)"),
+                      }}
+                    >
+                      <span className="shrink-0 font-mono text-[8px] text-faint2">
+                        {m.time}
+                      </span>
+                      <span className="min-w-0 truncate font-medium text-ink">
+                        {m.title}
+                      </span>
+                    </span>
+                  ))}
+                  {c.dts.slice(0, c.shownTasks).map((t) => {
                     if (isMeetingTask(t) && t.due) {
                       const past = isMeetingPast(t.due, c.ds, new Date(), timeZone);
                       const color = PRIO[t.priority];
@@ -249,9 +296,9 @@ export function CalendarView({
                       </span>
                     );
                   })}
-                  {c.dts.length > 3 && (
+                  {c.overflow > 0 && (
                     <span className="font-mono text-[9px] text-faint">
-                      +{c.dts.length - 3} more
+                      +{c.overflow} more
                     </span>
                   )}
                 </div>
@@ -260,13 +307,51 @@ export function CalendarView({
           </div>
         </div>
         <div className="flex shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:max-h-[40vh] lg:w-[300px]">
-          <div className="border-b border-border2 px-[18px] py-4">
-            <div className="mb-0.5 font-mono text-[10px] text-faint">
-              SELECTED DAY
+          <div className="flex items-start justify-between gap-2 border-b border-border2 px-[18px] py-4">
+            <div className="min-w-0">
+              <div className="mb-0.5 font-mono text-[10px] text-faint">
+                SELECTED DAY
+              </div>
+              <h3 className="m-0 text-base font-bold">{selLabel}</h3>
             </div>
-            <h3 className="m-0 text-base font-bold">{selLabel}</h3>
+            <AddMeetingButton
+              defaultDate={selected}
+              lifeView={life}
+              className="mt-0.5 shrink-0"
+            />
           </div>
           <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-[18px] py-3.5">
+            {meetingsFor(selected).length > 0 && (
+              <div className="mb-2 flex flex-col gap-0.5">
+                {meetingsFor(selected).map((m) => (
+                  <div
+                    key={m.id}
+                    className="group relative -mx-1 rounded-lg px-1 py-1"
+                  >
+                    <div className="flex gap-2">
+                      <span className="w-10 shrink-0 pt-px font-mono text-[11px] text-faint2">
+                        {m.time}
+                      </span>
+                      <div
+                        className="flex-1 border-l-2 pl-[11px]"
+                        style={{ borderColor: m.color }}
+                      >
+                        <div className="text-[13px] font-semibold">{m.title}</div>
+                        <div className="text-[11px] text-faint">{m.sub}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteMeeting(m.id)}
+                      aria-label={`Remove meeting ${m.title}`}
+                      className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {selTasks.length ? (
               <TaskList
                 tasks={selTasks}
@@ -276,11 +361,11 @@ export function CalendarView({
                 linkTaskDetail
                 lifeView={life}
               />
-            ) : (
+            ) : meetingsFor(selected).length === 0 ? (
               <div className="px-1 py-2 text-[13px] text-faint">
-                Nothing scheduled. Use the capture bar above.
+                Nothing scheduled. Add a meeting above or capture a task.
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

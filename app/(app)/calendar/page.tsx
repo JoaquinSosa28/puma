@@ -8,6 +8,7 @@ export default async function CalendarPage({ searchParams }: Props) {
   return (
     <CalendarView
       tasks={data.tasks}
+      agenda={data.agenda}
       habitEntries={data.habitEntries}
       tags={data.tags}
       stats={data.stats}

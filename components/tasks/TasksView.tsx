@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
-import { ListTodo, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListTodo, X } from "lucide-react";
 import type { Task, Tag, Project } from "@/lib/schemas";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
-import { iso } from "@/lib/date";
+import { addDays, iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { Topbar } from "@/components/shell/Topbar";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -51,6 +51,15 @@ export function TasksView({
   const listRef = useRef<HTMLDivElement>(null);
   const timeZone = useTimezone();
   const td = iso(new Date(), timeZone);
+  // Day the "Today" tab is looking at. Deliberately plain state (not URL):
+  // browsing other days is a peek — refreshes and navigation land back on today.
+  const [day, setDay] = useState(td);
+  const onToday = day === td;
+  useEffect(() => {
+    if (tab !== "today") setDay(td);
+  }, [tab, td]);
+  const stepDay = (delta: number) =>
+    setDay((d) => iso(addDays(delta, new Date(d + "T00:00"), timeZone), timeZone));
 
   const selectedTask = useMemo(
     () => (taskId ? tasks.find((t) => t.id === taskId) ?? null : null),
@@ -64,7 +73,7 @@ export function TasksView({
   const filtered = useMemo(() => {
     let items = tasks.filter((t) => {
       const d = (t.due ?? "").slice(0, 10);
-      if (tab === "today") return d === td;
+      if (tab === "today") return d === day;
       if (tab === "upcoming") return d > td;
       return true;
     });
@@ -72,7 +81,7 @@ export function TasksView({
       items = items.filter((t) => t.projectId === projectFilter);
     }
     return items;
-  }, [tasks, tab, td, projectFilter]);
+  }, [tasks, tab, td, day, projectFilter]);
 
   const filteredCarryover = useMemo(() => {
     if (!projectFilter) return carryover;
@@ -98,11 +107,21 @@ export function TasksView({
     ? projects.find((p) => p.id === projectFilter)
     : null;
 
+  const showCarryover = tab === "today" && onToday;
+  const dayLabel = onToday
+    ? "Today"
+    : new Date(day + "T00:00").toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+
+
   const taskGroups = useMemo((): Group[] => {
     if (group === "none") {
       const label =
         filteredProject?.title ??
-        (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
+        (tab === "today" ? dayLabel : tab === "upcoming" ? "Upcoming" : "All tasks");
       return [
         {
           label,
@@ -158,7 +177,7 @@ export function TasksView({
       });
     }
     return result;
-  }, [group, tags, projects, filtered, tab, filteredProject]);
+  }, [group, tags, projects, filtered, tab, filteredProject, dayLabel]);
 
   useEffect(() => {
     if (projectFilter && !filteredProject) setProjectFilter(null);
@@ -176,9 +195,11 @@ export function TasksView({
 
   const emptyCopy =
     tab === "today"
-      ? filteredCarryover.length
+      ? showCarryover && filteredCarryover.length
         ? "Nothing new due today — finish carryover below or check Upcoming."
-        : "Nothing due today — capture something above or check Upcoming."
+        : onToday
+          ? "Nothing due today — capture something above or check Upcoming."
+          : "Nothing was due this day."
       : tab === "upcoming"
         ? "No upcoming tasks. You're clear ahead."
         : "No tasks yet. Use the capture bar to add one.";
@@ -217,6 +238,43 @@ export function TasksView({
             onChange={(v) => setTab(v as typeof tab)}
             accent={TASK_ACCENT}
           />
+          {tab === "today" && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => stepDay(-1)}
+                aria-label="Previous day"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-faint2 hover:text-ink"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <span
+                className={cn(
+                  "min-w-[92px] text-center font-mono text-[11px] font-semibold",
+                  onToday ? "text-faint" : "text-ink"
+                )}
+              >
+                {dayLabel}
+              </span>
+              <button
+                type="button"
+                onClick={() => stepDay(1)}
+                aria-label="Next day"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-faint2 hover:text-ink"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+              {!onToday && (
+                <button
+                  type="button"
+                  onClick={() => setDay(td)}
+                  className="rounded-lg border border-border px-2.5 py-1 font-mono text-[11px] font-semibold text-muted transition-colors hover:border-faint2 hover:text-ink"
+                >
+                  Today
+                </button>
+              )}
+            </div>
+          )}
           <div className="hidden h-5 w-px bg-border sm:block" aria-hidden />
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-faint2">
@@ -276,7 +334,7 @@ export function TasksView({
             className="min-h-0 overflow-y-auto p-3 lg:border-r lg:border-border2 lg:p-4"
           >
             <div className="flex flex-col gap-4">
-              {!filtered.length && !(tab === "today" && filteredCarryover.length) ? (
+              {!filtered.length && !(showCarryover && filteredCarryover.length) ? (
                 <div className="rounded-[13px] border-2 border-dashed border-border bg-surface2/50 px-6 py-12 text-center">
                   <div
                     className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface"
@@ -302,7 +360,7 @@ export function TasksView({
                     />
                   ))
               )}
-              {tab === "today" && filteredCarryover.length > 0 && (
+              {showCarryover && filteredCarryover.length > 0 && (
                 <CarryoverSection
                   tasks={filteredCarryover}
                   tags={tags}

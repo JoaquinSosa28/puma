@@ -37,7 +37,6 @@ export default async function HomePage({ searchParams }: Props) {
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-5 animate-puma-view lg:grid lg:grid-cols-[304px_1fr_340px] lg:overflow-hidden">
         <AgendaPanel
           agenda={data.agenda}
-          carryover={data.carryover}
           tasks={data.allTasks}
           lifeView={lifeView}
           weekStart={weekStart}
