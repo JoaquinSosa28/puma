@@ -88,7 +88,7 @@ export function TaskTimer({
               ? "border-primary/40 bg-primary/10 font-semibold text-primary"
               : elapsed > 0
                 ? "border-border text-faint"
-                : "border-border text-faint2"
+                : "border-border text-faint2 max-sm:hidden"
           )}
         >
           {running

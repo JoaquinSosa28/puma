@@ -307,8 +307,8 @@ export function TaskList({
                   ? "border-b border-border2 px-4 py-2.5 last:border-b-0 hover:bg-surface2/70"
                   : "rounded-lg px-1 py-1 hover:bg-surface2",
                 showDelete
-                  ? "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px_16px]"
-                  : "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px]",
+                  ? "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px_16px]"
+                  : "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px]",
                 isPage && t.status === "doing" && "bg-primary/[0.03]",
                 selected && "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35",
                 !selected && accentBorder
