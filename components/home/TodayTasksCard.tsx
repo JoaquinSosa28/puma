@@ -57,9 +57,9 @@ export function TodayTasksCard({
 
   return (
     <section className="flex min-h-0 flex-[1.15] flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px]">
-      <div className="flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <WidgetHeaderLink href={tasksListHref(lifeView, "today")}>
+          <WidgetHeaderLink href={tasksListHref(lifeView, "today")} className="mb-0">
             <span className="h-2.5 w-2.5 rounded-[3px] bg-tasks" />
             <h3 className="m-0 truncate text-sm font-bold">
               {onToday ? "Today's tasks" : dayLabel}
@@ -77,7 +77,7 @@ export function TodayTasksCard({
             )}
           </WidgetHeaderLink>
         </div>
-        <div className="-mt-0.5 flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {!onToday && (
             <button
               type="button"
@@ -106,6 +106,15 @@ export function TodayTasksCard({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {onToday && recentCarryover.length > 0 && (
+          <CarryoverSection
+            tasks={recentCarryover}
+            variant="agenda"
+            href={tasksListHref(lifeView, "today")}
+            taskHref={(task) => taskDetailHref(task, lifeView, td)}
+            className="mb-2"
+          />
+        )}
         {dayTasks.length ? (
           <TaskList
             tasks={dayTasks}
@@ -117,15 +126,6 @@ export function TodayTasksCard({
           <p className={cn("py-2 font-mono text-[11px] text-faint2")}>
             {onToday ? "Nothing due today" : "Nothing was due this day"}
           </p>
-        )}
-        {onToday && recentCarryover.length > 0 && (
-          <CarryoverSection
-            tasks={recentCarryover}
-            variant="agenda"
-            href={tasksListHref(lifeView, "today")}
-            taskHref={(task) => taskDetailHref(task, lifeView, td)}
-            className="mt-2"
-          />
         )}
       </div>
     </section>

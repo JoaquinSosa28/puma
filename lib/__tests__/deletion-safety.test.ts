@@ -137,6 +137,15 @@ describe("delete cascades unlink every referencer", () => {
     expect(stored?.projectId).toBeNull();
   });
 
+  it("deleteProject with deleteTasks removes the tasks too", async () => {
+    const { project, task } = await buildLinkedGraph();
+    await deleteProject(userId, project.id, { deleteTasks: true });
+    expect(danglers()).toEqual([]);
+    expect(getStore().tasks.some((t) => t._id === task.id)).toBe(false);
+    // Only the project's own tasks go — everything else stays.
+    expect(getStore().tasks.length).toBeGreaterThan(0);
+  });
+
   it("deleteHabit removes its entries", async () => {
     const { habit } = await buildLinkedGraph();
     await deleteHabit(userId, habit.id);

@@ -76,13 +76,23 @@ export async function updateProjectDetail(
   return { ok: true, data: updated };
 }
 
-export async function deleteProjectAction(id: string): Promise<ActionResult> {
+export async function deleteProjectAction(
+  id: string,
+  opts: { deleteTasks?: boolean } = {}
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ id: z.string(), deleteTasks: z.boolean().optional() })
+    .safeParse({ id, deleteTasks: opts.deleteTasks });
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
   const userId = await requireUserId();
   const existing = await getProject(userId, id);
   if (!existing) return { ok: false, error: "Not found" };
 
   const goalId = existing.goalId;
-  const deleted = await deleteProject(userId, id);
+  const deleted = await deleteProject(userId, id, {
+    deleteTasks: parsed.data.deleteTasks,
+  });
   if (!deleted) return { ok: false, error: "Not found" };
 
   if (goalId) await syncGoalProgress(userId, goalId);

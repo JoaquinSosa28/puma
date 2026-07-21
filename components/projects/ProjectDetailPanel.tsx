@@ -12,6 +12,12 @@ import { PROJECT_COLORS } from "@/lib/project-colors";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { toast } from "sonner";
 
@@ -73,29 +79,39 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
     persist({ title: next });
   };
 
-  const handleDelete = async () => {
-    const taskCount = tasks.filter((t) => t.projectId === project.id).length;
-    const ok = await confirm({
-      title: `Delete "${project.title}"?`,
-      description:
-        taskCount > 0
-          ? `${taskCount} task${taskCount === 1 ? "" : "s"} will be kept but unlinked from this project.`
-          : undefined,
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!ok) return;
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const taskCount = tasks.filter((t) => t.projectId === project.id).length;
 
+  const runDelete = (deleteTasks: boolean) => {
+    setDeleteOpen(false);
     startTransition(async () => {
-      const res = await deleteProjectAction(project.id);
+      const res = await deleteProjectAction(project.id, { deleteTasks });
       if (!res.ok) {
         toast.error(res.error ?? "Could not delete project");
         return;
       }
-      toast.success("Project deleted");
+      toast.success(
+        deleteTasks && taskCount > 0
+          ? `Project + ${taskCount} task${taskCount === 1 ? "" : "s"} deleted`
+          : "Project deleted"
+      );
       onDeleted?.();
       router.refresh();
     });
+  };
+
+  const handleDelete = async () => {
+    // No linked tasks → nothing to decide, plain confirm is enough.
+    if (taskCount === 0) {
+      const ok = await confirm({
+        title: `Delete "${project.title}"?`,
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (ok) runDelete(false);
+      return;
+    }
+    setDeleteOpen(true);
   };
 
   return (
@@ -225,6 +241,48 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
         </section>
       </div>
       <ScrollHint targetRef={bodyRef} direction="down" />
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent
+          className="max-w-[420px] gap-0 rounded-[13px] p-0"
+          style={{ boxShadow: "2px 2px 0 var(--shadow)" }}
+        >
+          <div className="border-b border-border2 bg-surface2/60 px-5 py-4">
+            <DialogHeader className="gap-1">
+              <DialogTitle className="text-base font-extrabold tracking-tight">
+                Delete &quot;{project.title}&quot;?
+              </DialogTitle>
+            </DialogHeader>
+            <p className="m-0 mt-1 text-[13px] leading-relaxed text-muted">
+              It has {taskCount} task{taskCount === 1 ? "" : "s"}. Keep them as
+              standalone tasks, or delete them along with the project.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 px-5 py-4">
+            <button
+              type="button"
+              onClick={() => runDelete(false)}
+              className="w-full rounded-lg border border-border px-3 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-faint2 hover:bg-hover"
+            >
+              Delete project, keep tasks
+            </button>
+            <button
+              type="button"
+              onClick={() => runDelete(true)}
+              className="w-full rounded-lg border border-tasks/40 bg-tasks/10 px-3 py-2 text-[13px] font-semibold text-tasks transition-colors hover:border-tasks/60 hover:bg-tasks/15"
+            >
+              Delete project + {taskCount} task{taskCount === 1 ? "" : "s"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(false)}
+              className="w-full rounded-lg px-3 py-1.5 text-[12px] font-semibold text-faint transition-colors hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

@@ -49,14 +49,20 @@ export async function updateProject(
 
 export async function deleteProject(
   userId: string,
-  id: string
+  id: string,
+  opts: { deleteTasks?: boolean } = {}
 ): Promise<boolean> {
   const c = await col();
   const db = await getDb();
-  // Detach tasks from the project, then remove it (no transaction, sequential).
-  await db
-    .collection<TaskDoc>("tasks")
-    .updateMany({ userId, projectId: id }, { $set: { projectId: null } });
+  // Either take the project's tasks with it, or detach them — never leave a
+  // dangling projectId (no transaction, sequential).
+  if (opts.deleteTasks) {
+    await db.collection<TaskDoc>("tasks").deleteMany({ userId, projectId: id });
+  } else {
+    await db
+      .collection<TaskDoc>("tasks")
+      .updateMany({ userId, projectId: id }, { $set: { projectId: null } });
+  }
   const res = await c.deleteOne({ _id: id, userId });
   return res.deletedCount > 0;
 }
