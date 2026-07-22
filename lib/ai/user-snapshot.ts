@@ -85,11 +85,9 @@ export type SnapshotResult = {
 };
 
 export async function buildUserSnapshot(userId: string): Promise<SnapshotResult> {
-  // ⚠️ SECURITY TODO (multi-user): today getCurrentUserId() returns a single
-  // hardcoded demo user, so every list*() below is effectively that user's data.
-  // If the DB ever holds multiple users, scope each query to the authenticated
-  // user id AND authorize the request before returning anything here — the Ask
-  // assistant must never see another user's data. See [[puma-data-layer]].
+  // Every list*() below is scoped to `userId` (the authenticated caller, passed
+  // down from askAssistant → requireUserId). The Ask assistant therefore only
+  // ever sees the requesting user's own data — never another account's.
   const [tasks, habits, entries, goals, projects, notes, tags, agenda, user, settings] =
     await Promise.all([
       listTasks(userId),

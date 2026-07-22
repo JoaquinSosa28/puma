@@ -36,6 +36,11 @@ export async function upsertLifeDay(
     _id: doc._id ?? existing?._id ?? newId(),
     updatedAt: iso(),
   } as LifeDayDoc;
-  await c.replaceOne({ _id: full._id }, full, { upsert: true });
+  // userId in the filter is defense-in-depth: a doc can only ever be replaced
+  // within its owner's scope, so a stray/spoofed _id can't clobber another
+  // account's row (it would insert a fresh owned doc instead).
+  await c.replaceOne({ _id: full._id, userId: doc.userId }, full, {
+    upsert: true,
+  });
   return toDto(lifeDaySchema.parse(full));
 }

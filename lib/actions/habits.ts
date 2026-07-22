@@ -6,13 +6,22 @@ import type { ActionResult } from "@/lib/types";
 import { requireUserId } from "@/lib/auth/session";
 import { userToday } from "@/lib/timezone-server";
 import { entityId, isoDate, title } from "@/lib/validation";
-import { deleteHabit, insertHabit, updateHabit } from "@/lib/db/habits";
+import { deleteHabit, insertHabit, listHabits, updateHabit } from "@/lib/db/habits";
 import { toggleHabitEntry } from "@/lib/db/habitEntries";
+
+/** Confirm the habit belongs to the caller before writing an entry for it, so a
+ *  crafted call can't seed entry rows against a non-owned/nonexistent habitId. */
+async function ownsHabit(userId: string, habitId: string): Promise<boolean> {
+  const habits = await listHabits(userId);
+  return habits.some((h) => h.id === habitId);
+}
 
 export async function toggleHabitToday(habitId: string): Promise<ActionResult> {
   const parsed = entityId.safeParse(habitId);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
   const userId = await requireUserId();
+  if (!(await ownsHabit(userId, parsed.data)))
+    return { ok: false, error: "Not found" };
   const { today: td } = await userToday();
   await toggleHabitEntry(userId, parsed.data, td);
   revalidatePath("/", "layout");
@@ -28,6 +37,8 @@ export async function toggleHabitDate(
   const parsed = toggleDateSchema.safeParse({ habitId, date });
   if (!parsed.success) return { ok: false, error: "Invalid input" };
   const userId = await requireUserId();
+  if (!(await ownsHabit(userId, parsed.data.habitId)))
+    return { ok: false, error: "Not found" };
   await toggleHabitEntry(userId, parsed.data.habitId, parsed.data.date);
   revalidatePath("/", "layout");
   return { ok: true };

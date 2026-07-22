@@ -16,6 +16,7 @@ import { userToday } from "@/lib/timezone-server";
 import type { Task } from "@/lib/schemas";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { entityId, title as titleField, noteBody } from "@/lib/validation";
 
 const omniSchema = z.object({
   text: z.string().min(1),
@@ -80,7 +81,7 @@ export async function createFromOmni(
   if (type === "note") {
     const noteParsed = parseNoteCapture(text, tags, undefined, timeZone);
     const noteTagIds = [
-      ...new Set([...(pickedTagIds ?? []), ...noteParsed.tagIds, ...newTagIds]),
+      ...new Set([...validPickedTagIds, ...noteParsed.tagIds, ...newTagIds]),
     ];
     const note = await insertNote({
       userId,
@@ -212,9 +213,10 @@ export async function cycleTaskPriority(id: string): Promise<ActionResult> {
 }
 
 export async function renameTask(id: string, title: string): Promise<ActionResult> {
-  if (!title.trim()) return { ok: false, error: "Empty title" };
+  const parsedTitle = titleField.safeParse(title);
+  if (!parsedTitle.success) return { ok: false, error: "Invalid title" };
   const userId = await requireUserId();
-  await updateTask(userId, id, { title: title.trim() });
+  await updateTask(userId, id, { title: parsedTitle.data });
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -236,6 +238,11 @@ export async function moveTaskStatus(
   id: string,
   status: "todo" | "doing" | "done"
 ): Promise<ActionResult> {
+  // Runtime-guard the status: the TS union doesn't constrain the deserialized
+  // action argument, so a crafted call could otherwise $set an arbitrary string.
+  if (status !== "todo" && status !== "doing" && status !== "done") {
+    return { ok: false, error: "Invalid status" };
+  }
   const userId = await requireUserId();
   const { getTask } = await import("@/lib/db/tasks");
   const task = await getTask(userId, id);
@@ -263,9 +270,14 @@ export async function undoCreate(entity: string, id: string): Promise<ActionResu
 
 export async function undoDeleteTask(snapshot: string): Promise<ActionResult> {
   const userId = await requireUserId();
+  // Cap the payload before parsing — the snapshot is client-echoed, so bound it.
+  if (typeof snapshot !== "string" || snapshot.length > 100_000) {
+    return { ok: false, error: "Invalid snapshot" };
+  }
   let task: Task;
   try {
     task = JSON.parse(snapshot);
+    if (!task || typeof task !== "object") throw new Error("not an object");
   } catch {
     return { ok: false, error: "Invalid snapshot" };
   }
@@ -286,19 +298,19 @@ export async function undoDeleteTask(snapshot: string): Promise<ActionResult> {
 }
 
 const subtaskSchema = z.object({
-  id: z.string(),
-  title: z.string(),
+  id: z.string().max(64),
+  title: z.string().max(500),
   done: z.boolean(),
 });
 
 const updateTaskDetailSchema = z.object({
-  id: z.string(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  subtasks: z.array(subtaskSchema).optional(),
-  tagIds: z.array(z.string()).optional(),
+  id: entityId,
+  title: titleField.optional(),
+  description: noteBody.optional(),
+  subtasks: z.array(subtaskSchema).max(200).optional(),
+  tagIds: z.array(z.string()).max(50).optional(),
   priority: z.enum(["low", "med", "high"]).optional(),
-  due: z.string().nullable().optional(),
+  due: z.string().max(40).nullable().optional(),
 });
 
 export async function updateTaskDetail(

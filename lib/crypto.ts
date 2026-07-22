@@ -11,7 +11,19 @@ const TAG_BYTES = 16;
 // A stable 32-byte key from the app secret. The dev fallback only ever applies
 // in memory mode (no BETTER_AUTH_SECRET), where secrets don't persist anyway.
 function key(): Buffer {
-  const secret = process.env.BETTER_AUTH_SECRET ?? "puma-dev-insecure-secret";
+  const secret = process.env.BETTER_AUTH_SECRET;
+  // Hard stop: in mongodb (hosted) mode a missing secret would encrypt every
+  // user's API key under a publicly-known constant. lib/env.ts already fails
+  // startup on this, but guard here too so no code path can ever fall back to
+  // the dev constant with real data. Memory/demo mode has no persistent secrets.
+  if (!secret) {
+    if (process.env.DATA_SOURCE === "mongodb") {
+      throw new Error(
+        "BETTER_AUTH_SECRET must be set when DATA_SOURCE=mongodb (secret-at-rest key)"
+      );
+    }
+    return createHash("sha256").update("puma-dev-insecure-secret").digest();
+  }
   return createHash("sha256").update(secret).digest();
 }
 
