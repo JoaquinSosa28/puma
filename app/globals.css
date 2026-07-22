@@ -522,3 +522,19 @@ html {
 .animate-puma-swap {
   animation: pumaSwap 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+@keyframes pumaBloom {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-puma-bloom {
+  transform-origin: bottom center;
+  animation: pumaBloom 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}

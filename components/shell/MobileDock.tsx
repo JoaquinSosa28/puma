@@ -17,7 +17,6 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { LifeAreaToggle, type LifeAutoConfig, useLifeView } from "@/components/shell/LifeAreaToggle";
 import { hrefWithLife } from "@/lib/life-area";
 import { cn } from "@/lib/utils";
@@ -83,11 +82,73 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
 
   return (
     <>
+      {moreOpen && (
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setMoreOpen(false)}
+          className="animate-puma-fade fixed inset-0 z-[39] bg-black/25 lg:hidden"
+        />
+      )}
       <div
         className="pointer-events-none fixed inset-x-0 z-40 flex justify-center lg:hidden"
         style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
-        <div className="flex w-full max-w-[440px] items-center justify-between px-3">
+        <div className="relative flex w-full max-w-[440px] items-center justify-between px-3">
+        {/* The "More" bloom: a floating glass panel above the dock — fixed
+            height on purpose (it's a menu, not a sheet). */}
+        {moreOpen && (
+          <div className="animate-puma-bloom pointer-events-auto absolute inset-x-3 bottom-[calc(100%+12px)] max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+            <p className="animate-puma-rise mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+              Spaces
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {MORE.map((item, i) => {
+                const Icon = item.icon;
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={hrefWithLife(item.href, life)}
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "animate-puma-rise flex items-center gap-2.5 rounded-xl border px-3 py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95",
+                      active ? "border-2" : "border-border bg-surface text-muted"
+                    )}
+                    style={{
+                      animationDelay: `${30 + i * 30}ms`,
+                      ...(active
+                        ? {
+                            borderColor: item.color,
+                            background: item.color.includes("oklch")
+                              ? item.color.replace(")", " / 0.12)")
+                              : "var(--hover)",
+                            color: "var(--ink)",
+                          }
+                        : {}),
+                    }}
+                  >
+                    <Icon
+                      className="h-[18px] w-[18px]"
+                      strokeWidth={2.2}
+                      style={{ color: item.color }}
+                    />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+            <p
+              className="animate-puma-rise mb-1.5 mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2"
+              style={{ animationDelay: "160ms" }}
+            >
+              Life area
+            </p>
+            <div className="animate-puma-rise" style={{ animationDelay: "190ms" }}>
+              <LifeAreaToggle variant="fun" auto={lifeAuto} className="mb-0" />
+            </div>
+          </div>
+        )}
         <Link
           href={hrefWithLife("/settings", life)}
           aria-label="Settings"
@@ -142,14 +203,17 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
           <button
             type="button"
             aria-label="More"
-            onClick={() => setMoreOpen(true)}
+            onClick={() => setMoreOpen((v) => !v)}
             className={cn(
               "group flex items-center rounded-full p-2.5 transition-all duration-200 active:scale-90",
-              moreActive ? "bg-hover text-ink" : "text-muted"
+              moreOpen || moreActive ? "bg-hover text-ink" : "text-muted"
             )}
           >
             <MoreHorizontal
-              className="h-[19px] w-[19px] transition-transform duration-200 group-active:rotate-90"
+              className={cn(
+                "h-[19px] w-[19px] transition-transform duration-200 group-active:rotate-90",
+                moreOpen && "rotate-90"
+              )}
               strokeWidth={2}
             />
           </button>
@@ -171,58 +235,6 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
         </div>
       </div>
 
-      <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)}>
-        <div className="px-4 pb-6">
-          <p className="animate-puma-rise mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
-            Life area
-          </p>
-          <div className="animate-puma-rise mb-4 [&_button]:!py-2.5 [&_button]:!text-[12px]">
-            <LifeAreaToggle auto={lifeAuto} className="mb-0" />
-          </div>
-          <p
-            className="animate-puma-rise mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2"
-            style={{ animationDelay: "40ms" }}
-          >
-            Spaces
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {MORE.map((item, i) => {
-              const Icon = item.icon;
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={hrefWithLife(item.href, life)}
-                  onClick={() => setMoreOpen(false)}
-                  className={cn(
-                    "animate-puma-rise flex items-center gap-2.5 rounded-xl border px-3.5 py-3.5 text-sm font-semibold transition-all duration-150 active:scale-95",
-                    active ? "border-2" : "border-border bg-surface text-muted"
-                  )}
-                  style={{
-                    animationDelay: `${60 + i * 40}ms`,
-                    ...(active
-                      ? {
-                          borderColor: item.color,
-                          background: item.color.includes("oklch")
-                            ? item.color.replace(")", " / 0.12)")
-                            : "var(--hover)",
-                          color: "var(--ink)",
-                        }
-                      : {}),
-                  }}
-                >
-                  <Icon
-                    className="h-[18px] w-[18px]"
-                    strokeWidth={2.2}
-                    style={{ color: item.color }}
-                  />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </BottomSheet>
     </>
   );
 }

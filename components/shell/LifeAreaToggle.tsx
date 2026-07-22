@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
+import { Briefcase, Hand, Heart, Layers, Minus, Plus, Zap } from "lucide-react";
 import {
   LIFE_AREA_COOKIE,
   parseLifeView,
@@ -76,9 +77,12 @@ function readLifeCookie(): LifeView {
 export function LifeAreaToggle({
   className,
   auto,
+  variant = "default",
 }: {
   className?: string;
   auto?: LifeAutoConfig;
+  /** "fun" = the colorful touch-first version used in the phone dock menu. */
+  variant?: "default" | "fun";
 }) {
   const router = useRouter();
   const timeZone = useTimezone();
@@ -185,6 +189,161 @@ export function LifeAreaToggle({
       router.refresh();
     });
   };
+
+  // Touch stepper for the hold window: bump ±15m, commit after taps settle so
+  // rapid tapping doesn't fire a server action per tap.
+  const stepTimer = useRef<number | null>(null);
+  // Latest stepped value lives in a ref so rapid taps (same frame, before a
+  // re-render lands) still accumulate instead of re-reading a stale draft.
+  const stepValue = useRef<number | null>(null);
+  const stepMins = (delta: number) => {
+    const cur = Math.round(Number(minsDraft));
+    const base =
+      stepValue.current ??
+      (Number.isFinite(cur) && cur >= 5 ? cur : (auto?.overrideMins ?? 60));
+    const n = Math.min(720, Math.max(5, base + delta));
+    stepValue.current = n;
+    setMinsDraft(String(n));
+    if (stepTimer.current) window.clearTimeout(stepTimer.current);
+    stepTimer.current = window.setTimeout(() => {
+      stepValue.current = null;
+      if (n === auto?.overrideMins) return;
+      startMinsTransition(async () => {
+        await updateSettingsAction({ lifeAutoOverrideMins: n });
+        router.refresh();
+      });
+    }, 600);
+  };
+
+  const holdMins = (() => {
+    const n = Math.round(Number(minsDraft));
+    return Number.isFinite(n) && n >= 5 ? n : (auto?.overrideMins ?? 60);
+  })();
+  const holdLabel =
+    holdMins < 60
+      ? `${holdMins}m`
+      : holdMins % 60
+        ? `${Math.floor(holdMins / 60)}h ${holdMins % 60}m`
+        : `${Math.floor(holdMins / 60)}h`;
+
+  if (variant === "fun") {
+    const FUN: { key: LifeView; label: string; icon: typeof Heart; color: string }[] = [
+      { key: "personal", label: "Personal", icon: Heart, color: "oklch(0.58 0.17 300)" },
+      { key: "both", label: "Both", icon: Layers, color: "var(--muted)" },
+      { key: "work", label: "Work", icon: Briefcase, color: "oklch(0.58 0.14 245)" },
+    ];
+    return (
+      <div className={className}>
+        <div className="grid grid-cols-3 gap-1.5">
+          {FUN.map(({ key, label, icon: Icon, color }) => {
+            const active = life === key;
+            const isBoth = key === "both";
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => select(key)}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-xl border px-1 py-2.5 text-[11px] font-semibold transition-all duration-150 active:scale-95",
+                  active ? "border-2" : "border-border bg-surface text-muted"
+                )}
+                style={
+                  active
+                    ? {
+                        borderColor: isBoth ? "var(--faint2)" : color,
+                        background: isBoth
+                          ? "linear-gradient(135deg, oklch(0.58 0.17 300 / 0.1), oklch(0.58 0.14 245 / 0.1))"
+                          : color.replace(")", " / 0.12)"),
+                        color: "var(--ink)",
+                      }
+                    : undefined
+                }
+              >
+                <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} style={{ color }} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {auto && (
+          <>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {(
+                [
+                  { mode: "manual", label: "Manual", icon: Hand, color: "oklch(0.7 0.12 70)" },
+                  { mode: "auto", label: "Auto", icon: Zap, color: "oklch(0.6 0.13 155)" },
+                ] as const
+              ).map(({ mode, label, icon: Icon, color }) => {
+                const active = mode === "auto" ? enabled : !enabled;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={savingAutoSwitch}
+                    onClick={() => setAutoSwitch(mode === "auto")}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50",
+                      active ? "border-2" : "border-border bg-surface text-muted"
+                    )}
+                    style={
+                      active
+                        ? {
+                            borderColor: color,
+                            background: color.replace(")", " / 0.12)"),
+                            color: "var(--ink)",
+                          }
+                        : undefined
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5" strokeWidth={2.2} style={{ color }} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {enabled && (
+              <div className="mt-1.5 flex items-center justify-between rounded-xl border border-border bg-surface py-1.5 pl-3 pr-1.5">
+                <span
+                  className="font-mono text-[9px] font-semibold uppercase tracking-widest text-faint2"
+                  title="Minutes a manual pick holds before auto takes back over"
+                >
+                  Hold picks for
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="Hold 15 minutes less"
+                    onClick={() => stepMins(-15)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-all duration-150 active:scale-90"
+                  >
+                    <Minus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  </button>
+                  <span className="w-[52px] text-center font-mono text-[12px] font-bold text-ink">
+                    {holdLabel}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Hold 15 minutes more"
+                    onClick={() => stepMins(15)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-all duration-150 active:scale-90"
+                  >
+                    <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  </button>
+                </div>
+              </div>
+            )}
+            {enabled && indicator && (
+              <p className="mt-1.5 px-1 font-mono text-[9.5px] text-faint2">
+                {indicator === "auto"
+                  ? "⚡ following your work-hours schedule"
+                  : `✋ holding your pick — back to ${indicator}`}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={cn("mb-3", className)}>
