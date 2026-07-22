@@ -237,10 +237,10 @@ export function PlanGraph({ plan, existing }: Props) {
 
   return (
     <div>
-      <div className="overflow-x-auto">
-        <div ref={containerRef} className="relative min-w-[760px]">
+      <div className="lg:overflow-x-auto">
+        <div ref={containerRef} className="relative lg:min-w-[760px]">
           <svg
-            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible max-lg:hidden"
             aria-hidden
           >
             <defs>
@@ -272,8 +272,8 @@ export function PlanGraph({ plan, existing }: Props) {
           </svg>
 
           {hasGraph ? (
-            <div className="relative z-10 grid grid-cols-[minmax(190px,1fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] gap-x-16 gap-y-6">
-              <Column label="Goals">
+            <div className="relative z-10 grid gap-y-6 max-lg:gap-y-5 lg:grid-cols-[minmax(190px,1fr)_minmax(220px,1fr)_minmax(240px,1.1fr)] lg:gap-x-16">
+              <Column label="Goals" dot="var(--goals)">
                 {[...goalNodes].map(([key, n]) => {
                   const count = goalChildCount(key);
                   return (
@@ -291,7 +291,7 @@ export function PlanGraph({ plan, existing }: Props) {
                 })}
               </Column>
 
-              <Column label="Projects · Habits">
+              <Column label="Projects · Habits" dot="var(--primary)">
                 {plan.projects.map((p) =>
                   projectVisible(p.refId) ? (
                     <ContainerCard
@@ -345,9 +345,18 @@ export function PlanGraph({ plan, existing }: Props) {
                 )}
               </Column>
 
-              <Column label="Tasks">
+              <Column label="Tasks" dot="var(--tasks)">
                 {taskGroups.map((group) => (
-                  <div key={group.key} className="flex flex-col gap-4">
+                  <div key={group.key} className="flex flex-col gap-4 max-lg:gap-2.5">
+                    {/* Phone loses the connector arrows — say the linkage instead. */}
+                    {group.key !== "none" && (
+                      <div className="font-mono text-[9px] uppercase tracking-wide text-faint lg:hidden">
+                        ↳{" "}
+                        {group.key.startsWith("project:")
+                          ? projectNodes.get(group.key.slice(8))?.title
+                          : goalNodes.get(group.key.slice(5))?.title}
+                      </div>
+                    )}
                     {group.tasks.map((t) => (
                       <TaskCard
                         key={t.refId}
@@ -394,14 +403,23 @@ export function PlanGraph({ plan, existing }: Props) {
 
 function Column({
   label,
+  dot,
   children,
 }: {
   label: string;
+  dot?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="font-mono text-[10px] uppercase tracking-wide text-faint">
+    <div className="flex flex-col gap-4 max-lg:gap-3">
+      <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wide text-faint">
+        {dot && (
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ background: dot }}
+            aria-hidden
+          />
+        )}
         {label}
       </div>
       {children}

@@ -13,7 +13,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useDroppable,
   useSensor,
@@ -95,8 +96,11 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
     setItems(groupByStatus(tasks));
   }, [tasks]);
 
+  // Mouse drags start after a tiny move; touch needs a long-press first so
+  // plain swipes keep scrolling the board instead of grabbing cards.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -221,7 +225,7 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
 
   if (!dragReady) {
     return (
-      <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:gap-3 max-lg:overflow-x-auto lg:grid lg:grid-cols-3">
+      <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3 max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:scroll-px-3 lg:grid lg:grid-cols-3">
         {COLS.map((col) => (
           <KanbanColumnStatic
             key={col.key}
@@ -245,7 +249,7 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:gap-3 max-lg:overflow-x-auto lg:grid lg:grid-cols-3">
+      <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3 max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:scroll-px-3 lg:grid lg:grid-cols-3">
         {COLS.map((col) => (
           <KanbanColumn
             key={col.key}
@@ -303,7 +307,7 @@ function KanbanColumnStatic({
   children: React.ReactNode;
 }) {
   return (
-    <div className="kanban-column flex min-h-0 flex-col rounded-xl border border-border bg-surface2 p-3 max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0">
+    <div className="kanban-column flex min-h-0 flex-col rounded-xl border border-border bg-surface2 p-3 max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0 max-lg:snap-center">
       <div className="mb-2.5 flex items-center gap-1.5 px-0.5">
         <span
           className="h-2 w-2 rounded-full"
@@ -340,7 +344,7 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "kanban-column flex min-h-0 flex-col rounded-xl border p-3 transition-all duration-200 ease-out max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0",
+        "kanban-column flex min-h-0 flex-col rounded-xl border p-3 transition-all duration-200 ease-out max-lg:w-[76vw] md:max-lg:w-[44vw] max-lg:max-w-[360px] max-lg:shrink-0 max-lg:snap-center",
         isOver
           ? "kanban-column--over border-primary/40 bg-primary/[0.04] shadow-[inset_0_0_0_1px_oklch(0.55_0.16_274/0.15)]"
           : "border-border bg-surface2",
@@ -393,7 +397,7 @@ function KanbanCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "kanban-card cursor-grab touch-none active:cursor-grabbing",
+        "kanban-card cursor-grab touch-manipulation active:cursor-grabbing",
         isDragging && "kanban-card--dragging opacity-35"
       )}
       {...attributes}

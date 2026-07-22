@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -70,6 +70,17 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
   const [life] = useLifeView();
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // Any capture opening (dock +, top-bar twin, keyboard) dismisses the menu.
+  useEffect(() => {
+    const close = () => setMoreOpen(false);
+    window.addEventListener("puma:capture", close);
+    window.addEventListener("puma:capture-opening", close);
+    return () => {
+      window.removeEventListener("puma:capture", close);
+      window.removeEventListener("puma:capture-opening", close);
+    };
+  }, []);
+
   const activeItem =
     DOCK.find((d) => (d.href === "/" ? pathname === "/" : pathname.startsWith(d.href))) ?? null;
   const moreActive = !activeItem && MORE.some((m) => pathname.startsWith(m.href));
@@ -112,8 +123,8 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
                     href={hrefWithLife(item.href, life)}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      "animate-puma-rise flex items-center gap-2.5 rounded-xl border px-3 py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95",
-                      active ? "border-2" : "border-border bg-surface text-muted"
+                      "animate-puma-rise flex items-center gap-2.5 rounded-xl border-2 px-3 py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95",
+                      !active && "border-border bg-surface text-muted"
                     )}
                     style={{
                       animationDelay: `${30 + i * 30}ms`,
@@ -151,6 +162,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
         )}
         <Link
           href={hrefWithLife("/settings", life)}
+          onClick={() => setMoreOpen(false)}
           aria-label="Settings"
           className={cn(
             "pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border bg-surface/80 shadow-[0_4px_14px_rgba(0,0,0,0.18)] backdrop-blur-md transition-colors",
@@ -169,6 +181,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
               <Link
                 key={item.href}
                 href={hrefWithLife(item.href, life)}
+                onClick={() => setMoreOpen(false)}
                 aria-label={item.label}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full transition-all duration-200",
@@ -206,7 +219,11 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
             onClick={() => setMoreOpen((v) => !v)}
             className={cn(
               "group flex items-center rounded-full p-2.5 transition-all duration-200 active:scale-90",
-              moreOpen || moreActive ? "bg-hover text-ink" : "text-muted"
+              moreOpen
+                ? "bg-primary/15 text-primary shadow-[inset_0_0_0_1.5px_var(--primary)]"
+                : moreActive
+                  ? "bg-hover text-ink"
+                  : "text-muted"
             )}
           >
             <MoreHorizontal
@@ -223,7 +240,10 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
           key={activeItem?.color ?? "ink"}
           type="button"
           aria-label="Capture"
-          onClick={() => openCapture(activeItem?.captureType ?? "task")}
+          onClick={() => {
+            setMoreOpen(false);
+            openCapture(activeItem?.captureType ?? "task");
+          }}
           className="pointer-events-auto group flex h-10 w-10 animate-puma-pop items-center justify-center rounded-full border-2 border-background text-background shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition-all duration-300 hover:scale-105 active:scale-90"
           style={{ background: activeItem?.color ?? "var(--ink)" }}
         >

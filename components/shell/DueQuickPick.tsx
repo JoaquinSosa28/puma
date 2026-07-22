@@ -119,6 +119,12 @@ export function DueQuickPick({
   }, timeZone);
 
   const [open, setOpen] = useState(false);
+  // Touch devices get the platform's own date picker — the custom popover is
+  // a desktop affordance (and is awkward inside phone bottom sheets).
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    setCoarse(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
@@ -196,6 +202,38 @@ export function DueQuickPick({
         </button>
       )}
       <div className="flex items-center gap-1">
+        {coarse ? (
+          <div className="relative">
+            <button
+              type="button"
+              disabled={disabled}
+              tabIndex={-1}
+              className={cn(
+                chipBase,
+                "flex items-center justify-center px-1.5 py-1",
+                calendarActive
+                  ? "border-2 border-primary bg-primary/25 text-primary shadow-[2px_2px_0_var(--primary)]"
+                  : "border border-border bg-surface text-muted"
+              )}
+            >
+              <Calendar
+                className="h-3.5 w-3.5"
+                strokeWidth={calendarActive ? 2.5 : 2}
+              />
+            </button>
+            <input
+              type="date"
+              aria-label="Pick a date"
+              disabled={disabled}
+              value={selected ?? ""}
+              onChange={(e) => {
+                if (e.target.value) pickDate(e.target.value);
+                else if (config.nullable) onChange(null);
+              }}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            />
+          </div>
+        ) : (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <button
@@ -328,6 +366,7 @@ export function DueQuickPick({
             </div>
           </PopoverContent>
         </Popover>
+        )}
         {showDateLabel && selected && (
           <span
             className="font-mono text-[11px] font-bold tabular-nums text-primary"

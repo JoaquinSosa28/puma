@@ -135,7 +135,7 @@ export function CalendarView({
         lifeSpanYears={lifeSpanYears}
       />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-puma-view lg:flex-row lg:gap-[18px]">
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:overflow-x-auto">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
           <div className="flex items-center gap-3 px-5 py-4">
             <h3 className="m-0 min-w-[190px] text-lg font-extrabold tracking-tight">
               {monthLabel}
@@ -187,7 +187,7 @@ export function CalendarView({
               </span>
             </div>
           </div>
-          <div className="grid grid-cols-7 px-4 max-lg:min-w-[560px]">
+          <div className="grid shrink-0 grid-cols-7 px-4 max-lg:px-3">
             {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
               <div
                 key={d}
@@ -197,7 +197,7 @@ export function CalendarView({
               </div>
             ))}
           </div>
-          <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-[5px] px-4 pb-4 max-lg:min-w-[560px]">
+          <div className="grid grid-cols-7 gap-[5px] px-4 pb-4 max-lg:min-h-0 max-lg:flex-1 max-lg:auto-rows-[minmax(58px,auto)] max-lg:gap-1 max-lg:overflow-y-auto max-lg:px-3 max-lg:pb-3 lg:flex-1 lg:grid-rows-6">
             {cells.map((c) => (
               <div
                 key={c.ds}
@@ -214,6 +214,7 @@ export function CalendarView({
                 className={cn(
                   "flex min-h-0 cursor-pointer flex-col overflow-hidden rounded-lg border p-[6px_7px] text-left",
                   c.isSel ? "border-primary bg-primary/[0.06]" : "border-border2",
+                  c.isTdy && "max-lg:ring-2 max-lg:ring-inset max-lg:ring-primary/60",
                   c.inM ? "bg-surface" : "bg-transparent"
                 )}
               >
@@ -230,7 +231,7 @@ export function CalendarView({
                     <span className="ml-auto h-[5px] w-[5px] rounded-full bg-habits" />
                   )}
                 </div>
-                <div className="flex flex-col gap-0.5 overflow-hidden">
+                <div className="flex flex-col gap-0.5 overflow-hidden max-lg:hidden">
                   {c.meetings.slice(0, c.shownMeetings).map((m) => (
                     <span
                       key={m.id}
@@ -305,11 +306,34 @@ export function CalendarView({
                     </span>
                   )}
                 </div>
+                {/* Phone cells are too narrow for text — one colored dot per
+                    meeting/task, tap the day to read them in the panel. */}
+                <div className="mt-auto flex flex-wrap content-end items-center gap-[3px] pt-0.5 lg:hidden">
+                  {[
+                    ...c.meetings.map((m) => m.color),
+                    ...c.dts.map((t) =>
+                      t.status === "done" ? "oklch(0.6 0.13 155 / 0.55)" : PRIO[t.priority]
+                    ),
+                  ]
+                    .slice(0, 4)
+                    .map((col, i) => (
+                      <span
+                        key={i}
+                        className="h-[5px] w-[5px] rounded-full"
+                        style={{ background: col }}
+                      />
+                    ))}
+                  {c.meetings.length + c.dts.length > 4 && (
+                    <span className="font-mono text-[8px] leading-none text-faint">
+                      +{c.meetings.length + c.dts.length - 4}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="flex shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:max-h-[40vh] lg:w-[300px]">
+        <div className="flex shrink-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:h-[38dvh] max-lg:shrink-0 lg:w-[300px]">
           <div className="flex items-start justify-between gap-2 border-b border-border2 px-[18px] py-4">
             <div className="min-w-0">
               <div className="mb-0.5 font-mono text-[10px] text-faint">

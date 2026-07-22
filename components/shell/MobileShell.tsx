@@ -1,10 +1,18 @@
 "use client";
 
+import { DemoBanner } from "@/components/shell/DemoBanner";
+
 /**
  * Phone header: just the brand row. Navigation lives in the floating dock
  * (MobileDock) and the More sheet — the old hamburger drawer is gone.
+ * Demo accounts get a compact pill on this row (same layout as normal).
  */
-export function MobileShell(_props: { sidebar?: React.ReactNode }) {
+export function MobileShell({
+  demo,
+}: {
+  sidebar?: React.ReactNode;
+  demo?: { expiresAt: string | null } | null;
+}) {
   return (
     <div className="lg:hidden">
       <div
@@ -15,6 +23,7 @@ export function MobileShell(_props: { sidebar?: React.ReactNode }) {
           P
         </span>
         <span className="text-[15px] font-extrabold tracking-tight">P.U.M.A</span>
+        {demo && <DemoBanner expiresAt={demo.expiresAt} className="ml-auto" />}
       </div>
     </div>
   );

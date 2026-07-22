@@ -114,8 +114,14 @@ export function LifeAreaToggle({
   };
 
   // The auto-switcher: follow the work-hours schedule unless a manual override
-  // is still fresh. Runs on mount and every 30s.
-  const enabled = auto?.enabled ?? false;
+  // is still fresh. Runs on mount and every 30s. The enabled flag is mirrored
+  // optimistically so the toggle flips the instant it's tapped instead of
+  // waiting for the server round-trip + refresh.
+  const [optimisticEnabled, setOptimisticEnabled] = useState<boolean | null>(null);
+  const enabled = optimisticEnabled ?? auto?.enabled ?? false;
+  useEffect(() => {
+    setOptimisticEnabled(null);
+  }, [auto?.enabled]);
   useEffect(() => {
     if (!enabled || !auto) return;
     const tick = () => {
@@ -162,6 +168,7 @@ export function LifeAreaToggle({
   const [savingAutoSwitch, startAutoSwitchTransition] = useTransition();
   const setAutoSwitch = (nextEnabled: boolean) => {
     if (nextEnabled === enabled) return;
+    setOptimisticEnabled(nextEnabled);
     startAutoSwitchTransition(async () => {
       await updateSettingsAction({ lifeAutoSwitch: nextEnabled });
       router.refresh();
@@ -244,8 +251,8 @@ export function LifeAreaToggle({
                 type="button"
                 onClick={() => select(key)}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-xl border px-1 py-2.5 text-[11px] font-semibold transition-all duration-150 active:scale-95",
-                  active ? "border-2" : "border-border bg-surface text-muted"
+                  "flex flex-col items-center gap-1 rounded-xl border-2 px-1 py-2.5 text-[11px] font-semibold transition-all duration-150 active:scale-95",
+                  !active && "border-border bg-surface text-muted"
                 )}
                 style={
                   active
@@ -282,8 +289,8 @@ export function LifeAreaToggle({
                     disabled={savingAutoSwitch}
                     onClick={() => setAutoSwitch(mode === "auto")}
                     className={cn(
-                      "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50",
-                      active ? "border-2" : "border-border bg-surface text-muted"
+                      "flex items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2 text-[11px] font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50",
+                      !active && "border-border bg-surface text-muted"
                     )}
                     style={
                       active

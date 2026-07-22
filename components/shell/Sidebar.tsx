@@ -25,6 +25,7 @@ import {
 } from "./LifeAreaToggle";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { PumaWordmark } from "@/components/shell/PumaWordmark";
+import { DemoBanner } from "@/components/shell/DemoBanner";
 import type { Tag, Task, Note } from "@/lib/schemas";
 
 const nav = [
@@ -55,6 +56,7 @@ type Props = {
   userName: string;
   authEnabled: boolean;
   lifeAuto: LifeAutoConfig;
+  demo?: { expiresAt: string | null } | null;
 };
 
 export function Sidebar({
@@ -65,6 +67,7 @@ export function Sidebar({
   userName,
   authEnabled,
   lifeAuto,
+  demo,
 }: Props) {
   const pathname = usePathname();
   const [life] = useLifeView();
@@ -80,6 +83,11 @@ export function Sidebar({
           <ThemeToggle />
         </div>
       </div>
+      {demo && (
+        <div className="mb-2 px-1">
+          <DemoBanner expiresAt={demo.expiresAt} />
+        </div>
+      )}
 
       <LifeAreaToggle auto={lifeAuto} />
 

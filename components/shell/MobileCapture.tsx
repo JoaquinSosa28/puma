@@ -102,6 +102,8 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
   );
 
   const openWith = (t: OmniType) => {
+    // Tell the shell a capture is opening (the dock closes its More menu).
+    window.dispatchEvent(new CustomEvent("puma:capture-opening"));
     setType(t);
     setMode("capture");
     setText("");

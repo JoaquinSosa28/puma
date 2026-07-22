@@ -38,7 +38,7 @@ export const LifeWeekCell = memo(function LifeWeekCell({
         "flex min-w-0 flex-1 cursor-pointer items-center justify-center",
         fullView
           ? "h-full min-h-[2px] rounded-[1px]"
-          : "h-3 rounded-[2px] sm:h-3.5",
+          : "h-2.5 rounded-[2px] sm:h-3.5",
         !mc &&
           (fullView
             ? cn(
@@ -93,7 +93,7 @@ export const LifeWeekEmpty = memo(function LifeWeekEmpty({
         "min-w-0 flex-1",
         fullView
           ? "h-full min-h-[2px] rounded-[1px] bg-ahead"
-          : "h-3 rounded-[2px] border border-border2 bg-transparent sm:h-3.5"
+          : "h-2.5 rounded-[2px] border border-border2 bg-transparent sm:h-3.5"
       )}
       aria-hidden
     />

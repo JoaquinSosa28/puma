@@ -13,7 +13,6 @@ import { displayName } from "@/lib/user-display";
 import { resolveLifeView } from "@/lib/life-view-server";
 import { isAuthEnabled } from "@/lib/auth/session";
 import { requireAccess } from "@/lib/auth/session";
-import { DemoBanner } from "@/components/shell/DemoBanner";
 import { Suspense } from "react";
 import type { Note, Task } from "@/lib/schemas";
 
@@ -56,6 +55,9 @@ async function AppShell({ children }: { children: React.ReactNode }) {
   };
   const shellTasks = slimTasks(data.allTasks);
   const shellNotes = slimNotes(data.notes);
+  const demo = data.user?.isDemo
+    ? { expiresAt: data.user.demoExpiresAt ?? null }
+    : null;
 
   const sidebar = (
     <SidebarWithTag
@@ -66,6 +68,7 @@ async function AppShell({ children }: { children: React.ReactNode }) {
       userName={displayName(data.user)}
       authEnabled={isAuthEnabled()}
       lifeAuto={lifeAuto}
+      demo={demo}
     />
   );
 
@@ -78,10 +81,7 @@ async function AppShell({ children }: { children: React.ReactNode }) {
             <div className="hidden lg:contents">{sidebar}</div>
             <AssistantProvider>
               <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 lg:px-6 lg:pt-5">
-                <MobileShell sidebar={sidebar} />
-                {data.user?.isDemo && (
-                  <DemoBanner expiresAt={data.user.demoExpiresAt ?? null} />
-                )}
+                <MobileShell demo={demo} />
                 <div className="hidden lg:block">
                   <OmniBox
                     tags={data.tags}

@@ -74,7 +74,7 @@ export function ProjectsView({
         <div className="relative mb-4">
           <div
             ref={railRef}
-            className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
+            className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
           >
           {projects.map((p) => {
             const prog = projectProgress(p.id, tasks);
@@ -85,7 +85,7 @@ export function ProjectsView({
                 type="button"
                 onClick={() => setProjectId(p.id)}
                 className={cn(
-                  "min-w-[160px] max-w-[240px] shrink-0 cursor-pointer rounded-[11px] border-[1.5px] p-[11px_14px] text-left hover:border-faint2",
+                  "min-w-[160px] max-w-[240px] shrink-0 snap-start cursor-pointer rounded-[11px] border-[1.5px] p-[11px_14px] text-left hover:border-faint2",
                   active ? "" : "border-border bg-surface"
                 )}
                 style={

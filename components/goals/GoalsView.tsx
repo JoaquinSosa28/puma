@@ -7,7 +7,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCorners,
   useDroppable,
   useSensor,
@@ -150,7 +151,8 @@ export function GoalsView({
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -589,7 +591,7 @@ function SortableGoalCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "kanban-card cursor-grab touch-none active:cursor-grabbing",
+        "kanban-card cursor-grab touch-manipulation active:cursor-grabbing",
         isDragging && "kanban-card--dragging opacity-35"
       )}
       {...attributes}

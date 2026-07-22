@@ -163,12 +163,12 @@ export function LifeCalendarView({
           </div>
         ) : (
           lifeStats && (
-            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden max-lg:overflow-y-auto max-lg:pb-28">
               <div
-                className="shrink-0 rounded-[14px] border border-border bg-surface px-5 py-3"
+                className="shrink-0 rounded-[14px] border border-border bg-surface px-5 py-3 max-lg:order-3 max-lg:px-4"
                 style={{ boxShadow: "2px 2px 0 var(--shadow)" }}
               >
-                <div className="mb-2.5 flex flex-wrap gap-x-10 gap-y-2 sm:gap-x-14">
+                <div className="mb-2.5 flex flex-wrap gap-x-10 gap-y-2 max-lg:mb-2 max-lg:grid max-lg:grid-cols-2 max-lg:gap-x-6 max-lg:gap-y-3 sm:gap-x-14">
                   <StatLine
                     label="Days"
                     lived={lifeStats.livedDays}
@@ -216,7 +216,7 @@ export function LifeCalendarView({
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-faint">
+              <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-faint max-lg:order-2">
                 {fullView ? (
                   <>
                     <LegendSwatch className="bg-lived" label="lived" />
@@ -270,7 +270,7 @@ export function LifeCalendarView({
               </div>
 
               <div
-                className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-surface px-4 py-3 sm:px-5"
+                className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-surface px-4 py-3 max-lg:order-1 max-lg:h-[56dvh] max-lg:flex-none max-lg:px-2 sm:px-5"
                 style={{ boxShadow: "2px 2px 0 var(--shadow)" }}
               >
                 <div className="mb-2.5 flex shrink-0 items-center justify-between font-mono text-[10px] tracking-wide text-faint2">
@@ -280,7 +280,7 @@ export function LifeCalendarView({
                   <span className={fullView ? "text-[9px]" : undefined}>
                     ← {LIFE_GRID_COLS} WEEKS PER ROW →
                   </span>
-                  <span className={cn(fullView ? "pr-[32px]" : "pr-[42px]")}>
+                  <span className={cn("max-sm:pr-0", fullView ? "pr-[32px]" : "pr-[42px]")}>
                     AGE {span}
                   </span>
                 </div>
@@ -296,7 +296,7 @@ export function LifeCalendarView({
                   <div
                     className={cn(
                       "flex flex-col",
-                      fullView ? "h-full flex-1 gap-px" : "gap-[3px]"
+                      fullView ? "h-full flex-1 gap-px" : "gap-[3px] max-sm:gap-[2px]"
                     )}
                   >
                     {grid.rows.map((row) => (
@@ -305,7 +305,7 @@ export function LifeCalendarView({
                         data-life-age={row.age}
                         className={cn(
                           "flex min-h-0 items-center",
-                          fullView ? "flex-1 gap-px" : "gap-[3px]",
+                          fullView ? "flex-1 gap-px" : "gap-[3px] max-sm:gap-[2px]",
                           !fullView && row.decadeGap && "mt-1.5"
                         )}
                       >
@@ -314,7 +314,7 @@ export function LifeCalendarView({
                             "shrink-0 pr-0.5 text-right font-mono tabular-nums",
                             fullView
                               ? "w-[22px] text-[7px]"
-                              : "w-[30px] text-[9px]",
+                              : "w-[30px] text-[9px] max-sm:w-[22px] max-sm:text-[8px]",
                             row.age === lifeStats.ageYears
                               ? "font-bold text-primary"
                               : row.ageEmphasis
@@ -334,7 +334,7 @@ export function LifeCalendarView({
                         <div
                           className={cn(
                             "flex min-h-0 min-w-0 flex-1",
-                            fullView ? "h-full gap-px" : "gap-[3px]"
+                            fullView ? "h-full gap-px" : "gap-[3px] max-sm:gap-[2px]"
                           )}
                         >
                           {row.cells.map((week, col) => {
@@ -364,7 +364,7 @@ export function LifeCalendarView({
                         </div>
                         <span
                           className={cn(
-                            "shrink-0 pl-1 font-mono tabular-nums text-faint2",
+                            "shrink-0 pl-1 font-mono tabular-nums text-faint2 max-sm:hidden",
                             fullView ? "w-[32px] text-[7px]" : "w-[42px] text-[9px]",
                             row.yearEmphasis && "font-bold text-faint"
                           )}
@@ -426,7 +426,7 @@ function StatLine({
     <span className={className}>
       {n.toLocaleString()}
       {suffix && (
-        <span className="text-[13px] font-medium text-faint">{suffix}</span>
+        <span className="text-[13px] font-medium text-faint max-lg:text-[11px]">{suffix}</span>
       )}
     </span>
   );
@@ -436,17 +436,17 @@ function StatLine({
       <div className="mb-1.5 font-mono text-[10px] tracking-widest text-faint2">
         {label}
       </div>
-      <div className="text-[21px] font-extrabold tracking-tight text-ink">
+      <div className="text-[21px] font-extrabold tracking-tight text-ink max-lg:text-[15px]">
         {hideLeft ? (
           value(lived, livedClassName)
         ) : (
           <>
             {value(lived, livedClassName)}
-            <span className="ml-1.5 text-[13px] font-medium text-faint">
+            <span className="ml-1.5 text-[13px] font-medium text-faint max-lg:ml-1 max-lg:text-[10px]">
               {livedLabel}
             </span>
             {value(left!, cn("ml-2", leftClassName))}
-            <span className="ml-1.5 text-[13px] font-medium text-faint">
+            <span className="ml-1.5 text-[13px] font-medium text-faint max-lg:ml-1 max-lg:text-[10px]">
               {leftLabel}
             </span>
           </>

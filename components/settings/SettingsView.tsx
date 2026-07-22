@@ -151,7 +151,7 @@ export function SettingsView({
         birthDate={settings?.birthDate ?? null}
         lifeSpanYears={settings?.lifeSpanYears}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6 max-lg:pb-28 animate-puma-view">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-6 max-lg:pb-28 animate-puma-view">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <SettingsSection title="Profile" className="lg:col-span-2">
             <div className="grid gap-6 lg:grid-cols-2">
