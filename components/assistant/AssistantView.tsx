@@ -59,7 +59,7 @@ export function AssistantView({
         birthDate={birthDate}
         lifeSpanYears={lifeSpanYears}
       />
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6 animate-puma-view">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6 max-lg:pb-28 animate-puma-view">
         {!aiReady ? (
           <ApiKeyNeeded />
         ) : status === "ready" && kind === "plan" && plan ? (

@@ -323,7 +323,7 @@ export function CalendarView({
               className="mt-0.5 shrink-0"
             />
           </div>
-          <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-[18px] py-3.5">
+          <div className="flex flex-1 flex-col gap-1 overflow-y-auto px-[18px] py-3.5 max-lg:pb-24">
             {meetingsFor(selected).length > 0 && (
               <div className="mb-2 flex flex-col gap-0.5">
                 {meetingsFor(selected).map((m) => (

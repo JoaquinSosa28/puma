@@ -113,7 +113,7 @@ export function NotesView({
             explicit ? "max-md:hidden" : "max-md:min-h-0 max-md:flex-1"
           )}
         >
-          <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
+          <div className="flex flex-1 flex-col gap-2 overflow-y-auto max-lg:pb-24">
             {sorted.map((n) => (
               <Taggable
                 key={n.id}

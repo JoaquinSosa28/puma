@@ -130,7 +130,7 @@ export function ProjectsView({
         </div>
 
         {selected ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto lg:grid lg:grid-cols-[1fr_minmax(280px,320px)] lg:overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto max-lg:pb-28 lg:grid lg:grid-cols-[1fr_minmax(280px,320px)] lg:overflow-hidden">
             <div className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:h-[68vh] max-lg:shrink-0">
               <div className="flex shrink-0 items-center gap-2 border-b border-border2 px-4 py-3">
                 <span

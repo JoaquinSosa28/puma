@@ -277,7 +277,7 @@ export function TasksView({
         >
           <div
             ref={listRef}
-            className="min-h-0 overflow-y-auto p-3 lg:border-r lg:border-border2 lg:p-4"
+            className="min-h-0 overflow-y-auto p-3 max-lg:pb-28 lg:border-r lg:border-border2 lg:p-4"
           >
             <div className="flex flex-col gap-4">
               {!filtered.length && !(showCarryover && filteredCarryover.length) ? (
