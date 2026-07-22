@@ -56,7 +56,7 @@ export function TodayTasksCard({
   });
 
   return (
-    <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-lg:flex-none lg:flex-[1.15]">
+    <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-xl:flex-none xl:flex-[1.15]">
       <div className="mb-3 flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <WidgetHeaderLink href={tasksListHref(lifeView, "today")} className="mb-0">
@@ -105,7 +105,7 @@ export function TodayTasksCard({
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 max-lg:overflow-visible lg:overflow-y-auto">
+      <div className="min-h-0 flex-1 max-lg:overflow-visible @container @max-[470px]:[&_.task-tag-full]:hidden @max-[470px]:[&_.task-tag-mini]:inline @max-[360px]:[&_.task-tag-mini]:!hidden @max-[470px]:[&_.task-subcount-inline]:hidden @max-[470px]:[&_.task-subcount-side]:inline @max-[470px]:[&_.task-time-chip]:hidden @max-[470px]:[&_.task-row]:!grid-cols-[18px_8px_minmax(0,1fr)_28px_44px] @[470px]:[&_.task-timer-cell]:justify-start xl:overflow-y-auto">
         {onToday && recentCarryover.length > 0 && (
           <CarryoverSection
             tasks={recentCarryover}

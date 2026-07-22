@@ -37,6 +37,14 @@ const PRIO_BORDER = {
   low: "border-l-border",
 } as const;
 
+// Hover life for widget rows: the priority bar slides in from the left and
+// the row nudges right with it — subtle, but you always know where you are.
+const PRIO_BORDER_HOVER = {
+  high: "hover:border-l-[oklch(0.64_0.18_25)]",
+  med: "hover:border-l-[oklch(0.7_0.12_70)]",
+  low: "hover:border-l-[oklch(0.58_0.14_245)]",
+} as const;
+
 type Props = {
   tasks: Task[];
   tags: Tag[];
@@ -290,7 +298,7 @@ export function TaskList({
           : "";
 
         const rowClass = cn(
-          "grid items-center",
+          "task-row grid items-center",
           compact
             ? cn(
                 "cursor-pointer gap-x-2.5 border-b border-border2 px-3 py-2.5 last:border-b-0",
@@ -305,7 +313,10 @@ export function TaskList({
                 "gap-x-[11px]",
                 isPage
                   ? "border-b border-border2 px-4 py-2.5 last:border-b-0 hover:bg-surface2/70"
-                  : "rounded-lg px-1 py-1 hover:bg-surface2",
+                  : cn(
+                      "rounded-lg border-l-[3px] border-l-transparent px-1 py-1 transition-all duration-150 hover:bg-surface2 hover:pl-1.5",
+                      PRIO_BORDER_HOVER[t.priority]
+                    ),
                 showDelete
                   ? "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px_16px]"
                   : "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px]",
@@ -410,20 +421,33 @@ export function TaskList({
                     {t.title}
                   </span>
                   {!compact && subtaskTotal > 0 && (
-                    <span className="shrink-0 font-mono text-[9px] text-faint2">
+                    <span className="task-subcount-inline shrink-0 font-mono text-[9px] text-faint2">
                       {subtaskDone}/{subtaskTotal}
                     </span>
                   )}
                   {!compact &&
                     taskTags.map((tg) => (
-                      <span
-                        key={tg.id}
-                        className="shrink-0 rounded-[5px] px-[7px] py-0.5 font-mono text-[10px] no-underline"
-                        style={{ color: tg.color, background: tagBg(tg.color) }}
-                      >
-                        {tg.name}
+                      <span key={tg.id} className="contents">
+                        <span
+                          className="task-inline-tag task-tag-full shrink-0 rounded-[5px] px-[7px] py-0.5 font-mono text-[10px] no-underline"
+                          style={{ color: tg.color, background: tagBg(tg.color) }}
+                        >
+                          {tg.name}
+                        </span>
+                        <span
+                          className="task-inline-tag task-tag-mini hidden shrink-0 rounded-[5px] px-[6px] py-0.5 font-mono text-[10px] font-bold uppercase no-underline"
+                          title={tg.name}
+                          style={{ color: tg.color, background: tagBg(tg.color) }}
+                        >
+                          {tg.name.charAt(0)}
+                        </span>
                       </span>
                     ))}
+                  {!compact && subtaskTotal > 0 && (
+                    <span className="task-subcount-side hidden shrink-0 font-mono text-[9px] text-faint2">
+                      {subtaskDone}/{subtaskTotal}
+                    </span>
+                  )}
                 </Link>
               ) : (
                 <>
@@ -435,7 +459,7 @@ export function TaskList({
                     taskTags.map((tg) => (
                       <span
                         key={tg.id}
-                        className="mt-1 inline shrink-0 rounded-[5px] px-[7px] py-0.5 font-mono text-[10px]"
+                        className="task-inline-tag mt-1 inline shrink-0 rounded-[5px] px-[7px] py-0.5 font-mono text-[10px]"
                         style={{ color: tg.color, background: tagBg(tg.color) }}
                       >
                         {tg.name}
@@ -462,7 +486,7 @@ export function TaskList({
             ) : (
               <>
                 <div
-                  className="flex justify-end"
+                  className="task-timer-cell flex items-center justify-end gap-1.5"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <TaskTimer

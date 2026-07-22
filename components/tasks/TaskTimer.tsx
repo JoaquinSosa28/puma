@@ -82,7 +82,7 @@ export function TaskTimer({
           }}
           title="Edit tracked time"
           className={cn(
-            "rounded-md border px-1.5 py-0.5 font-mono transition-colors hover:border-faint hover:bg-surface2",
+            "task-time-chip rounded-md border px-1.5 py-0.5 font-mono transition-colors hover:border-faint hover:bg-surface2",
             compact ? "text-[10px]" : "text-[11px]",
             running
               ? "border-primary/40 bg-primary/10 font-semibold text-primary"
