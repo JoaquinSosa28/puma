@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger } from "nuqs";
 import { X } from "lucide-react";
@@ -22,7 +21,6 @@ import { TaskList } from "@/components/tasks/TaskList";
 import type { Tag } from "@/lib/schemas";
 import { Topbar } from "@/components/shell/Topbar";
 import { useLifeView } from "@/components/shell/LifeAreaToggle";
-import { taskDetailHref } from "@/lib/task-links";
 import { cn } from "@/lib/utils";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 
@@ -64,6 +62,14 @@ export function CalendarView({
   };
   const td = iso(new Date(), timeZone);
   const [offset, setOffset] = useQueryState("month", parseAsInteger.withDefault(0));
+  // On small screens the month grid is taller than the viewport — land the
+  // user on today's row instead of the top of the month.
+  const todayCellRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 1023px)").matches) {
+      todayCellRef.current?.scrollIntoView({ block: "center" });
+    }
+  }, []);
   const [selected, setSelected] = useQueryState("day", {
     defaultValue: td,
   });
@@ -195,6 +201,7 @@ export function CalendarView({
             {cells.map((c) => (
               <div
                 key={c.ds}
+                ref={c.isTdy ? todayCellRef : undefined}
                 role="button"
                 tabIndex={0}
                 onClick={() => setSelected(c.ds)}
@@ -257,16 +264,14 @@ export function CalendarView({
                           <span className="shrink-0 font-mono text-[8px] text-faint2">
                             {meetingTimeLabel(t.due)}
                           </span>
-                          <Link
-                            href={taskDetailHref(t, life, td)}
-                            onClick={(e) => e.stopPropagation()}
+                          <span
                             className={cn(
-                              "min-w-0 truncate font-medium hover:underline",
+                              "min-w-0 truncate font-medium",
                               past ? "text-faint line-through" : "text-ink"
                             )}
                           >
                             {t.title}
-                          </Link>
+                          </span>
                         </span>
                       );
                     }
@@ -283,16 +288,14 @@ export function CalendarView({
                           )}
                           aria-hidden
                         />
-                        <Link
-                          href={taskDetailHref(t, life, td)}
-                          onClick={(e) => e.stopPropagation()}
+                        <span
                           className={cn(
-                            "min-w-0 truncate hover:underline",
+                            "min-w-0 truncate",
                             done ? "text-faint line-through" : "text-ink"
                           )}
                         >
                           {t.title}
-                        </Link>
+                        </span>
                       </span>
                     );
                   })}
