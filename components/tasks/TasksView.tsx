@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
-import { ChevronLeft, ChevronRight, ListTodo, X } from "lucide-react";
+import { ListTodo, X } from "lucide-react";
 import type { Task, Tag, Project } from "@/lib/schemas";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { addDays, iso } from "@/lib/date";
+import { iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { Topbar } from "@/components/shell/Topbar";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -52,15 +52,6 @@ export function TasksView({
   const listRef = useRef<HTMLDivElement>(null);
   const timeZone = useTimezone();
   const td = iso(new Date(), timeZone);
-  // Day the "Today" tab is looking at. Deliberately plain state (not URL):
-  // browsing other days is a peek — refreshes and navigation land back on today.
-  const [day, setDay] = useState(td);
-  const onToday = day === td;
-  useEffect(() => {
-    if (tab !== "today") setDay(td);
-  }, [tab, td]);
-  const stepDay = (delta: number) =>
-    setDay((d) => iso(addDays(delta, new Date(d + "T00:00"), timeZone), timeZone));
 
   const selectedTask = useMemo(
     () => (taskId ? tasks.find((t) => t.id === taskId) ?? null : null),
@@ -74,7 +65,7 @@ export function TasksView({
   const filtered = useMemo(() => {
     let items = tasks.filter((t) => {
       const d = (t.due ?? "").slice(0, 10);
-      if (tab === "today") return d === day;
+      if (tab === "today") return d === td;
       if (tab === "upcoming") return d > td;
       return true;
     });
@@ -82,7 +73,7 @@ export function TasksView({
       items = items.filter((t) => t.projectId === projectFilter);
     }
     return items;
-  }, [tasks, tab, td, day, projectFilter]);
+  }, [tasks, tab, td, projectFilter]);
 
   const filteredCarryover = useMemo(() => {
     if (!projectFilter) return carryover;
@@ -108,21 +99,14 @@ export function TasksView({
     ? projects.find((p) => p.id === projectFilter)
     : null;
 
-  const showCarryover = tab === "today" && onToday;
-  const dayLabel = onToday
-    ? "Today"
-    : new Date(day + "T00:00").toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
+  const showCarryover = tab === "today";
 
 
   const taskGroups = useMemo((): Group[] => {
     if (group === "none") {
       const label =
         filteredProject?.title ??
-        (tab === "today" ? dayLabel : tab === "upcoming" ? "Upcoming" : "All tasks");
+        (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
       return [
         {
           label,
@@ -178,7 +162,7 @@ export function TasksView({
       });
     }
     return result;
-  }, [group, tags, projects, filtered, tab, filteredProject, dayLabel]);
+  }, [group, tags, projects, filtered, tab, filteredProject]);
 
   useEffect(() => {
     if (projectFilter && !filteredProject) setProjectFilter(null);
@@ -198,9 +182,7 @@ export function TasksView({
     tab === "today"
       ? showCarryover && filteredCarryover.length
         ? "Nothing new due today — finish carryover below or check Upcoming."
-        : onToday
-          ? "Nothing due today — capture something above or check Upcoming."
-          : "Nothing was due this day."
+        : "Nothing due today — capture something above or check Upcoming."
       : tab === "upcoming"
         ? "No upcoming tasks. You're clear ahead."
         : "No tasks yet. Use the capture bar to add one.";
@@ -226,7 +208,7 @@ export function TasksView({
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
-          className="mb-5 flex shrink-0 flex-wrap items-center gap-3 rounded-[13px] border border-border bg-surface px-4 py-3"
+          className="flex shrink-0 flex-wrap items-center gap-3 rounded-[13px] border border-border bg-surface px-4 py-3 max-lg:mb-3 max-lg:gap-x-2 max-lg:gap-y-2 max-lg:px-3 max-lg:py-2.5 lg:mb-5"
           style={{ boxShadow: "2px 2px 0 var(--shadow)" }}
         >
           <SegControl
@@ -239,46 +221,9 @@ export function TasksView({
             onChange={(v) => setTab(v as typeof tab)}
             accent={TASK_ACCENT}
           />
-          {tab === "today" && (
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => stepDay(-1)}
-                aria-label="Previous day"
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-faint2 hover:text-ink"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <span
-                className={cn(
-                  "min-w-[92px] text-center font-mono text-[11px] font-semibold",
-                  onToday ? "text-faint" : "text-ink"
-                )}
-              >
-                {dayLabel}
-              </span>
-              <button
-                type="button"
-                onClick={() => stepDay(1)}
-                aria-label="Next day"
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-faint2 hover:text-ink"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
-              {!onToday && (
-                <button
-                  type="button"
-                  onClick={() => setDay(td)}
-                  className="rounded-lg border border-border px-2.5 py-1 font-mono text-[11px] font-semibold text-muted transition-colors hover:border-faint2 hover:text-ink"
-                >
-                  Today
-                </button>
-              )}
-            </div>
-          )}
           <div className="hidden h-5 w-px bg-border sm:block" aria-hidden />
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-faint2">
+            <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-faint2 max-lg:hidden">
               Group
             </span>
             <SegControl
@@ -301,7 +246,7 @@ export function TasksView({
               />
             )}
           </div>
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="ml-auto flex items-center gap-0.5 max-lg:hidden">
             <TaskStat
               value={
                 summary.todayTotal
@@ -565,7 +510,9 @@ function SegControl({
             onClick={() => onChange(k)}
             className={cn(
               "rounded-md font-semibold transition-all",
-              compact ? "px-2.5 py-1 text-[11px]" : "px-3.5 py-1.5 text-[12.5px]",
+              compact
+                ? "px-2.5 py-1 text-[11px] max-lg:px-2"
+                : "px-3.5 py-1.5 text-[12.5px] max-lg:px-2.5 max-lg:py-1 max-lg:text-[11.5px]",
               active
                 ? "border-2 font-bold text-background shadow-[1px_1px_0_var(--shadow)]"
                 : "border border-transparent text-muted hover:bg-hover"
