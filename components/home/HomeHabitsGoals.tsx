@@ -73,8 +73,8 @@ export function HomeHabitsGoals({
   };
 
   return (
-    <div className="flex min-h-0 flex-col gap-4 max-lg:shrink-0">
-      <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-lg:flex-none lg:flex-1 lg:overflow-hidden">
+    <div className="flex flex-col gap-4 max-xl:shrink-0 xl:min-h-0">
+      <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-xl:flex-none xl:flex-1 xl:overflow-hidden">
         <WidgetHeaderLink href={hrefWithLife("/habits", lifeView)}>
           <span className="h-2.5 w-2.5 rounded-full bg-habits" />
           <h3 className="m-0 text-sm font-bold">Habits</h3>
@@ -104,7 +104,7 @@ export function HomeHabitsGoals({
           </HabitWeekStrip>
           <span />
         </div>
-        <div className="flex flex-col gap-2 max-lg:overflow-visible lg:overflow-y-auto">
+        <div className="flex flex-col gap-2 max-xl:overflow-visible xl:overflow-y-auto">
           {habits.map((h) => {
             const set = entriesFor(h.id);
             const doneToday = set.has(td);

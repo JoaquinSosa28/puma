@@ -23,7 +23,7 @@ export function HomeTasksProjects({
   today: td,
 }: Props) {
   return (
-    <div className="flex min-h-0 flex-col gap-4 max-lg:shrink-0">
+    <div className="flex flex-col gap-4 max-xl:shrink-0 xl:min-h-0">
       <TodayTasksCard
         allTasks={allTasks}
         carryover={carryover}
@@ -32,7 +32,7 @@ export function HomeTasksProjects({
         today={td}
       />
 
-      <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-lg:flex-none lg:flex-1 lg:overflow-hidden">
+      <section className="flex min-h-0 flex-col rounded-[13px] border border-border bg-surface px-[18px] py-[15px] max-xl:flex-none xl:flex-1 xl:overflow-hidden">
         <WidgetHeaderLink href={hrefWithLife("/projects", lifeView)}>
           <span className="h-2.5 w-2.5 rounded-[3px] bg-projects" />
           <h3 className="m-0 text-sm font-bold">Projects</h3>
@@ -40,7 +40,7 @@ export function HomeTasksProjects({
             {projects.length} active
           </span>
         </WidgetHeaderLink>
-        <div className="min-h-0 flex-1 overflow-x-hidden max-lg:overflow-y-visible lg:overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-x-hidden max-xl:overflow-y-visible xl:overflow-y-auto">
           <div className="flex flex-col gap-3">
             {projects.map((p) => {
               const prog = projectProgress(p.id, allTasks);

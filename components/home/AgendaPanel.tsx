@@ -151,7 +151,7 @@ export function AgendaPanel({
   );
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-[13px] border border-border bg-surface max-lg:max-h-[70vh] max-lg:shrink-0">
+    <section className="flex flex-col overflow-hidden rounded-[13px] border border-border bg-surface max-xl:max-h-[70vh] max-xl:shrink-0">
       <div className="px-4 pb-3 pt-[15px]">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">

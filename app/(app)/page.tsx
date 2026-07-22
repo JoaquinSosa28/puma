@@ -34,7 +34,7 @@ export default async function HomePage({ searchParams }: Props) {
           streak: hrefWithLife("/habits", lifeView),
         }}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-5 animate-puma-view md:grid md:grid-cols-2 md:[&>*:nth-child(3)]:col-span-2 lg:grid-cols-[304px_1fr_340px] lg:overflow-hidden lg:[&>*:nth-child(3)]:col-span-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pb-5 animate-puma-view md:grid md:grid-cols-2 md:[&>*:nth-child(3)]:col-span-2 xl:grid-cols-[304px_1fr_340px] xl:overflow-hidden xl:[&>*:nth-child(3)]:col-span-1">
         <AgendaPanel
           agenda={data.agenda}
           tasks={data.allTasks}
