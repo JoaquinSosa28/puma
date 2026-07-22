@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { useQueryState } from "nuqs";
 import type { Goal, Project, Task, Tag } from "@/lib/schemas";
 import { projectProgress } from "@/lib/metrics";
@@ -154,9 +155,10 @@ export function ProjectsView({
                 <button
                   type="button"
                   onClick={() => setDetailsOpen(true)}
-                  className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold text-muted transition-all active:scale-95 lg:hidden"
+                  className="flex shrink-0 items-center gap-1 px-1 py-1 text-[11px] font-semibold text-muted transition-all active:scale-95 lg:hidden"
                 >
-                  Details
+                  <Pencil className="h-3 w-3" strokeWidth={2.2} />
+                  Edit
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden p-3">
