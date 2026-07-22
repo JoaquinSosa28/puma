@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { useQueryState, parseAsString, parseAsStringLiteral } from "nuqs";
 import {
   DndContext,
@@ -101,7 +100,6 @@ export function GoalsView({
   birthDate = null,
   lifeSpanYears,
 }: Props) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [goalId, setGoalId] = useQueryState("goal", parseAsString);
   const serverLayout = useMemo(() => groupByCategory(goals), [goals]);
@@ -140,14 +138,15 @@ export function GoalsView({
       startTransition(async () => {
         try {
           const ids = layoutIds(next);
+          // Layout action revalidates the route; the optimistic dnd order
+          // holds until it lands — no extra refresh round-trip.
           await updateGoalsLayoutAction(ids.personal, ids.professional);
-          router.refresh();
         } finally {
           persistPendingRef.current = false;
         }
       });
     },
-    [router]
+    []
   );
 
   const sensors = useSensors(

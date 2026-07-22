@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import type { Habit, HabitEntry } from "@/lib/schemas";
 import { iso, weekDates, streakOf, dowLetters, type WeekStart } from "@/lib/date";
@@ -39,7 +38,6 @@ export function HomeHabitsGoals({
   const td = iso(new Date(), timeZone);
   const week = weekDates(new Date(), weekStart, timeZone);
   const letters = dowLetters(weekStart);
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [optimisticEntries, setOptimisticEntries] = useOptimistic(habitEntries);
 
@@ -67,8 +65,9 @@ export function HomeHabitsGoals({
               { id: "tmp", userId: "optimistic", habitId, date: td, done: true },
             ]
       );
+      // toggleHabitToday revalidates the route; the optimistic entry above
+      // holds until that lands — no extra refresh round-trip.
       await toggleHabitToday(habitId);
-      router.refresh();
     });
   };
 

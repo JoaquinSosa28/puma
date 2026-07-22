@@ -7,7 +7,6 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import {
   DndContext,
@@ -73,7 +72,6 @@ type Props = {
 };
 
 export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
-  const router = useRouter();
   const [, startTransition] = useTransition();
   const [items, setItems] = useState<ItemsByColumn>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
@@ -193,8 +191,9 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
 
     if (original && original.status !== nextStatus) {
       startTransition(async () => {
+        // moveTaskStatus revalidates the route; the optimistic column state
+        // above holds until it lands — no extra refresh round-trip.
         await moveTaskStatus(taskId, nextStatus);
-        router.refresh();
       });
     }
   };
