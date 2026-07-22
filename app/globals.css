@@ -107,6 +107,15 @@
 html {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Declare the scheme so Android Chrome's auto-dark (Force Dark) never
+     repaints transparent/undeclared areas black, and paint the root so the
+     browser canvas (overscroll, safe-areas, URL-bar collapse) matches. */
+  color-scheme: only light;
+  background: var(--bg);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 body {
