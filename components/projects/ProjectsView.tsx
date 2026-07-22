@@ -153,7 +153,7 @@ export function ProjectsView({
               <>
                 <div
                   key={editingTask.id}
-                  className="hidden min-h-0 overflow-hidden animate-puma-view lg:block"
+                  className="hidden min-h-0 overflow-hidden animate-puma-swap lg:block"
                 >
                   <TaskDetailPanel
                     task={editingTask}

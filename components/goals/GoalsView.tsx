@@ -354,6 +354,7 @@ export function GoalsView({
         {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
         <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
           {selectedGoal ? (
+            <div key={selectedGoal.id} className="animate-puma-swap h-full">
             <GoalDetailPanel
               goal={selectedGoal}
               projects={projects}
@@ -364,6 +365,7 @@ export function GoalsView({
               weekStart={weekStart}
               onClose={() => setGoalId(null)}
             />
+            </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center px-8 text-center">
               <p className="m-0 text-sm font-semibold text-ink">Select a goal</p>

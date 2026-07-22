@@ -322,13 +322,15 @@ export function TasksView({
           {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
           <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
             {selectedTask ? (
-              <TaskDetailPanel
-                task={selectedTask}
-                tags={tags}
-                projects={projects}
-                onClose={() => setTaskId(null)}
-                embedded
-              />
+              <div key={selectedTask.id} className="animate-puma-swap h-full">
+                <TaskDetailPanel
+                  task={selectedTask}
+                  tags={tags}
+                  projects={projects}
+                  onClose={() => setTaskId(null)}
+                  embedded
+                />
+              </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center px-8 text-center">
                 <p className="m-0 text-sm font-semibold text-ink">Select a task</p>
@@ -341,13 +343,15 @@ export function TasksView({
           <div className="lg:hidden">
             <BottomSheet open={!!selectedTask} onClose={() => setTaskId(null)}>
               {selectedTask && (
-                <TaskDetailPanel
-                  task={selectedTask}
-                  tags={tags}
-                  projects={projects}
-                  onClose={() => setTaskId(null)}
-                  embedded
-                />
+                <div key={selectedTask.id} className="animate-puma-swap">
+                  <TaskDetailPanel
+                    task={selectedTask}
+                    tags={tags}
+                    projects={projects}
+                    onClose={() => setTaskId(null)}
+                    embedded
+                  />
+                </div>
               )}
             </BottomSheet>
           </div>

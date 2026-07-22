@@ -106,7 +106,7 @@ export function NotesView({
         birthDate={birthDate}
         lifeSpanYears={lifeSpanYears}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-puma-view md:flex-row md:gap-[18px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 md:flex-row md:gap-[18px]">
         <div
           className={cn(
             "flex min-h-0 shrink-0 flex-col md:w-[260px] lg:w-[300px]",
@@ -166,8 +166,9 @@ export function NotesView({
         </div>
         {selected && (
           <div
+            key={selected.id}
             className={cn(
-              "flex min-w-0 flex-1 flex-col",
+              "animate-puma-swap flex min-w-0 flex-1 flex-col",
               !explicit && "max-md:hidden"
             )}
           >

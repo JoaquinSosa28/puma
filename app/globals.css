@@ -507,3 +507,18 @@ html {
 .animate-puma-rise {
   animation: pumaRise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+@keyframes pumaSwap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-puma-swap {
+  animation: pumaSwap 0.18s ease-out;
+}
