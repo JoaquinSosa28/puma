@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Play, Square } from "lucide-react";
 import type { Task } from "@/lib/schemas";
 import { toggleTaskTimer } from "@/lib/actions/task-timer";
@@ -10,7 +9,7 @@ import {
   formatDurationClock,
   taskElapsedSec,
 } from "@/lib/time";
-import { useTaskTimer } from "@/components/tasks/TaskTimerProvider";
+import { useNow } from "@/components/tasks/TaskTimerProvider";
 import { TaskTimeEditDialog } from "@/components/tasks/TaskTimeEditDialog";
 import { cn } from "@/lib/utils";
 
@@ -27,12 +26,13 @@ export function TaskTimer({
   className,
   stopPropagation = false,
 }: Props) {
-  const router = useRouter();
-  const { now } = useTaskTimer();
+  const running = Boolean(task.timerStartedAt);
+  // Only the running chip ticks; idle chips read a static clock and never
+  // re-render on the interval.
+  const now = useNow(running);
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = useState(false);
 
-  const running = Boolean(task.timerStartedAt);
   const elapsed = taskElapsedSec(task, now);
 
   const guard = (e: React.SyntheticEvent) => {
@@ -43,8 +43,9 @@ export function TaskTimer({
   const handleToggle = (e: React.MouseEvent) => {
     guard(e);
     startTransition(async () => {
+      // toggleTaskTimer revalidates the route, which re-renders this chip with
+      // the new timerStartedAt — no explicit refresh round-trip needed.
       await toggleTaskTimer(task.id);
-      router.refresh();
     });
   };
 

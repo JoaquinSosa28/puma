@@ -1,16 +1,15 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Square } from "lucide-react";
 import { stopTaskTimer } from "@/lib/actions/task-timer";
 import { formatDurationClock, taskElapsedSec } from "@/lib/time";
-import { useTaskTimer } from "@/components/tasks/TaskTimerProvider";
+import { useNow, useTaskTimer } from "@/components/tasks/TaskTimerProvider";
 import { cn } from "@/lib/utils";
 
 export function ActiveTaskTimer({ className }: { className?: string }) {
-  const router = useRouter();
-  const { runningTask, now } = useTaskTimer();
+  const { runningTask } = useTaskTimer();
+  const now = useNow(Boolean(runningTask));
   const [pending, startTransition] = useTransition();
 
   const elapsed = runningTask ? taskElapsedSec(runningTask, now) : 0;
@@ -18,8 +17,8 @@ export function ActiveTaskTimer({ className }: { className?: string }) {
   const handleStop = () => {
     if (!runningTask) return;
     startTransition(async () => {
+      // stopTaskTimer revalidates the route → runningTask clears on its own.
       await stopTaskTimer(runningTask.id);
-      router.refresh();
     });
   };
 

@@ -121,20 +121,27 @@ export function TaskList({
             : t
         )
       );
+      // The action's revalidatePath already re-renders the current route in the
+      // same response, so no explicit router.refresh() round-trip is needed.
       await toggleTask(id);
-      router.refresh();
     });
   };
 
+  const PRIO_NEXT = { low: "med", med: "high", high: "low" } as const;
   const handlePrio = (id: string) => {
     startTransition(async () => {
+      setOptimistic(
+        optimistic.map((t) =>
+          t.id === id ? { ...t, priority: PRIO_NEXT[t.priority] } : t
+        )
+      );
       await cycleTaskPriority(id);
-      router.refresh();
     });
   };
 
   const handleDelete = (id: string) => {
     startTransition(async () => {
+      setOptimistic(optimistic.filter((t) => t.id !== id));
       const res = await deleteTaskAction(id);
       if (res.ok) {
         toast.success("Task deleted", {
@@ -146,7 +153,7 @@ export function TaskList({
             : undefined,
         });
       }
-      router.refresh();
+      // deleteTaskAction revalidates the route; no extra refresh needed.
     });
   };
 

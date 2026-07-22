@@ -11,15 +11,20 @@ import { useRouter } from "next/navigation";
 import type { Task } from "@/lib/schemas";
 
 type TaskTimerContextValue = {
-  now: number;
   runningTask: Task | null;
 };
 
 const TaskTimerContext = createContext<TaskTimerContextValue>({
-  now: Date.now(),
   runningTask: null,
 });
 
+/**
+ * Provides only the (rarely-changing) running task + a focus/visibility resync.
+ * The per-second clock deliberately lives in {@link useNow}, NOT here: putting
+ * `now` in context re-rendered every TaskTimer chip in every list once a second
+ * even when nothing about them changed. Now only the components that actually
+ * display a live clock (the running chip + the topbar) tick.
+ */
 export function TaskTimerProvider({
   tasks,
   children,
@@ -29,13 +34,6 @@ export function TaskTimerProvider({
 }) {
   const router = useRouter();
   const runningTask = tasks.find((t) => t.timerStartedAt) ?? null;
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!runningTask) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [runningTask]);
 
   useEffect(() => {
     const refresh = () => router.refresh();
@@ -51,7 +49,7 @@ export function TaskTimerProvider({
   }, [router]);
 
   return (
-    <TaskTimerContext.Provider value={{ now, runningTask }}>
+    <TaskTimerContext.Provider value={{ runningTask }}>
       {children}
     </TaskTimerContext.Provider>
   );
@@ -59,4 +57,20 @@ export function TaskTimerProvider({
 
 export function useTaskTimer() {
   return useContext(TaskTimerContext);
+}
+
+/**
+ * A 1s clock that ticks ONLY while `active`. Inactive callers never re-render
+ * on the interval — a non-running timer chip's display doesn't depend on `now`
+ * (its elapsed is just its stored time), so it should stay perfectly still.
+ */
+export function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return now;
 }
