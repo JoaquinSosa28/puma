@@ -466,3 +466,44 @@ html {
     overscroll-behavior-y: contain;
   }
 }
+
+@keyframes pumaSheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes pumaFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pumaRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-puma-sheet-up {
+  animation: pumaSheetUp 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-puma-fade {
+  animation: pumaFadeIn 0.2s ease-out;
+}
+
+.animate-puma-rise {
+  animation: pumaRise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

@@ -100,11 +100,17 @@ export function Sidebar({
               key={item.href}
               href={hrefWithAppParams(item.href, life)}
               className={cn(
-                "flex items-center gap-[11px] rounded-lg px-2.5 py-2 text-[13.5px] text-muted transition-colors hover:bg-hover",
+                "group flex items-center gap-[11px] rounded-lg px-2.5 py-2 text-[13.5px] text-muted transition-all duration-150 hover:translate-x-[2px] hover:bg-hover",
                 active && "bg-surface font-semibold text-ink shadow-sm"
               )}
             >
-              <Icon className={cn("h-[17px] w-[17px]", item.color)} strokeWidth={2} />
+              <Icon
+                className={cn(
+                  "h-[17px] w-[17px] transition-transform duration-150 group-hover:scale-110",
+                  item.color
+                )}
+                strokeWidth={2}
+              />
               {item.label}
               {count !== null && (
                 <span
