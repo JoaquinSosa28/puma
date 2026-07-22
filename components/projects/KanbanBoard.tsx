@@ -215,10 +215,14 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
           onEdit={handleCardClick}
         />
       ))}
-      {col.key === "todo" && tasks.length === 0 ? (
-        <p className="px-1 py-2 text-[11px] leading-relaxed text-faint">
-          No tasks yet — add them from the capture bar at the top.
-        </p>
+      {items[col.key].length === 0 ? (
+        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border2 px-4 py-8 text-center text-[11px] leading-relaxed text-faint">
+          {col.key === "todo"
+            ? "Nothing to do — capture a task with +"
+            : col.key === "doing"
+              ? "Long-press a card and drag it here"
+              : "Finished tasks land here"}
+        </div>
       ) : null}
     </>
   );
@@ -271,10 +275,14 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
                   onEdit={handleCardClick}
                 />
               ))}
-              {col.key === "todo" && tasks.length === 0 ? (
-                <p className="px-1 py-2 text-[11px] leading-relaxed text-faint">
-                  No tasks yet — add them from the capture bar at the top.
-                </p>
+              {items[col.key].length === 0 ? (
+                <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border2 px-4 py-8 text-center text-[11px] leading-relaxed text-faint">
+                  {col.key === "todo"
+                    ? "Nothing to do — capture a task with +"
+                    : col.key === "doing"
+                      ? "Long-press a card and drag it here"
+                      : "Finished tasks land here"}
+                </div>
               ) : null}
             </SortableContext>
           </KanbanColumn>

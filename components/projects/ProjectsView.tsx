@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryState } from "nuqs";
 import type { Goal, Project, Task, Tag } from "@/lib/schemas";
@@ -46,6 +46,8 @@ export function ProjectsView({
 
   // In-place task editing: ?task=<id> swaps the right panel for the task editor.
   const [taskId, setTaskId] = useQueryState("task");
+  // Phone: project details live in a bottom sheet behind the Details button.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const editingTask = taskId
     ? spTasks.find((t) => t.id === taskId) ?? null
     : null;
@@ -130,15 +132,32 @@ export function ProjectsView({
         </div>
 
         {selected ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto max-lg:pb-28 lg:grid lg:grid-cols-[1fr_minmax(280px,320px)] lg:overflow-hidden">
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:h-[68vh] max-lg:shrink-0">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 max-lg:gap-0 max-lg:overflow-hidden max-lg:pb-14 lg:grid lg:grid-cols-[1fr_minmax(280px,320px)] lg:overflow-hidden">
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:min-h-0 max-lg:flex-1">
               <div className="flex shrink-0 items-center gap-2 border-b border-border2 px-4 py-3">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-[3px]"
                   style={{ background: selected.color }}
                 />
-                <h3 className="m-0 text-sm font-bold">{selected.title}</h3>
-                <span className="font-mono text-[10px] text-faint">kanban</span>
+                <h3 className="m-0 min-w-0 flex-1 truncate text-sm font-bold">
+                  {selected.title}
+                </h3>
+                <span className="font-mono text-[10px] text-faint max-lg:hidden">
+                  kanban
+                </span>
+                <span
+                  className="font-mono text-[10px] font-bold lg:hidden"
+                  style={{ color: selected.color }}
+                >
+                  {projectProgress(selected.id, tasks).progress}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen(true)}
+                  className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold text-muted transition-all active:scale-95 lg:hidden"
+                >
+                  Details
+                </button>
               </div>
               <div className="min-h-0 flex-1 overflow-hidden p-3">
                 <KanbanBoard
@@ -179,15 +198,37 @@ export function ProjectsView({
                 </div>
               </>
             ) : (
-              <ProjectDetailPanel
-                project={selected}
-                goals={goals}
-                tasks={tasks}
-                onDeleted={() => {
-                  const remaining = projects.filter((p) => p.id !== selected.id);
-                  void setProjectId(remaining[0]?.id ?? null);
-                }}
-              />
+              <div className="hidden min-h-0 lg:block">
+                <ProjectDetailPanel
+                  project={selected}
+                  goals={goals}
+                  tasks={tasks}
+                  onDeleted={() => {
+                    const remaining = projects.filter((p) => p.id !== selected.id);
+                    void setProjectId(remaining[0]?.id ?? null);
+                  }}
+                />
+              </div>
+            )}
+            {detailsOpen && (
+              <div className="lg:hidden">
+                <BottomSheet open onClose={() => setDetailsOpen(false)}>
+                  <div className="h-full px-3 pb-4">
+                    <ProjectDetailPanel
+                      project={selected}
+                      goals={goals}
+                      tasks={tasks}
+                      onDeleted={() => {
+                        setDetailsOpen(false);
+                        const remaining = projects.filter(
+                          (p) => p.id !== selected.id
+                        );
+                        void setProjectId(remaining[0]?.id ?? null);
+                      }}
+                    />
+                  </div>
+                </BottomSheet>
+              </div>
             )}
           </div>
         ) : (
