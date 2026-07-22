@@ -59,9 +59,10 @@ const nextConfig: NextConfig = {
         .map((s) => s.trim())
         .filter(Boolean),
     },
-    // Client router cache: section switches reuse a ≤30s-old payload instantly
-    // instead of refetching; mutations still bust it via router.refresh().
-    staleTimes: { dynamic: 30, static: 180 },
+    // Client router cache: section switches reuse a ≤60s-old payload instantly
+    // instead of refetching; mutations still bust it because their action's
+    // revalidatePath re-renders the current route in the same response.
+    staleTimes: { dynamic: 60, static: 300 },
   },
 };
 
