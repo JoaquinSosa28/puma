@@ -91,6 +91,8 @@ export async function convertNoteToTask(id: string): Promise<ActionResult> {
   await insertTask({
     userId,
     title: note.title,
+    // The note's content carries over as the task's description.
+    description: note.body,
     tagIds: note.tagIds,
     priority: "med",
     status: "todo",
