@@ -24,7 +24,11 @@ export type NowPlacement =
   | { kind: "event"; blockIndex: number; progress: number }
   | { kind: "dead"; blockIndex: number };
 
-/** Parse duration in minutes from agenda sub text, e.g. "30 min", "90 min block". */
+/**
+ * Parse duration in minutes from agenda sub text, e.g. "30 min", "90 min block".
+ * Only for legacy "routine" rows, which encoded the length in prose — real
+ * meetings carry a `durationMins` field.
+ */
 export function parseAgendaDurationMins(sub: string): number | null {
   const m = sub.match(/(\d+)\s*min/i);
   return m ? parseInt(m[1], 10) : null;
@@ -35,7 +39,10 @@ export function eventEndMins(
   nextStartMins: number | null
 ): number {
   const start = parseTimeToMinutes(item.time);
-  const parsed = parseAgendaDurationMins(item.sub);
+  const parsed =
+    item.kind === "meeting"
+      ? item.durationMins
+      : parseAgendaDurationMins(item.sub);
   if (parsed != null) return start + parsed;
   const defaultEnd = start + 30;
   if (nextStartMins != null && nextStartMins < defaultEnd) return nextStartMins;

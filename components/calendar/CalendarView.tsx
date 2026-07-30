@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger } from "nuqs";
-import { X } from "lucide-react";
+import { Repeat, X } from "lucide-react";
 import { toast } from "sonner";
 import type { AgendaItem, Task, HabitEntry } from "@/lib/schemas";
 import { iso, parseTimeToMinutes } from "@/lib/date";
-import { deleteAgendaItemAction } from "@/lib/actions/agenda";
+import { deleteMeetingAction } from "@/lib/actions/agenda";
+import { meetingsOnDay, meetingTimeRange } from "@/lib/meetings";
+import { MeetingDialog } from "@/components/agenda/MeetingDialog";
 import { AddMeetingButton } from "@/components/agenda/AddMeetingButton";
 import {
   CALENDAR_PRIO,
@@ -49,17 +51,18 @@ export function CalendarView({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const timeZone = useTimezone();
+  // Expand repeat rules so a weekly standup lands on every matching day.
   const meetingsFor = (day: string) =>
-    agenda
-      .filter((a) => a.kind === "meeting" && a.date === day)
-      .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
-  const deleteMeeting = (id: string) => {
+    meetingsOnDay(agenda, day).map((o) => o.item);
+  // Removing from a day removes just that occurrence of a repeating meeting.
+  const deleteMeeting = (id: string, date: string) => {
     startTransition(async () => {
-      const res = await deleteAgendaItemAction(id);
+      const res = await deleteMeetingAction({ id, scope: "occurrence", date });
       if (!res.ok) toast.error(res.error ?? "Could not remove meeting");
       else router.refresh();
     });
   };
+  const [editingMeeting, setEditingMeeting] = useState<AgendaItem | null>(null);
   const td = iso(new Date(), timeZone);
   const [offset, setOffset] = useQueryState("month", parseAsInteger.withDefault(0));
   // On small screens the month grid is taller than the viewport — land the
@@ -355,21 +358,38 @@ export function CalendarView({
                     key={m.id}
                     className="group relative -mx-1 rounded-lg px-1 py-1"
                   >
-                    <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingMeeting(m)}
+                      className="flex w-full gap-2 text-left"
+                    >
                       <span className="w-10 shrink-0 pt-px font-mono text-[11px] text-faint2">
                         {m.time}
                       </span>
                       <div
-                        className="flex-1 border-l-2 pl-[11px]"
+                        className="min-w-0 flex-1 border-l-2 pl-[11px]"
                         style={{ borderColor: m.color }}
                       >
-                        <div className="text-[13px] font-semibold">{m.title}</div>
-                        <div className="text-[11px] text-faint">{m.sub}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="min-w-0 truncate text-[13px] font-semibold">
+                            {m.title}
+                          </span>
+                          {m.recurrence && (
+                            <Repeat
+                              className="h-2.5 w-2.5 shrink-0 text-faint2"
+                              aria-label="Repeats"
+                            />
+                          )}
+                        </div>
+                        <div className="text-[11px] text-faint">
+                          {meetingTimeRange(m.time, m.durationMins)}
+                          {m.notes ? ` · ${m.notes}` : ""}
+                        </div>
                       </div>
-                    </div>
+                    </button>
                     <button
                       type="button"
-                      onClick={() => deleteMeeting(m.id)}
+                      onClick={() => deleteMeeting(m.id, selected)}
                       aria-label={`Remove meeting ${m.title}`}
                       className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
                     >
@@ -396,6 +416,16 @@ export function CalendarView({
           </div>
         </div>
       </div>
+      {editingMeeting && (
+        <MeetingDialog
+          open
+          onOpenChange={(o) => !o && setEditingMeeting(null)}
+          defaultDate={selected}
+          lifeView={life}
+          meeting={editingMeeting}
+          occurrenceDate={selected}
+        />
+      )}
     </>
   );
 }

@@ -173,6 +173,23 @@ export const projectSchema = z.object({
   createdAt: z.string(),
 });
 
+/**
+ * Repeat rule for a meeting — a deliberately small subset of the iCalendar
+ * (RFC 5545) RRULE model: enough for "every weekday", "every other Tuesday",
+ * "monthly on the 12th", without dragging in a full RRULE parser.
+ */
+export const recurrenceSchema = z.object({
+  freq: z.enum(["daily", "weekly", "monthly"]),
+  /** Every N days/weeks/months. */
+  interval: z.number().int().min(1).max(52).default(1),
+  /** Weekly only: JS getDay() values (0=Sun … 6=Sat). Empty = the start day. */
+  byWeekday: z.array(z.number().int().min(0).max(6)).max(7).default([]),
+  /** Inclusive YYYY-MM-DD end date, or null for "no end date". */
+  until: z.string().nullable().default(null),
+  /** Stop after N occurrences (counted from the start date), or null. */
+  count: z.number().int().min(1).max(730).nullable().default(null),
+});
+
 export const agendaItemSchema = z.object({
   _id: z.string(),
   userId: z.string(),
@@ -182,9 +199,19 @@ export const agendaItemSchema = z.object({
   color: z.string(),
   now: z.boolean().optional(),
   lifeArea: z.enum(["personal", "work"]),
-  // null = recurring daily routine item; a YYYY-MM-DD date pins it to one day.
+  // YYYY-MM-DD. For a repeating meeting this is the series START date.
+  // (null only survives on legacy "routine" rows — nothing creates them now.)
   date: z.string().nullable().default(null),
+  // "routine" is legacy demo data; every meeting the app creates is "meeting".
   kind: z.enum(["routine", "meeting"]).default("routine"),
+  /** Real field — the timeline used to regex this out of `sub`. */
+  durationMins: z.number().int().min(5).max(600).default(30),
+  /** Free-text location / agenda notes. */
+  notes: z.string().max(1000).default(""),
+  /** null = one-off. Otherwise the repeat rule anchored at `date`. */
+  recurrence: recurrenceSchema.nullable().default(null),
+  /** YYYY-MM-DD occurrences removed from a series ("delete just this one"). */
+  exceptions: z.array(z.string()).default([]),
 });
 
 export const lifeMoodSchema = z.enum(["great", "good", "okay", "low", "rough"]);
@@ -218,6 +245,7 @@ export type NoteDoc = z.infer<typeof noteSchema>;
 export type GoalDoc = z.infer<typeof goalSchema>;
 export type ProjectDoc = z.infer<typeof projectSchema>;
 export type AgendaItemDoc = z.infer<typeof agendaItemSchema>;
+export type Recurrence = z.infer<typeof recurrenceSchema>;
 export type LifeDayDoc = z.infer<typeof lifeDaySchema>;
 export type LifeWeekDoc = z.infer<typeof lifeWeekSchema>;
 export type LifeMood = z.infer<typeof lifeMoodSchema>;

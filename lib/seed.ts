@@ -497,58 +497,46 @@ export function createSeedData(userId: string): SeedData {
     },
   ];
 
-  // Routine template rows (date null); dated meetings are user-created.
-  const agendaBase = { date: null, kind: "routine" as const };
+  // Real dated meetings — the same rows the Calendar renders, so Agenda and
+  // Calendar always agree. (The old dateless "routine" rows were demo-only
+  // fiction: they appeared every day in the Agenda but never on the Calendar.)
+  const agendaBase = {
+    kind: "meeting" as const,
+    notes: "",
+    exceptions: [] as string[],
+  };
   const agenda: AgendaItemDoc[] = [
-    {
-      _id: oid(),
-      userId,
-      time: "08:00",
-      title: "Morning run · 5k",
-      sub: "habit · done",
-      color: "oklch(0.6 0.13 155)",
-      lifeArea: "personal",
-      ...agendaBase,
-    },
     {
       _id: oid(),
       userId,
       time: "09:30",
       title: "Standup + planning",
-      sub: "work · 30 min",
+      sub: "meeting · 30 min",
       color: "oklch(0.58 0.14 245)",
       lifeArea: "work",
+      date: td,
+      durationMins: 30,
+      // Weekdays — shows off the repeat rule the UI can now create.
+      recurrence: {
+        freq: "weekly" as const,
+        interval: 1,
+        byWeekday: [1, 2, 3, 4, 5],
+        until: null,
+        count: null,
+      },
       ...agendaBase,
     },
     {
       _id: oid(),
       userId,
-      time: "11:00",
-      title: "Deep work · launch email",
-      sub: "now · 90 min block",
-      color: "oklch(0.64 0.18 25)",
-      now: true,
+      time: "16:00",
+      title: "1:1 with Sam",
+      sub: "meeting · 45 min",
+      color: "oklch(0.58 0.14 245)",
       lifeArea: "work",
-      ...agendaBase,
-    },
-    {
-      _id: oid(),
-      userId,
-      time: "14:00",
-      title: "Call Mom",
-      sub: "personal",
-      color: "#b3aea7",
-      lifeArea: "personal",
-      ...agendaBase,
-    },
-    {
-      _id: oid(),
-      userId,
-      time: "19:00",
-      title: "Spanish · unit 9",
-      sub: "project · 20 min",
-      color: "oklch(0.58 0.17 300)",
-      lifeArea: "personal",
+      date: td,
+      durationMins: 45,
+      recurrence: null,
       ...agendaBase,
     },
   ];

@@ -122,7 +122,16 @@ describe("parseNoteCapture", () => {
 });
 
 describe("agenda timeline", () => {
-  const base = { color: "", userId: "", date: null, kind: "routine" as const };
+  const base = {
+    color: "",
+    userId: "",
+    date: null,
+    kind: "routine" as const,
+    durationMins: 30,
+    notes: "",
+    recurrence: null,
+    exceptions: [] as string[],
+  };
   const items = [
     { id: "1", time: "08:00", title: "Run", sub: "habit", lifeArea: "personal" as const, ...base },
     { id: "2", time: "09:30", title: "Standup", sub: "30 min", lifeArea: "work" as const, ...base },

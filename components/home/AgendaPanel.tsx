@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { X } from "lucide-react";
+import { Repeat, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   iso,
@@ -14,7 +14,9 @@ import {
   type WeekStart,
 } from "@/lib/date";
 import type { AgendaItem, Task } from "@/lib/schemas";
-import { deleteAgendaItemAction } from "@/lib/actions/agenda";
+import { deleteMeetingAction } from "@/lib/actions/agenda";
+import { meetingsOnDay, meetingTimeRange } from "@/lib/meetings";
+import { MeetingDialog } from "@/components/agenda/MeetingDialog";
 import { WidgetHeaderLink } from "@/components/home/WidgetLink";
 import { AgendaTodayList } from "@/components/home/AgendaTodayList";
 import { AddMeetingButton } from "@/components/agenda/AddMeetingButton";
@@ -116,16 +118,21 @@ export function AgendaPanel({
     defaultValue: td,
   });
 
+  // Meetings are expanded from their repeat rules, so a weekly standup shows
+  // up on every matching day without a row per occurrence in the database.
+  const occurrencesFor = (day: string) => meetingsOnDay(agenda, day);
+  const agendaFor = (day: string) => occurrencesFor(day).map((o) => o.item);
 
-  // Routine items (date null) repeat daily; dated items (meetings) pin to a day.
-  const agendaFor = (day: string) =>
-    agenda.filter((a) => !a.date || a.date === day);
-  const meetingsFor = (day: string) =>
-    agenda.filter((a) => a.kind === "meeting" && a.date === day);
+  // Editing/removing always targets the clicked DAY, so "delete this one" on a
+  // repeating meeting skips just that date.
+  const [editing, setEditing] = useState<{
+    item: AgendaItem;
+    date: string;
+  } | null>(null);
 
-  const deleteMeeting = (id: string) => {
+  const deleteOccurrence = (id: string, date: string) => {
     startTransition(async () => {
-      const res = await deleteAgendaItemAction(id);
+      const res = await deleteMeetingAction({ id, scope: "occurrence", date });
       if (!res.ok) toast.error(res.error ?? "Could not remove meeting");
       else router.refresh();
     });
@@ -215,18 +222,29 @@ export function AgendaPanel({
             agenda={agendaFor(td)}
             href={calendarHref}
             live
-            onDeleteItem={deleteMeeting}
+            onDeleteItem={(id) => deleteOccurrence(id, td)}
           />
         ) : (
           <>
             <DayMeetings
-              meetings={meetingsFor(selectedDay)}
-              onDelete={deleteMeeting}
+              meetings={agendaFor(selectedDay)}
+              onDelete={(id) => deleteOccurrence(id, selectedDay)}
+              onEdit={(item) => setEditing({ item, date: selectedDay })}
             />
             <AgendaDayTasks tasks={dayTasks} lifeView={lifeView} today={td} />
           </>
         )}
       </div>
+      {editing && (
+        <MeetingDialog
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          defaultDate={editing.date}
+          lifeView={lifeView}
+          meeting={editing.item}
+          occurrenceDate={editing.date}
+        />
+      )}
     </section>
   );
 }
@@ -235,9 +253,11 @@ export function AgendaPanel({
 function DayMeetings({
   meetings,
   onDelete,
+  onEdit,
 }: {
   meetings: AgendaItem[];
   onDelete: (id: string) => void;
+  onEdit: (item: AgendaItem) => void;
 }) {
   if (!meetings.length) return null;
   const sorted = [...meetings].sort(
@@ -247,18 +267,35 @@ function DayMeetings({
     <div className="mb-2 flex flex-col gap-0.5">
       {sorted.map((m) => (
         <div key={m.id} className="group relative -mx-1 rounded-lg px-1 py-0.5">
-          <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(m)}
+            className="flex w-full gap-2 text-left"
+          >
             <span className="w-10 shrink-0 pt-px font-mono text-[11px] text-faint2">
               {m.time}
             </span>
             <div
-              className="flex-1 border-l-2 pl-[11px]"
+              className="min-w-0 flex-1 border-l-2 pl-[11px]"
               style={{ borderColor: m.color }}
             >
-              <div className="text-[13px] font-semibold">{m.title}</div>
-              <div className="text-[11px] text-faint">{m.sub}</div>
+              <div className="flex items-center gap-1.5">
+                <span className="min-w-0 truncate text-[13px] font-semibold">
+                  {m.title}
+                </span>
+                {m.recurrence && (
+                  <Repeat
+                    className="h-2.5 w-2.5 shrink-0 text-faint2"
+                    aria-label="Repeats"
+                  />
+                )}
+              </div>
+              <div className="text-[11px] text-faint">
+                {meetingTimeRange(m.time, m.durationMins)}
+                {m.notes ? ` · ${m.notes}` : ""}
+              </div>
             </div>
-          </div>
+          </button>
           <button
             type="button"
             onClick={() => onDelete(m.id)}

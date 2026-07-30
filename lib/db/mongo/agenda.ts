@@ -23,6 +23,29 @@ export async function insertAgendaItem(
   return toDto(full);
 }
 
+export async function getAgendaItem(
+  userId: string,
+  id: string
+): Promise<AgendaItem | null> {
+  const c = await col();
+  const doc = await c.findOne({ _id: id, userId });
+  return doc ? toDto(agendaItemSchema.parse(doc)) : null;
+}
+
+export async function updateAgendaItem(
+  userId: string,
+  id: string,
+  patch: Partial<Omit<AgendaItemDoc, "_id" | "userId">>
+): Promise<AgendaItem | null> {
+  const c = await col();
+  const doc = await c.findOneAndUpdate(
+    { _id: id, userId },
+    { $set: patch },
+    { returnDocument: "after" }
+  );
+  return doc ? toDto(agendaItemSchema.parse(doc)) : null;
+}
+
 export async function deleteAgendaItem(
   userId: string,
   id: string

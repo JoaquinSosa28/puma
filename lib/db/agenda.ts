@@ -6,4 +6,6 @@ const impl = process.env.DATA_SOURCE === "mongodb" ? mongo : memory;
 
 export const listAgenda = cache(impl.listAgenda);
 export const insertAgendaItem = impl.insertAgendaItem;
+export const getAgendaItem = impl.getAgendaItem;
+export const updateAgendaItem = impl.updateAgendaItem;
 export const deleteAgendaItem = impl.deleteAgendaItem;

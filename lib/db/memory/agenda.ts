@@ -18,6 +18,30 @@ export async function insertAgendaItem(
   return toDto(full);
 }
 
+export async function getAgendaItem(
+  userId: string,
+  id: string
+): Promise<AgendaItem | null> {
+  const store = getStore();
+  const doc = store.agenda.find((a) => a._id === id && a.userId === userId);
+  return doc ? toDto(agendaItemSchema.parse(doc)) : null;
+}
+
+export async function updateAgendaItem(
+  userId: string,
+  id: string,
+  patch: Partial<Omit<AgendaItemDoc, "_id" | "userId">>
+): Promise<AgendaItem | null> {
+  const store = getStore();
+  const idx = store.agenda.findIndex(
+    (a) => a._id === id && a.userId === userId
+  );
+  if (idx < 0) return null;
+  const next = agendaItemSchema.parse({ ...store.agenda[idx], ...patch });
+  store.agenda[idx] = next;
+  return toDto(next);
+}
+
 export async function deleteAgendaItem(
   userId: string,
   id: string
