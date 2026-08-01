@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition, useState, useCallback, useEffect } from "react";
-import { useSyncedDraft } from "@/lib/use-synced-draft";
+import { useAutosaveDraft } from "@/lib/use-autosave-draft";
 import { Star } from "lucide-react";
 import type { Note, Tag } from "@/lib/schemas";
 import { tagBg } from "@/lib/parse";
@@ -202,8 +202,6 @@ function NoteEditor({
   onRefresh: () => void;
   onTogglePin: () => void;
 }) {
-  const [title, setTitle] = useSyncedDraft(note.title, note.id);
-  const [body, setBody] = useSyncedDraft(note.body, note.id);
   const [pinned, setPinned] = useState(note.pinned);
   const [, startTransition] = useTransition();
 
@@ -212,13 +210,26 @@ function NoteEditor({
   }, [note.id, note.pinned]);
 
   const save = useCallback(
-    (field: "title" | "body", value: string) => {
+    (field: "title" | "body", noteId: string, value: string) => {
       startTransition(async () => {
-        await updateNoteAction(note.id, field, value);
+        await updateNoteAction(noteId, field, value);
         onRefresh();
       });
     },
-    [note.id, onRefresh, startTransition]
+    [onRefresh, startTransition]
+  );
+
+  // The editor advertises "autosaves" — so it must actually survive closing the
+  // note or switching to another one mid-sentence, not just blur.
+  const [title, setTitle, flushTitle] = useAutosaveDraft(
+    note.title,
+    note.id,
+    useCallback((id, value) => save("title", id, value), [save])
+  );
+  const [body, setBody, flushBody] = useAutosaveDraft(
+    note.body,
+    note.id,
+    useCallback((id, value) => save("body", id, value), [save])
   );
 
   const handleTogglePin = () => {
@@ -233,7 +244,7 @@ function NoteEditor({
           className="min-w-0 flex-1 border-none bg-transparent text-xl font-bold tracking-tight text-ink outline-none max-lg:text-lg"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => save("title", title)}
+          onBlur={flushTitle}
         />
         <NotePinButton pinned={pinned} onToggle={handleTogglePin} />
         <button
@@ -267,7 +278,7 @@ function NoteEditor({
         className="flex-1 resize-none border-none bg-transparent px-5 py-4 text-[14.5px] leading-relaxed text-ink outline-none"
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        onBlur={() => save("body", body)}
+        onBlur={flushBody}
         placeholder="Start writing… markdown supported (# heading, **bold**, - list)"
       />
       <div className="border-t border-border2 px-5 py-2 font-mono text-[10px] text-faint2">

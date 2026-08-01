@@ -4,9 +4,11 @@ import type { Task } from "@/lib/schemas";
 
 export type TasksTab = "today" | "upcoming" | "all";
 
+/** Links to the tasks list. Defaults to the full list — pass a tab when the
+ *  link means a specific slice (e.g. Home's "Today's tasks" widget). */
 export function tasksListHref(
   lifeView: LifeView,
-  tab: TasksTab = "today"
+  tab: TasksTab = "all"
 ): string {
   return hrefWithLife(`/tasks?tab=${tab}`, lifeView);
 }

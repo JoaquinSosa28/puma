@@ -42,7 +42,9 @@ export function TasksView({
 }: Props) {
   const [tab, setTab] = useQueryState(
     "tab",
-    parseAsStringLiteral(tabs).withDefault("today")
+    // Opening Tasks from the nav shows everything; links that mean a specific
+    // slice (Home's "Today's tasks", a task deep-link) pass ?tab= explicitly.
+    parseAsStringLiteral(tabs).withDefault("all")
   );
   const [group, setGroup] = useQueryState(
     "group",

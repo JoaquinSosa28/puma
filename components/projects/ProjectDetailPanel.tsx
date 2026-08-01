@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import type { Goal, Project, Task } from "@/lib/schemas";
@@ -11,6 +11,7 @@ import { GoalLinkField } from "@/components/links/GoalLinkField";
 import { PROJECT_COLORS } from "@/lib/project-colors";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
+import { useAutosaveDraft } from "@/lib/use-autosave-draft";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
@@ -38,7 +39,6 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
   const confirm = useConfirm();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useSyncedDraft(project.title, project.id);
-  const [description, setDescription] = useSyncedDraft(project.description, project.id);
   const [lifeArea, setLifeArea] = useSyncedDraft(project.lifeArea, project.id);
   const [color, setColor] = useSyncedDraft(project.color, project.id);
   const [, startTransition] = useTransition();
@@ -63,35 +63,16 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
     [project.id, router]
   );
 
-  // Same guarantee as the task panel: the debounced description edit is held in
-  // a ref so closing the panel (or switching project) commits it rather than
-  // cancelling the timer and losing the text.
-  const pendingDescRef = useRef<{ id: string; description: string } | null>(null);
-
-  const flushDescription = useCallback(() => {
-    const pending = pendingDescRef.current;
-    if (!pending) return;
-    pendingDescRef.current = null;
-    // Not in a transition: this can run while the panel unmounts. The action
-    // revalidates the route on its own.
-    void updateProjectDetail({ id: pending.id, description: pending.description });
-  }, []);
-
-  useEffect(() => {
-    if (description === project.description) {
-      pendingDescRef.current = null;
-      return;
-    }
-    pendingDescRef.current = { id: project.id, description };
-    const handle = window.setTimeout(flushDescription, 500);
-    return () => window.clearTimeout(handle);
-  }, [description, project.description, project.id, flushDescription]);
-
-  useEffect(() => {
-    return () => {
-      flushDescription();
-    };
-  }, [project.id, flushDescription]);
+  // Autosaves, and survives closing the panel / switching project mid-sentence.
+  const [description, setDescription, flushDescription] = useAutosaveDraft(
+    project.description,
+    project.id,
+    useCallback(
+      (id: string, value: string) =>
+        void updateProjectDetail({ id, description: value }),
+      []
+    )
+  );
 
   const saveTitle = () => {
     const next = title.trim();

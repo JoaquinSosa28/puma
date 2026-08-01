@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Plus, X } from "lucide-react";
 import type { Project, Subtask, Tag, Task } from "@/lib/schemas";
@@ -18,6 +18,7 @@ import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
+import { useAutosaveDraft } from "@/lib/use-autosave-draft";
 
 const STATUS_OPTIONS = [
   ["todo", "To do"],
@@ -53,7 +54,6 @@ export function TaskDetailPanel({
   const router = useRouter();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useSyncedDraft(task.title, task.id);
-  const [description, setDescription] = useSyncedDraft(task.description, task.id);
   const [subtasks, setSubtasks] = useSyncedDraft(task.subtasks, task.id);
   const [tagIds, setTagIds] = useSyncedDraft(task.tagIds, task.id);
   const [newSubtask, setNewSubtask] = useState("");
@@ -81,39 +81,16 @@ export function TaskDetailPanel({
     [router, task.id]
   );
 
-  // The description autosaves on a debounce, which means there is almost always
-  // an unsaved edit in flight. Keep it in a ref — tagged with the task it
-  // belongs to — so closing the panel or switching tasks can still commit it
-  // instead of silently dropping the text with the debounce timer.
-  const pendingDescRef = useRef<{ id: string; description: string } | null>(null);
-
-  const flushDescription = useCallback(() => {
-    const pending = pendingDescRef.current;
-    if (!pending) return;
-    pendingDescRef.current = null;
-    // Deliberately not wrapped in startTransition: this runs while the panel is
-    // unmounting. The action revalidates the route, so the UI still catches up.
-    void updateTaskDetail({ id: pending.id, description: pending.description });
-  }, []);
-
-  useEffect(() => {
-    if (description === task.description) {
-      pendingDescRef.current = null;
-      return;
-    }
-    pendingDescRef.current = { id: task.id, description };
-    const handle = window.setTimeout(flushDescription, 500);
-    return () => window.clearTimeout(handle);
-  }, [description, task.description, task.id, flushDescription]);
-
-  // Commit any pending text when the panel closes or swaps to another task.
-  // (Cleanup runs on unmount AND before task.id changes, so the edit lands on
-  // the task it was typed into.)
-  useEffect(() => {
-    return () => {
-      flushDescription();
-    };
-  }, [task.id, flushDescription]);
+  // Autosaves, and survives closing the panel / switching tasks mid-sentence.
+  const [description, setDescription, flushDescription] = useAutosaveDraft(
+    task.description,
+    task.id,
+    useCallback(
+      (id: string, value: string) =>
+        void updateTaskDetail({ id, description: value }),
+      []
+    )
+  );
 
   // Closing commits any pending description first. The unmount cleanup above is
   // a backstop, but an action fired while the tree is being torn down inside a

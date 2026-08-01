@@ -141,14 +141,9 @@ export function Sidebar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2.5 border-t border-border px-2.5 py-3">
-        <div
-          className="h-7 w-7 shrink-0 rounded-full"
-          style={{
-            background:
-              "linear-gradient(135deg, oklch(0.7 0.12 70), oklch(0.64 0.18 25))",
-          }}
-        />
-        <span className="min-w-0 flex-1 truncate text-[13px] text-muted">
+        {/* No avatar: the app has no profile pictures, so a decorative blob
+            just reads as a broken image. The name carries the identity. */}
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-muted">
           {userName}
         </span>
         <Link
