@@ -81,14 +81,48 @@ export function TaskDetailPanel({
     [router, task.id]
   );
 
+  // The description autosaves on a debounce, which means there is almost always
+  // an unsaved edit in flight. Keep it in a ref — tagged with the task it
+  // belongs to — so closing the panel or switching tasks can still commit it
+  // instead of silently dropping the text with the debounce timer.
+  const pendingDescRef = useRef<{ id: string; description: string } | null>(null);
+
+  const flushDescription = useCallback(() => {
+    const pending = pendingDescRef.current;
+    if (!pending) return;
+    pendingDescRef.current = null;
+    // Deliberately not wrapped in startTransition: this runs while the panel is
+    // unmounting. The action revalidates the route, so the UI still catches up.
+    void updateTaskDetail({ id: pending.id, description: pending.description });
+  }, []);
+
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      if (description !== task.description) {
-        persist({ description });
-      }
-    }, 500);
+    if (description === task.description) {
+      pendingDescRef.current = null;
+      return;
+    }
+    pendingDescRef.current = { id: task.id, description };
+    const handle = window.setTimeout(flushDescription, 500);
     return () => window.clearTimeout(handle);
-  }, [description, task.description, persist]);
+  }, [description, task.description, task.id, flushDescription]);
+
+  // Commit any pending text when the panel closes or swaps to another task.
+  // (Cleanup runs on unmount AND before task.id changes, so the edit lands on
+  // the task it was typed into.)
+  useEffect(() => {
+    return () => {
+      flushDescription();
+    };
+  }, [task.id, flushDescription]);
+
+  // Closing commits any pending description first. The unmount cleanup above is
+  // a backstop, but an action fired while the tree is being torn down inside a
+  // router transition can be dropped — doing it here keeps the component alive
+  // for the call.
+  const handleClose = useCallback(() => {
+    flushDescription();
+    onClose();
+  }, [flushDescription, onClose]);
 
   const saveTitle = () => {
     const next = title.trim();
@@ -189,7 +223,10 @@ export function TaskDetailPanel({
         {onBack && (
           <button
             type="button"
-            onClick={onBack.action}
+            onClick={() => {
+              flushDescription();
+              onBack.action();
+            }}
             className="group mb-2 flex items-center gap-1.5 rounded-md py-0.5 pr-2 font-mono text-[10px] font-semibold uppercase tracking-wide text-faint transition-colors hover:text-ink"
           >
             <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
@@ -223,7 +260,7 @@ export function TaskDetailPanel({
           {!onBack && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-faint transition-colors hover:bg-hover hover:text-ink"
               aria-label="Close task detail"
             >
@@ -331,6 +368,7 @@ export function TaskDetailPanel({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onBlur={flushDescription}
             placeholder="Add notes, context, links…"
             rows={4}
             className="w-full resize-y rounded-lg border border-border bg-surface2/50 px-3 py-2.5 text-[13px] leading-relaxed text-ink outline-none transition-colors placeholder:text-faint2 focus:border-faint"

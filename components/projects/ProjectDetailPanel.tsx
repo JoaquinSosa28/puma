@@ -63,14 +63,35 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
     [project.id, router]
   );
 
+  // Same guarantee as the task panel: the debounced description edit is held in
+  // a ref so closing the panel (or switching project) commits it rather than
+  // cancelling the timer and losing the text.
+  const pendingDescRef = useRef<{ id: string; description: string } | null>(null);
+
+  const flushDescription = useCallback(() => {
+    const pending = pendingDescRef.current;
+    if (!pending) return;
+    pendingDescRef.current = null;
+    // Not in a transition: this can run while the panel unmounts. The action
+    // revalidates the route on its own.
+    void updateProjectDetail({ id: pending.id, description: pending.description });
+  }, []);
+
   useEffect(() => {
-    const handle = window.setTimeout(() => {
-      if (description !== project.description) {
-        persist({ description });
-      }
-    }, 500);
+    if (description === project.description) {
+      pendingDescRef.current = null;
+      return;
+    }
+    pendingDescRef.current = { id: project.id, description };
+    const handle = window.setTimeout(flushDescription, 500);
     return () => window.clearTimeout(handle);
-  }, [description, project.description, persist]);
+  }, [description, project.description, project.id, flushDescription]);
+
+  useEffect(() => {
+    return () => {
+      flushDescription();
+    };
+  }, [project.id, flushDescription]);
 
   const saveTitle = () => {
     const next = title.trim();
@@ -153,6 +174,7 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            onBlur={flushDescription}
             placeholder="Goals, scope, links, context…"
             rows={5}
             className="w-full resize-y rounded-lg border border-border bg-surface2/50 px-3 py-2.5 text-[13px] leading-relaxed text-ink outline-none transition-colors placeholder:text-faint2 focus:border-faint"

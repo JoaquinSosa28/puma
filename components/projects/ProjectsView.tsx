@@ -15,6 +15,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NewProjectCard } from "@/components/projects/NewProjectCard";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { cn } from "@/lib/utils";
+import { useIsDesktop } from "@/lib/use-media-query";
 import { lifeAreaForCreate } from "@/lib/life-area";
 
 type Props = {
@@ -44,6 +45,7 @@ export function ProjectsView({
   const selected = projects.find((p) => p.id === projectId) ?? projects[0];
   const spTasks = tasks.filter((t) => t.projectId === selected?.id);
   const railRef = useRef<HTMLDivElement>(null);
+  const isDesktop = useIsDesktop();
 
   // In-place task editing: ?task=<id> swaps the right panel for the task editor.
   const [taskId, setTaskId] = useQueryState("task");
@@ -172,11 +174,13 @@ export function ProjectsView({
             {editingTask ? (
               // Phone: draggable bottom sheet; desktop: in-grid panel.
               <>
+                {/* One instance only: two mounted editors autosave over
+                    each other (see lib/use-media-query). */}
                 <div
                   key={editingTask.id}
                   className="hidden min-h-0 overflow-hidden animate-puma-swap lg:block"
                 >
-                  <TaskDetailPanel
+                  {isDesktop && <TaskDetailPanel
                     task={editingTask}
                     tags={tags}
                     projects={projects}
@@ -185,23 +189,23 @@ export function ProjectsView({
                       label: selected.title,
                       action: () => void setTaskId(null),
                     }}
-                  />
+                  />}
                 </div>
                 <div className="lg:hidden">
                   <BottomSheet open onClose={() => void setTaskId(null)}>
-                    <TaskDetailPanel
+                    {!isDesktop && <TaskDetailPanel
                       task={editingTask}
                       tags={tags}
                       projects={projects}
                       onClose={() => void setTaskId(null)}
                       embedded
-                    />
+                    />}
                   </BottomSheet>
                 </div>
               </>
             ) : (
               <div className="hidden min-h-0 lg:block">
-                <ProjectDetailPanel
+                {isDesktop && <ProjectDetailPanel
                   project={selected}
                   goals={goals}
                   tasks={tasks}
@@ -209,10 +213,10 @@ export function ProjectsView({
                     const remaining = projects.filter((p) => p.id !== selected.id);
                     void setProjectId(remaining[0]?.id ?? null);
                   }}
-                />
+                />}
               </div>
             )}
-            {detailsOpen && (
+            {detailsOpen && !isDesktop && (
               <div className="lg:hidden">
                 <BottomSheet open onClose={() => setDetailsOpen(false)}>
                   <div className="h-full px-3 pb-4">

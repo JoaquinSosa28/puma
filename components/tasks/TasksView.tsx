@@ -12,6 +12,7 @@ import { iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
 import { Topbar } from "@/components/shell/Topbar";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
+import { useIsDesktop } from "@/lib/use-media-query";
 
 const tabs = ["today", "upcoming", "all"] as const;
 const groups = ["none", "tag", "project"] as const;
@@ -51,6 +52,7 @@ export function TasksView({
   const [projectFilter, setProjectFilter] = useQueryState("project", parseAsString);
   const listRef = useRef<HTMLDivElement>(null);
   const timeZone = useTimezone();
+  const isDesktop = useIsDesktop();
   const td = iso(new Date(), timeZone);
 
   const selectedTask = useMemo(
@@ -319,18 +321,23 @@ export function TasksView({
             </div>
           </div>
 
-          {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
+          {/* Desktop: right-hand pane. Phone: draggable bottom sheet.
+              Only ONE is mounted at a time — `hidden lg:block` would keep both
+              alive, and two editors autosaving the same task overwrite each
+              other's drafts. */}
           <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
             {selectedTask ? (
-              <div key={selectedTask.id} className="animate-puma-swap h-full">
-                <TaskDetailPanel
-                  task={selectedTask}
-                  tags={tags}
-                  projects={projects}
-                  onClose={() => setTaskId(null)}
-                  embedded
-                />
-              </div>
+              isDesktop && (
+                <div key={selectedTask.id} className="animate-puma-swap h-full">
+                  <TaskDetailPanel
+                    task={selectedTask}
+                    tags={tags}
+                    projects={projects}
+                    onClose={() => setTaskId(null)}
+                    embedded
+                  />
+                </div>
+              )
             ) : (
               <div className="flex h-full flex-col items-center justify-center px-8 text-center">
                 <p className="m-0 text-sm font-semibold text-ink">Select a task</p>
@@ -342,7 +349,7 @@ export function TasksView({
           </div>
           <div className="lg:hidden">
             <BottomSheet open={!!selectedTask} onClose={() => setTaskId(null)}>
-              {selectedTask && (
+              {selectedTask && !isDesktop && (
                 <div key={selectedTask.id} className="animate-puma-swap">
                   <TaskDetailPanel
                     task={selectedTask}

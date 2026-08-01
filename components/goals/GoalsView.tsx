@@ -30,6 +30,7 @@ import { updateGoalsLayoutAction } from "@/lib/actions/goals";
 import { goalHasLinks } from "@/lib/goal-sync";
 import { Topbar } from "@/components/shell/Topbar";
 import { GoalDetailPanel } from "@/components/goals/GoalDetailPanel";
+import { useIsDesktop } from "@/lib/use-media-query";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import type { GoalCategory } from "@/lib/types";
 import type { WeekStart } from "@/lib/date";
@@ -102,6 +103,7 @@ export function GoalsView({
 }: Props) {
   const [, startTransition] = useTransition();
   const [goalId, setGoalId] = useQueryState("goal", parseAsString);
+  const isDesktop = useIsDesktop();
   const serverLayout = useMemo(() => groupByCategory(goals), [goals]);
   const [items, setItems] = useState<ItemsByCategory>(() => serverLayout);
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
@@ -355,6 +357,7 @@ export function GoalsView({
         {/* Desktop: right-hand pane. Phone: draggable bottom sheet. */}
         <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
           {selectedGoal ? (
+            isDesktop && (
             <div key={selectedGoal.id} className="animate-puma-swap h-full">
             <GoalDetailPanel
               goal={selectedGoal}
@@ -367,6 +370,7 @@ export function GoalsView({
               onClose={() => setGoalId(null)}
             />
             </div>
+            )
           ) : (
             <div className="flex h-full flex-col items-center justify-center px-8 text-center">
               <p className="m-0 text-sm font-semibold text-ink">Select a goal</p>
@@ -379,7 +383,7 @@ export function GoalsView({
         </div>
         <div className="lg:hidden">
           <BottomSheet open={!!selectedGoal} onClose={() => setGoalId(null)}>
-            {selectedGoal && (
+            {selectedGoal && !isDesktop && (
               <GoalDetailPanel
                 goal={selectedGoal}
                 projects={projects}
