@@ -19,7 +19,6 @@ import { parseOmni, tagBg } from "@/lib/parse";
 import { getCaptureContext } from "@/lib/capture-context";
 import { createFromOmni, undoCreate } from "@/lib/actions/tasks";
 import { useLifeView } from "@/components/shell/LifeAreaToggle";
-import { lifeAreaForCreate } from "@/lib/life-area";
 import {
   deriveLifeAreaFromTags,
   withLifeTags,
@@ -150,23 +149,16 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
     };
   }, [open]);
 
-  const taggable = type === "task" || type === "note";
   const isTask = type === "task";
   const parsed = parseOmni(text, tags, undefined, undefined, timeZone);
 
-  const baseArea = lifeAreaForCreate(life);
-  // Preview exactly what will be stored: the view's life tags get attached
-  // on create unless one was typed or picked explicitly.
-  const captureArea: EntityLifeArea = taggable
-    ? deriveLifeAreaFromTags(
-        withLifeTags(
-          [...new Set([...selectedTagIds, ...parsed.tagIds])],
-          life,
-          tags
-        ),
-        tags
-      )
-    : baseArea;
+  // Preview exactly what will be stored: the view's life tags get attached on
+  // create unless one was typed or picked. Every capture type carries tags —
+  // habits and goals included — so the chip is true for all of them.
+  const captureArea: EntityLifeArea = deriveLifeAreaFromTags(
+    withLifeTags([...new Set([...selectedTagIds, ...parsed.tagIds])], life, tags),
+    tags
+  );
   const lifeTint = LIFE_META[captureArea];
 
   const td = iso(new Date(), timeZone);
@@ -206,7 +198,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
         priority: type === "task" ? pickedPriority : undefined,
         goalCategory: type === "goal" ? capture.goalCategory : undefined,
         lifeView: life,
-        tagIds: taggable ? selectedTagIds : undefined,
+        tagIds: selectedTagIds,
       });
       if (!res.ok) {
         toast.error(res.error);
@@ -514,7 +506,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
                   </>
                 )}
 
-                {taggable && tags.length > 0 && (
+                {tags.length > 0 && (
                   <>
                     <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
                       Tags

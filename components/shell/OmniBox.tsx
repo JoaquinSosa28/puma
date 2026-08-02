@@ -15,6 +15,7 @@ import { lifeAreaForCreate } from "@/lib/life-area";
 import {
   deriveLifeAreaFromTags,
   withLifeTags,
+  goalCategoryForLifeArea,
 } from "@/lib/life-area-sync";
 import { TagQuickPick, SelectedTagsTray } from "@/components/shell/TagQuickPick";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
@@ -133,7 +134,9 @@ export function OmniBox({
   const busy = assistant.status === "pending";
   const aiMode = mode === "plan" || mode === "ask";
 
-  const taggable = type === "task" || type === "note";
+  // Everything you can capture carries tags — habits and goals included, since
+  // their life area is read from them like everything else's.
+  const taggable = mode === "capture";
   const isTask = type === "task";
   const agendaDay =
     pathname === "/" ? searchParams.get("day")?.slice(0, 10) ?? null : null;
@@ -335,7 +338,7 @@ export function OmniBox({
   const baseArea = lifeAreaForCreate(life);
   // Preview exactly what will be stored: the view's life tags get attached
   // on create unless one was typed or picked explicitly.
-  const captureArea: EntityLifeArea = type === "task" || type === "note"
+  const captureArea: EntityLifeArea = taggable
     ? deriveLifeAreaFromTags(
         withLifeTags(
           [...new Set([...selectedTagIds, ...parsed.tagIds])],
@@ -346,6 +349,15 @@ export function OmniBox({
       )
     : baseArea;
   const lifeTint = LIFE_META[captureArea];
+  // The goals page hints which column you're capturing into. That column is
+  // the life tag under another name, so a typed "#work" moves the hint too —
+  // otherwise the bar would promise Personal and file under Professional.
+  const captureHint =
+    type === "goal"
+      ? goalCategoryForLifeArea(captureArea) === "professional"
+        ? "Professional"
+        : "Personal"
+      : capture.hint;
   // Only tint when the view (or a tag) pins an area; the Both view stays neutral.
   const showLifeSignal =
     mode === "capture" && (life !== "both" || captureArea !== baseArea);
@@ -506,16 +518,16 @@ export function OmniBox({
             → {lifeTint?.label ?? "Both"}
           </span>
         )}
-        {mode === "capture" && capture.hint && (
+        {mode === "capture" && captureHint && (
           <span className="hidden shrink-0 font-mono text-[10px] text-faint transition-colors duration-200 group-focus-within:text-muted md:inline">
-            → {capture.hint}
+            → {captureHint}
           </span>
         )}
-        {mode === "capture" && (taggable || isTask) ? (
+        {mode === "capture" ? (
           <OmniHighlightInput
             ref={inputRef}
             tags={tags}
-            showTags={taggable}
+            showTags
             showPriority={isTask}
             value={text}
             onChange={(e) => setText(e.target.value)}

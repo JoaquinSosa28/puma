@@ -20,6 +20,7 @@ import {
   withLifeTags,
   withProjectLifeTags,
   setLifeTags,
+  hasLifeTag,
   goalCategoryForLifeArea,
   lifeViewForGoalCategory,
 } from "@/lib/life-area-sync";
@@ -194,12 +195,18 @@ export async function createFromOmni(
     };
   }
 
-  // Asking for a professional goal says which side of life it's on, so it
-  // rewrites the tags the view supplied. Without one the tags stand and the
-  // column follows them.
-  const goalTagIds = goalCategory
-    ? setLifeTags(tagIds, lifeViewForGoalCategory(goalCategory), tags)
-    : tagIds;
+  // The column you captured from says which side of life a goal is on — but
+  // only as a default. Typing "#work" from the Personal column is the more
+  // specific instruction and wins, which is why this looks for a life tag that
+  // was actually asked for rather than one the view supplied.
+  const askedForLife = hasLifeTag(
+    [...validPickedTagIds, ...p.tagIds, ...newTagIds],
+    tags
+  );
+  const goalTagIds =
+    goalCategory && !askedForLife
+      ? setLifeTags(tagIds, lifeViewForGoalCategory(goalCategory), tags)
+      : tagIds;
   const goalLife = deriveLifeAreaFromTags(goalTagIds, tags);
   const category = goalCategoryForLifeArea(goalLife);
   const existingGoals = await listGoals(userId);
