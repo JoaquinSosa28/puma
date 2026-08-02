@@ -35,10 +35,8 @@ export function intentFor(e: {
   return multi ? "toggle" : "open";
 }
 
-/** Ids between two entries of `order`, inclusive, whichever way round they are. */
-function span(order: string[], from: string, to: string): string[] {
-  const a = order.indexOf(from);
-  const b = order.indexOf(to);
+/** Ids between two positions in `order`, inclusive, whichever way round. */
+function span(order: string[], a: number, b: number): string[] {
   if (a < 0 || b < 0) return [];
   return order.slice(Math.min(a, b), Math.max(a, b) + 1);
 }
@@ -62,7 +60,11 @@ export function reduceSelection(
   id: string,
   intent: SelectIntent
 ): SelectionState {
-  if (intent === "open") return EMPTY_SELECTION;
+  // A plain click drops the selection, but it still says where you are: the
+  // shift-click that follows has to range from the row you just clicked, not
+  // from nothing. Without this the first shift-click after opening a task
+  // selects only itself and you have to shift-click twice to get a range.
+  if (intent === "open") return { ids: [], anchor: id };
 
   if (intent === "toggle") {
     const has = state.ids.includes(id);
@@ -80,7 +82,29 @@ export function reduceSelection(
   const anchor = state.anchor && order.includes(state.anchor) ? state.anchor : null;
   if (!anchor) return { ids: [id], anchor: id };
 
-  const range = span(order, anchor, id);
+  const anchorAt = order.indexOf(anchor);
+  const clickAt = order.indexOf(id);
+  if (clickAt < 0) return { ids: [id], anchor: id };
+
+  // Shift-clicking past the anchor onto the OTHER side of the current range
+  // grows the range rather than throwing away the half you already had. Having
+  // selected n-5…n, shift-clicking n+5 should give you n-5…n+5 — measuring
+  // from the anchor would silently drop the five rows below it.
+  //
+  // The far end only takes over when the click crosses the anchor, so a click
+  // on the same side still shrinks the range the way you'd expect.
+  let from = anchorAt;
+  const spots = state.ids
+    .map((x) => order.indexOf(x))
+    .filter((i) => i >= 0);
+  if (spots.length) {
+    const lo = Math.min(...spots);
+    const hi = Math.max(...spots);
+    if (clickAt > anchorAt && lo < anchorAt) from = lo;
+    else if (clickAt < anchorAt && hi > anchorAt) from = hi;
+  }
+
+  const range = span(order, from, clickAt);
   if (!range.length) return { ids: [id], anchor: id };
 
   const ids =

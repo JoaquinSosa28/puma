@@ -8,6 +8,7 @@ import {
 } from "@/lib/task-selection";
 
 const ORDER = ["a", "b", "c", "d", "e"];
+const LONG = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
 
 const state = (ids: string[], anchor: string | null = null): SelectionState => ({
   ids,
@@ -54,6 +55,33 @@ describe("range", () => {
     expect(next.ids).toEqual(["b", "c", "d"]);
   });
 
+  it("grows across the anchor instead of dropping the half you had", () => {
+    // The reported bug: anchored on 6, shift-click 1 (→ 1…6), then shift-click
+    // 11. Measuring from the anchor would give 6…11 and silently lose 1…5.
+    const back = reduceSelection(state(["6"], "6"), LONG, "1", "range");
+    expect(back.ids).toEqual(["1", "2", "3", "4", "5", "6"]);
+    const forward = reduceSelection(back, LONG, "11", "range");
+    expect(forward.ids).toEqual([
+      "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
+    ]);
+  });
+
+  it("still shrinks when the click stays on the same side of the anchor", () => {
+    const grown = reduceSelection(state(["6"], "6"), LONG, "11", "range");
+    expect(grown.ids).toEqual(["6", "7", "8", "9", "10", "11"]);
+    const shrunk = reduceSelection(grown, LONG, "8", "range");
+    expect(shrunk.ids).toEqual(["6", "7", "8"]);
+  });
+
+  it("shrinks from the far end once the range has crossed the anchor", () => {
+    // 1…11 with the anchor still at 6: clicking 3 pulls the bottom edge up
+    // and keeps the top, rather than collapsing back to 3…6.
+    const wide = state(LONG, "6");
+    expect(reduceSelection(wide, LONG, "3", "range").ids).toEqual([
+      "3", "4", "5", "6", "7", "8", "9", "10", "11",
+    ]);
+  });
+
   it("keeps the anchor, so repeated shift-clicks resize one range", () => {
     const first = reduceSelection(state(["b"], "b"), ORDER, "e", "range");
     expect(first.ids).toEqual(["b", "c", "d", "e"]);
@@ -63,10 +91,17 @@ describe("range", () => {
   });
 
   it("replaces the selection, while range-add keeps what was there", () => {
-    const base = state(["a"], "c");
-    expect(reduceSelection(base, ORDER, "d", "range").ids).toEqual(["c", "d"]);
-    expect(reduceSelection(base, ORDER, "d", "rangeAdd").ids).toEqual([
+    // "a" sits outside the new span, so it's the one that tells the two
+    // apart: a plain range drops it, range-add keeps it.
+    const base = state(["a", "d"], "d");
+    expect(reduceSelection(base, ORDER, "b", "range").ids).toEqual([
+      "b",
+      "c",
+      "d",
+    ]);
+    expect(reduceSelection(base, ORDER, "b", "rangeAdd").ids).toEqual([
       "a",
+      "b",
       "c",
       "d",
     ]);
@@ -86,9 +121,21 @@ describe("range", () => {
 
 describe("a plain click", () => {
   it("clears the selection — the caller opens the task instead", () => {
-    expect(reduceSelection(state(["a", "b"], "a"), ORDER, "c", "open")).toEqual(
-      EMPTY_SELECTION
+    expect(reduceSelection(state(["a", "b"], "a"), ORDER, "c", "open").ids).toEqual(
+      []
     );
+  });
+
+  it("still leaves an anchor, so the next shift-click ranges from it", () => {
+    // Otherwise the first shift-click after opening a task selects only
+    // itself, and you have to shift-click twice to get a range.
+    const clicked = reduceSelection(EMPTY_SELECTION, ORDER, "b", "open");
+    expect(clicked.anchor).toBe("b");
+    expect(reduceSelection(clicked, ORDER, "d", "range").ids).toEqual([
+      "b",
+      "c",
+      "d",
+    ]);
   });
 });
 
