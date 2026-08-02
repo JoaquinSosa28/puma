@@ -24,6 +24,17 @@ type Props = {
 
 const DONE_BG = "oklch(0.6 0.13 155)";
 
+/** Single-letter weekday for a YYYY-MM-DD, Sunday-indexed like getDay(). */
+const WEEKDAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"] as const;
+function weekdayLetter(isoDate: string): string {
+  return WEEKDAY_LETTERS[new Date(isoDate + "T00:00").getDay()];
+}
+
+function isWeekend(isoDate: string): boolean {
+  const d = new Date(isoDate + "T00:00").getDay();
+  return d === 0 || d === 6;
+}
+
 function monthShort(isoDate: string): string {
   return new Date(isoDate + "T00:00").toLocaleDateString("en-US", {
     month: "short",
@@ -158,6 +169,20 @@ export function HabitHeatStrip({
             ) : (
               <span title={title} className={box} style={style}>
                 {content}
+              </span>
+            )}
+            {frequency === "daily" && (
+              <span
+                aria-hidden
+                className={cn(
+                  "text-center font-mono leading-none",
+                  compact ? "text-[6.5px]" : "text-[7.5px]",
+                  // Weekends sit back a shade so the week's shape is readable
+                  // at a glance without adding another visual element.
+                  isWeekend(cell.id) ? "text-faint2/60" : "text-faint2"
+                )}
+              >
+                {weekdayLetter(cell.id)}
               </span>
             )}
           </div>
