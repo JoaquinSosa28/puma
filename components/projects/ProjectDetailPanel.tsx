@@ -3,11 +3,12 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
-import type { Goal, Project, Task } from "@/lib/schemas";
+import type { Goal, Project, Tag, Task } from "@/lib/schemas";
 import { projectProgress } from "@/lib/metrics";
 import { updateProjectDetail, deleteProjectAction } from "@/lib/actions/projects";
 import { linkProjectToGoal } from "@/lib/actions/links";
 import { GoalLinkField } from "@/components/links/GoalLinkField";
+import { ProjectTagsField } from "@/components/projects/ProjectTagsField";
 import { PROJECT_COLORS } from "@/lib/project-colors";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
@@ -31,10 +32,17 @@ type Props = {
   project: Project;
   goals: Goal[];
   tasks: Task[];
+  tags: Tag[];
   onDeleted?: () => void;
 };
 
-export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) {
+export function ProjectDetailPanel({
+  project,
+  goals,
+  tasks,
+  tags,
+  onDeleted,
+}: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -213,6 +221,13 @@ export function ProjectDetailPanel({ project, goals, tasks, onDeleted }: Props) 
               />
             ))}
           </div>
+        </section>
+
+        <section>
+          <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+            Tags
+          </h4>
+          <ProjectTagsField project={project} tags={tags} />
         </section>
 
         <section>

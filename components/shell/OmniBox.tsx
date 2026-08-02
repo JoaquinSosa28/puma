@@ -595,7 +595,7 @@ export function OmniBox({
         </div>
       ) : (
       <div className="mt-2.5 flex min-w-0 items-center gap-2 overflow-x-auto border-t border-border2 py-2.5 pb-3 [scrollbar-width:none] lg:overflow-visible">
-        <span className="shrink-0 font-mono text-[10px] text-faint2">SAVE AS →</span>
+        <span className="shrink-0 font-mono text-[10px] text-faint2">TAB FOR →</span>
         <div className="flex shrink-0 items-center gap-1">
           <TypeChip
             label="Task"

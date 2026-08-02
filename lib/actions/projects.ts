@@ -6,7 +6,9 @@ import {
   insertTag,
   deleteTag,
   detachTagFromProject,
+  setTagProject,
 } from "@/lib/db/tags";
+import { isLifeTag } from "@/lib/life-area-sync";
 import { projectTagSlug, uniqueTagName } from "@/lib/project-tags";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
@@ -64,6 +66,67 @@ export async function createProjectAction(
 
   revalidatePath("/", "layout");
   return { ok: true, data: project };
+}
+
+const projectTagSchema = z.object({
+  projectId: z.string(),
+  tagId: z.string(),
+});
+
+/**
+ * Give an existing tag to a project.
+ *
+ * Refused if the tag already belongs to another project: a tag files things
+ * into exactly one place, and letting two projects claim one would make "#ai"
+ * ambiguous. Life tags are refused too — they mean the personal/work split,
+ * not a project.
+ */
+export async function attachTagToProjectAction(
+  input: z.infer<typeof projectTagSchema>
+): Promise<ActionResult> {
+  const parsed = projectTagSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  const userId = await requireUserId();
+  const project = await getProject(userId, parsed.data.projectId);
+  if (!project) return { ok: false, error: "Project not found" };
+
+  const tags = await listTags(userId);
+  const tag = tags.find((t) => t.id === parsed.data.tagId);
+  if (!tag) return { ok: false, error: "Tag not found" };
+  if (isLifeTag(tag.name)) {
+    return { ok: false, error: `"${tag.name}" is a life tag, not a project tag` };
+  }
+  if (tag.projectId && tag.projectId !== project.id) {
+    const owner = (await listProjects(userId)).find((p) => p.id === tag.projectId);
+    return {
+      ok: false,
+      error: `"${tag.name}" already belongs to ${owner?.title ?? "another project"}`,
+    };
+  }
+
+  await setTagProject(userId, tag.id, project.id);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Release a tag back to being an ordinary label. The flagship can't go. */
+export async function detachTagFromProjectAction(
+  tagId: string
+): Promise<ActionResult> {
+  const userId = await requireUserId();
+  const tag = (await listTags(userId)).find((t) => t.id === tagId);
+  if (!tag) return { ok: false, error: "Tag not found" };
+  if (tag.isProjectPrimary) {
+    return {
+      ok: false,
+      error: "That's the project's own tag — rename it instead",
+    };
+  }
+
+  await detachTagFromProject(userId, tagId);
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 const updateProjectDetailSchema = z.object({

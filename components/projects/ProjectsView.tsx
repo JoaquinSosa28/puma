@@ -210,6 +210,7 @@ export function ProjectsView({
                   project={selected}
                   goals={goals}
                   tasks={tasks}
+                  tags={tags}
                   onDeleted={() => {
                     const remaining = projects.filter((p) => p.id !== selected.id);
                     void setProjectId(remaining[0]?.id ?? null);
@@ -225,6 +226,7 @@ export function ProjectsView({
                       project={selected}
                       goals={goals}
                       tasks={tasks}
+                      tags={tags}
                       onDeleted={() => {
                         setDetailsOpen(false);
                         const remaining = projects.filter(

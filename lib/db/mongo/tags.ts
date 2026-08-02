@@ -159,3 +159,12 @@ export async function detachTagFromProject(
     { $set: { projectId: null, isProjectPrimary: false } }
   );
 }
+
+export async function setTagProject(
+  userId: string,
+  id: string,
+  projectId: string
+): Promise<void> {
+  const c = await col();
+  await c.updateOne({ _id: id, userId }, { $set: { projectId } });
+}

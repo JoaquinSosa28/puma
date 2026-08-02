@@ -148,3 +148,14 @@ export async function detachTagFromProject(
   tag.projectId = null;
   tag.isProjectPrimary = false;
 }
+
+export async function setTagProject(
+  userId: string,
+  id: string,
+  projectId: string
+): Promise<void> {
+  const store = getStore();
+  const tag = store.tags.find((t) => t._id === id && t.userId === userId);
+  if (!tag) return;
+  tag.projectId = projectId;
+}
