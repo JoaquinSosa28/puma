@@ -3,6 +3,7 @@
 // (closes NoSQL-injection-shaped inputs arriving via the action wire format) and
 // free-text fields are length-capped (protects storage and page payloads).
 import { z } from "zod";
+import { isReservedTagName } from "@/lib/omni-reserved";
 
 /** 24-char hex id — matches oid() in lib/date.ts and Mongo ObjectId strings. */
 export const entityId = z.string().regex(/^[0-9a-f]{24}$/, "Invalid id");
@@ -10,7 +11,21 @@ export const entityId = z.string().regex(/^[0-9a-f]{24}$/, "Invalid id");
 export const title = z.string().trim().min(1, "Required").max(200, "Too long");
 export const shortText = z.string().trim().max(500, "Too long");
 export const noteBody = z.string().max(50_000, "Too long");
-export const tagName = z.string().trim().min(1, "Required").max(40, "Too long");
+/**
+ * Tag names, minus the words the capture bar claims for itself.
+ *
+ * A tag called "high" or "note" would be swallowed by the parser every time it
+ * was typed, so it's refused at the door rather than left to fail confusingly
+ * later. This is the single chokepoint — creating and renaming both use it.
+ */
+export const tagName = z
+  .string()
+  .trim()
+  .min(1, "Required")
+  .max(40, "Too long")
+  .refine((name) => !isReservedTagName(name), {
+    message: "That word is reserved by the capture bar",
+  });
 
 /** "YYYY-MM-DD" (optionally with a time suffix, e.g. task due "2026-06-28T14:00"). */
 export const isoDate = z

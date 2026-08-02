@@ -1,5 +1,12 @@
 import * as chrono from "chrono-node";
 import type { Tag } from "@/lib/schemas";
+import type { OmniType } from "@/lib/types";
+import {
+  RESERVED_PRIORITY,
+  RESERVED_TYPE,
+  RESERVED_MODE,
+  RESERVED_DATE,
+} from "@/lib/omni-reserved";
 import { iso, defaultNoteTitle, fakeLocalFromTz } from "@/lib/date";
 import { getDefaultTimezone } from "@/lib/timezone";
 
@@ -18,6 +25,10 @@ export type ParseResult = {
   hasPriorityToken: boolean;
   /** Everything after "title: ", the way note capture splits title from body. */
   description: string;
+  /** "#note" / "#goal" — the capture bar switches type when this is set. */
+  typeToken: OmniType | null;
+  /** "#plan" / "#ask" — switches the bar out of capture mode. */
+  modeToken: "plan" | "ask" | null;
 };
 
 export type NoteParseResult = {
@@ -46,9 +57,38 @@ export function parseOmni(
   const tagIds: string[] = [];
   const pills: ParseResult["pills"] = [];
 
+  // "#high", "#note", "#ask", "#today" steer the capture bar rather than
+  // labelling anything, so they're pulled out before tags are collected and
+  // never reach tagIds. They can't exist as tag names either — see
+  // isReservedTagName.
+  let typeToken: OmniType | null = null;
+  let modeToken: "plan" | "ask" | null = null;
+  let priorityToken: "low" | "med" | "high" | null = null;
+  let dateToken: (typeof RESERVED_DATE)[number] | null = null;
+
   const tagMatches = [...text.matchAll(/#([a-z0-9][\w-]*)/gi)];
   for (const m of tagMatches) {
     const name = m[1].toLowerCase();
+
+    if (!options?.forNote) {
+      if (RESERVED_TYPE[name]) {
+        typeToken = RESERVED_TYPE[name];
+        continue;
+      }
+      if (RESERVED_MODE[name]) {
+        modeToken = RESERVED_MODE[name];
+        continue;
+      }
+      if (RESERVED_PRIORITY[name]) {
+        priorityToken = RESERVED_PRIORITY[name];
+        continue;
+      }
+      if ((RESERVED_DATE as readonly string[]).includes(name)) {
+        dateToken = name as (typeof RESERVED_DATE)[number];
+        continue;
+      }
+    }
+
     const existing = tags.find((t) => t.name === name);
     if (existing) {
       if (!tagIds.includes(existing.id)) {
@@ -61,7 +101,9 @@ export function parseOmni(
   }
   title = title.replace(/#([a-z0-9][\w-]*)/gi, "").replace(/\s+/g, " ").trim();
 
-  let priority: "low" | "med" | "high" = "med";
+  let priority: "low" | "med" | "high" = priorityToken ?? "med";
+  // TODO: the "!high" form predates "#high" and is kept only so existing
+  // muscle memory keeps working. Drop it once "#" is the only prefix.
   if (!options?.forNote) {
     const pm = text.match(/!(high|med|low|h|m|l)\b/i);
     if (pm) {
@@ -76,7 +118,15 @@ export function parseOmni(
 
   let due: string | null = null;
   let dateLabel: string | null = null;
-  if (!options?.forNote) {
+  if (!options?.forNote && dateToken) {
+    const base = new Date(ref);
+    if (dateToken === "tomorrow") base.setDate(base.getDate() + 1);
+    due = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(
+      base.getDate()
+    )}`;
+    dateLabel = dateToken === "today" ? "Today" : "Tomorrow";
+  }
+  if (!options?.forNote && !due) {
     const parsed = chrono.parse(text, ref, { forwardDate: true });
     if (parsed.length > 0) {
       const result = parsed[0];
@@ -106,7 +156,8 @@ export function parseOmni(
     }
   }
 
-  const hasPriorityToken = /!(high|med|low|h|m|l)\b/i.test(text);
+  const hasPriorityToken =
+    priorityToken !== null || /!(high|med|low|h|m|l)\b/i.test(text);
 
   // "Pay rent: the landlord wants a transfer" — title before the colon, the
   // rest becomes the description, same idea as note capture. Runs last, on the
@@ -133,6 +184,8 @@ export function parseOmni(
     priority,
     hasPriorityToken,
     description,
+    typeToken,
+    modeToken,
   };
 }
 

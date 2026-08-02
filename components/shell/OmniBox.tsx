@@ -23,6 +23,7 @@ import type { TaskPriority } from "@/lib/types";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
 import { completeOmniToken } from "@/lib/omni-complete";
+import { RESERVED_WORDS } from "@/lib/omni-reserved";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { MessageCircleQuestion, Pencil, Sparkles } from "lucide-react";
@@ -237,7 +238,7 @@ export function OmniBox({
         const done = completeOmniToken(
           el.value,
           el.selectionStart ?? el.value.length,
-          tags.map((t) => t.name)
+          [...tags.map((t) => t.name), ...RESERVED_WORDS]
         );
         if (done) {
           e.preventDefault();
@@ -342,6 +343,20 @@ export function OmniBox({
       setPickedDue(null);
     }
   }, [isTask, parsed.due]);
+
+  // "#note", "#goal", "#ask" steer the bar from the text itself. The token is
+  // stripped from the title by the parser, so acting on it here is the only
+  // thing that makes it visible.
+  useEffect(() => {
+    if (parsed.modeToken && parsed.modeToken !== mode) setMode(parsed.modeToken);
+  }, [parsed.modeToken, mode]);
+
+  useEffect(() => {
+    if (parsed.typeToken && parsed.typeToken !== type) {
+      setMode("capture");
+      setType(parsed.typeToken);
+    }
+  }, [parsed.typeToken, type]);
 
   const submit = () => {
     const trimmed = text.trim();

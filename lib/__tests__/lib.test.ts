@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { iso, addDays, streakOf, bestStreak, weekDates, currentAgendaIndex } from "@/lib/date";
 import { parseOmni, parseNoteCapture, toggleTagInText } from "@/lib/parse";
+import { isReservedTagName } from "@/lib/omni-reserved";
 import { defaultNoteTitle } from "@/lib/date";
 import {
   buildAgendaBlocks,
@@ -402,5 +403,54 @@ describe("habit streaks count the habit's own units", () => {
       "2026-11-02",
     ]);
     expect(habitBestStreak("monthly", entries, "mon")).toBe(3);
+  });
+});
+
+describe("omnibar reserved words", () => {
+  it("sets priority from #high and never tags it", () => {
+    const r = parseOmni("ship it #high", tags);
+    expect(r.priority).toBe("high");
+    expect(r.title).toBe("ship it");
+    expect(r.pills).toHaveLength(0);
+    expect(r.newTagNames).toHaveLength(0);
+  });
+
+  it("maps #mid onto the med level", () => {
+    expect(parseOmni("x #mid", tags).priority).toBe("med");
+    expect(parseOmni("x #low", tags).priority).toBe("low");
+  });
+
+  it("reports the type and mode tokens instead of tagging them", () => {
+    const t = parseOmni("ideas #note", tags);
+    expect(t.typeToken).toBe("note");
+    expect(t.newTagNames).toHaveLength(0);
+
+    const a = parseOmni("what's overdue #ask", tags);
+    expect(a.modeToken).toBe("ask");
+    expect(a.newTagNames).toHaveLength(0);
+  });
+
+  it("resolves #today and #tomorrow without tagging them", () => {
+    const ref = new Date("2026-06-21T12:00:00Z");
+    const today = parseOmni("pay rent #today", tags, ref, undefined, TZ);
+    expect(today.due).toBe("2026-06-21");
+    expect(today.newTagNames).toHaveLength(0);
+
+    const tom = parseOmni("pay rent #tomorrow", tags, ref, undefined, TZ);
+    expect(tom.due).toBe("2026-06-22");
+  });
+
+  it("still collects ordinary tags alongside", () => {
+    const r = parseOmni("ship it #high #work", tags);
+    expect(r.priority).toBe("high");
+    expect(r.tagIds).toContain("1");
+  });
+
+  it("refuses reserved words as tag names", () => {
+    for (const name of ["high", "mid", "low", "task", "note", "plan", "ask", "today"]) {
+      expect(isReservedTagName(name), `${name} should be reserved`).toBe(true);
+    }
+    expect(isReservedTagName("work")).toBe(false);
+    expect(isReservedTagName("game-dev-ops")).toBe(false);
   });
 });
