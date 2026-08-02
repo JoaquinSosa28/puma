@@ -19,23 +19,23 @@ const statWidget = z.object({
   title: z.string(),
   span,
   value: z.string(), // string so "78%", "12 days", "3 / 8" all work
-  label: z.string().nullable().optional(),
-  hint: z.string().nullable().optional(),
+  label: z.string().nullable(),
+  hint: z.string().nullable(),
 });
 
 const entityKind = z.enum(["task", "project", "goal", "habit", "note"]);
 
 const focusFields = {
-  entityKind: entityKind.nullable().optional(),
-  entityId: z.string().nullable().optional(),
-  href: z.string().nullable().optional(),
+  entityKind: entityKind.nullable(),
+  entityId: z.string().nullable(),
+  href: z.string().nullable(),
 };
 
 const barWidget = z.object({
   type: z.literal("bar"),
   title: z.string(),
   span,
-  unit: z.string().nullable().optional(),
+  unit: z.string().nullable(),
   series: z.array(
     z.object({
       label: z.string(),
@@ -52,7 +52,7 @@ const listWidget = z.object({
   items: z.array(
     z.object({
       label: z.string(),
-      sublabel: z.string().nullable().optional(),
+      sublabel: z.string().nullable(),
       ...focusFields,
     })
   ),
@@ -66,8 +66,8 @@ const calendarWidget = z.object({
   marks: z.array(
     z.object({
       date: z.string(), // "YYYY-MM-DD"
-      intensity: z.number().nullable().optional(), // 0..1 shading
-      label: z.string().nullable().optional(),
+      intensity: z.number().nullable(), // 0..1 shading
+      label: z.string().nullable(),
     })
   ),
 });
@@ -93,8 +93,8 @@ const pieWidget = z.object({
       ...focusFields,
     })
   ),
-  unit: z.string().nullable().optional(),
-  centerLabel: z.string().nullable().optional(),
+  unit: z.string().nullable(),
+  centerLabel: z.string().nullable(),
 });
 
 const lineWidget = z.object({
@@ -102,7 +102,7 @@ const lineWidget = z.object({
   title: z.string(),
   span,
   points: z.array(z.object({ label: z.string(), value: z.number() })),
-  unit: z.string().nullable().optional(),
+  unit: z.string().nullable(),
 });
 
 const progressWidget = z.object({

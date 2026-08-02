@@ -26,7 +26,13 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import type { ChangeOp, Changeset, ChangeEntity } from "@/lib/ai/changeset-schema";
+import {
+  BLANK_BLOCK,
+  blankTaskFields,
+  type ChangeOp,
+  type Changeset,
+  type ChangeEntity,
+} from "@/lib/ai/changeset-schema";
 import {
   applyChangesetAction,
   previewChangesetAction,
@@ -86,7 +92,14 @@ function setTitle(op: ChangeOp, title: string): ChangeOp {
   const key = op.entity === "habit" ? "name" : "title";
   return {
     ...op,
-    fields: { ...op.fields, [op.entity]: { ...op.fields[op.entity], [key]: title } },
+    fields: {
+      ...op.fields,
+      [op.entity]: {
+        ...BLANK_BLOCK[op.entity],
+        ...(op.fields[op.entity] ?? {}),
+        [key]: title,
+      },
+    },
   } as ChangeOp;
 }
 
@@ -96,13 +109,19 @@ function setParent(op: ChangeOp, ref: string | null): ChangeOp {
   if (op.entity === "task") {
     return {
       ...op,
-      fields: { ...op.fields, task: { ...op.fields.task, projectRef: ref } },
+      fields: {
+        ...op.fields,
+        task: { ...BLANK_BLOCK.task, ...(op.fields.task ?? {}), projectRef: ref },
+      },
     } as ChangeOp;
   }
   if (op.entity === "project") {
     return {
       ...op,
-      fields: { ...op.fields, project: { ...op.fields.project, goalRef: ref } },
+      fields: {
+        ...op.fields,
+        project: { ...BLANK_BLOCK.project, ...(op.fields.project ?? {}), goalRef: ref },
+      },
     } as ChangeOp;
   }
   return op;
@@ -184,7 +203,7 @@ export function ChangesetCanvas({
           op: "create",
           entity: "task",
           refId: `new-${mintKey()}`,
-          fields: { task: { title: "", projectRef: projectRefOrId } },
+          fields: blankTaskFields(projectRefOrId),
         },
       },
     ]);

@@ -45,7 +45,7 @@ You build STRUCTURE, not content. Use the user's own words. Do not invent steps,
 - \`{ op: "delete", entity, id, label }\` — only when the user asked for removal, explicitly or by clear implication ("merge A into B" deletes A after moving its contents). Deleting is never a tidy-up you volunteer.
 
 ## Op rules
-- \`fields\` is keyed by entity: put a task's fields under \`fields.task\`, a goal's under \`fields.goal\`, etc.
+- \`fields\` is keyed by entity: put a task's fields under \`fields.task\`, a goal's under \`fields.goal\`, etc. The other four entity keys are null. Within the entity's block, every key is present — set what the user's words justify, null for everything else. On updates, null means "unchanged"; \`before\` mirrors exactly the non-null keys of \`fields\`.
 - \`projectRef\`/\`goalRef\`/\`goalRefs\` accept either a refId from this changeset or a real id from the snapshot. Prefer attaching to existing entities when they clearly fit — do not duplicate a goal that already exists.
 - A merge is: updates moving the children, then one delete of the emptied container.
 - Order ops parent-first (goal before its project, project before its tasks).

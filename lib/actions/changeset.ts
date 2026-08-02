@@ -13,6 +13,7 @@ import { AI_QUOTA_MESSAGE, reserveAiCall } from "@/lib/ai/quota";
 import { assist, type AssistOutcome } from "@/lib/ai/assist";
 import { aiInput } from "@/lib/validation";
 import {
+  BLANK_BLOCK,
   changesetSchema,
   type Changeset,
   type ChangeEntity,
@@ -299,7 +300,7 @@ async function applyCreate(
 
   switch (op.entity) {
     case "goal": {
-      const f = op.fields.goal ?? {};
+      const f = op.fields.goal ?? BLANK_BLOCK.goal;
       const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
       const goals = await listGoals(userId);
@@ -319,7 +320,7 @@ async function applyCreate(
       return { id: g.id, title: g.title };
     }
     case "project": {
-      const f = op.fields.project ?? {};
+      const f = op.fields.project ?? BLANK_BLOCK.project;
       const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
       const projects = await listProjects(userId);
@@ -345,7 +346,7 @@ async function applyCreate(
       return { id: p.id, title: p.title };
     }
     case "habit": {
-      const f = op.fields.habit ?? {};
+      const f = op.fields.habit ?? BLANK_BLOCK.habit;
       const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
       const goalIds = (f.goalRefs ?? [])
@@ -367,7 +368,7 @@ async function applyCreate(
       return { id: h.id, title: h.name };
     }
     case "task": {
-      const f = op.fields.task ?? {};
+      const f = op.fields.task ?? BLANK_BLOCK.task;
       const projectId = resolve("project", f.projectRef);
       const named = await ensureTags(userId, f.tagNames ?? []);
       // The task carries its life tag, and — when filed — the project's
@@ -399,7 +400,7 @@ async function applyCreate(
       return { id: t.id, title: t.title };
     }
     case "note": {
-      const f = op.fields.note ?? {};
+      const f = op.fields.note ?? BLANK_BLOCK.note;
       const named = await ensureTags(userId, f.tagNames ?? []);
       const fresh = await listTags(userId);
       const tagIds = setLifeTags(named, life(f.lifeArea), fresh);
@@ -429,13 +430,13 @@ async function applyUpdate(
 
   switch (op.entity) {
     case "goal": {
-      const f = op.fields.goal ?? {};
+      const f = op.fields.goal ?? BLANK_BLOCK.goal;
       const current = (await listGoals(userId)).find((g) => g.id === op.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
       const before: Record<string, unknown> = {};
       if (f.title != null) { patch.title = f.title; before.title = current.title; }
-      if (f.targetDate !== undefined) { patch.targetDate = f.targetDate; before.targetDate = current.targetDate; }
+      if (f.targetDate != null) { patch.targetDate = f.targetDate; before.targetDate = current.targetDate; }
       if (f.lifeArea != null) {
         const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
         patch.tagIds = tagIds;
@@ -448,14 +449,14 @@ async function applyUpdate(
       return (await updateGoal(userId, op.id, patch)) ? before : null;
     }
     case "project": {
-      const f = op.fields.project ?? {};
+      const f = op.fields.project ?? BLANK_BLOCK.project;
       const current = (await listProjects(userId)).find((p) => p.id === op.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
       const before: Record<string, unknown> = {};
       if (f.title != null) { patch.title = f.title; before.title = current.title; }
       if (f.description != null) { patch.description = f.description; before.description = current.description; }
-      if (f.goalRef !== undefined) { patch.goalId = resolve("goal", f.goalRef); before.goalId = current.goalId; }
+      if (f.goalRef != null) { patch.goalId = resolve("goal", f.goalRef); before.goalId = current.goalId; }
       if (f.lifeArea != null) {
         const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
         patch.tagIds = tagIds;
@@ -467,7 +468,7 @@ async function applyUpdate(
       return (await updateProject(userId, op.id, patch)) ? before : null;
     }
     case "habit": {
-      const f = op.fields.habit ?? {};
+      const f = op.fields.habit ?? BLANK_BLOCK.habit;
       const current = (await listHabits(userId)).find((h) => h.id === op.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
@@ -491,7 +492,7 @@ async function applyUpdate(
       return (await updateHabit(userId, op.id, patch)) ? before : null;
     }
     case "task": {
-      const f = op.fields.task ?? {};
+      const f = op.fields.task ?? BLANK_BLOCK.task;
       const current = (await listTasks(userId)).find((t) => t.id === op.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
@@ -499,8 +500,8 @@ async function applyUpdate(
       if (f.title != null) { patch.title = f.title; before.title = current.title; }
       if (f.description != null) { patch.description = f.description; before.description = current.description; }
       if (f.priority != null) { patch.priority = f.priority; before.priority = current.priority; }
-      if (f.due !== undefined) { patch.due = f.due; before.due = current.due; }
-      if (f.projectRef !== undefined) {
+      if (f.due != null) { patch.due = f.due; before.due = current.due; }
+      if (f.projectRef != null) {
         const projectId = resolve("project", f.projectRef);
         let tagIds = withSingleProjectTag(current.tagIds, projectId, tags);
         const flagship = projectId
@@ -525,7 +526,7 @@ async function applyUpdate(
       return (await updateTask(userId, op.id, patch)) ? before : null;
     }
     case "note": {
-      const f = op.fields.note ?? {};
+      const f = op.fields.note ?? BLANK_BLOCK.note;
       const current = (await listNotes(userId)).find((n) => n.id === op.id);
       if (!current) return null;
       const patch: Record<string, unknown> = {};
