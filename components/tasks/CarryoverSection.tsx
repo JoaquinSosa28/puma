@@ -7,6 +7,7 @@ import type { Task, Tag } from "@/lib/schemas";
 import { Taggable } from "@/components/tags/TagMenuProvider";
 import { TaskList } from "@/components/tasks/TaskList";
 import { PriorityChip } from "@/components/tasks/PriorityChip";
+import type { SelectionController } from "@/lib/use-task-selection";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
   onSelect?: (id: string) => void;
   flat?: boolean;
   defaultOpen?: boolean;
+  selection?: SelectionController;
 };
 
 export function CarryoverSection({
@@ -33,6 +35,7 @@ export function CarryoverSection({
   onSelect,
   flat = false,
   defaultOpen = true,
+  selection,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
   const collapsible = variant === "agenda";
@@ -141,6 +144,7 @@ export function CarryoverSection({
             variant="page"
             selectedId={selectedId}
             onSelect={onSelect}
+            selection={selection}
           />
         </div>
       )}

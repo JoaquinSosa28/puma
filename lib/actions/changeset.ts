@@ -10,7 +10,6 @@ import type { ActionResult } from "@/lib/types";
 import { requireUserId } from "@/lib/auth/session";
 import { userToday } from "@/lib/timezone-server";
 import { AI_QUOTA_MESSAGE, reserveAiCall } from "@/lib/ai/quota";
-import { assist, type AssistOutcome } from "@/lib/ai/assist";
 import { aiInput } from "@/lib/validation";
 import {
   changesetSchema,

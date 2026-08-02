@@ -39,9 +39,12 @@ import {
   TaskFilterChips,
 } from "@/components/tasks/TaskFilterMenu";
 import type { Task, Tag, Project } from "@/lib/schemas";
+import type { SelectionController } from "@/lib/use-task-selection";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
+import { BulkEditPanel } from "@/components/tasks/BulkEditPanel";
+import { SelectionBar } from "@/components/tasks/SelectionBar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
@@ -49,6 +52,7 @@ import { useTagMenu } from "@/components/tags/TagMenuProvider";
 import { Topbar } from "@/components/shell/Topbar";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { useIsDesktop } from "@/lib/use-media-query";
+import { useTaskSelection } from "@/lib/use-task-selection";
 
 const tabs = ["today", "upcoming", "all"] as const;
 const groups = ["none", "tag", "project"] as const;
@@ -337,6 +341,36 @@ export function TasksView({
     return result;
   }, [group, tags, projects, filtered, tab, filteredProject, searching, filtersActive]);
 
+  // Every row on screen, top to bottom — a shift-range spans what the user can
+  // see, so it has to follow the grouping and the carryover section rather
+  // than the unfiltered task list.
+  const orderedIds = useMemo(() => {
+    const ids = taskGroups.flatMap((grp) => grp.items.map((t) => t.id));
+    if (showCarryover) {
+      const seen = new Set(ids);
+      for (const t of filteredCarryover) if (!seen.has(t.id)) ids.push(t.id);
+    }
+    return ids;
+  }, [taskGroups, showCarryover, filteredCarryover]);
+
+  const selection = useTaskSelection(orderedIds);
+  // Phone only: the bulk sheet is opened deliberately, not by selecting —
+  // see SelectionBar. Selecting nothing closes it.
+  const [bulkSheet, setBulkSheet] = useState(false);
+  useEffect(() => {
+    if (!selection.active) setBulkSheet(false);
+  }, [selection.active]);
+
+  const selectedTasks = useMemo(() => {
+    if (!selection.active) return [];
+    const pool = new Map<string, Task>();
+    for (const t of tasks) pool.set(t.id, t);
+    for (const t of carryover) if (!pool.has(t.id)) pool.set(t.id, t);
+    return selection.ids
+      .map((id) => pool.get(id))
+      .filter((t): t is Task => Boolean(t));
+  }, [selection.active, selection.ids, tasks, carryover]);
+
   useEffect(() => {
     if (projectFilter && !filteredProject) setProjectFilter(null);
   }, [projectFilter, filteredProject, setProjectFilter]);
@@ -518,6 +552,7 @@ export function TasksView({
                       selectedId={taskId}
                       onSelect={(id) => setTaskId(taskId === id ? null : id)}
                       draggable={dragEnabled}
+                      selection={selection}
                     />
                   ))
               )}
@@ -529,6 +564,7 @@ export function TasksView({
                   selectedId={taskId}
                   onSelect={(id) => setTaskId(taskId === id ? null : id)}
                   flat
+                  selection={selection}
                 />
               )}
             </div>
@@ -540,7 +576,16 @@ export function TasksView({
               alive, and two editors autosaving the same task overwrite each
               other's drafts. */}
           <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
-            {selectedTask ? (
+            {selection.active ? (
+              isDesktop && (
+                <BulkEditPanel
+                  tasks={selectedTasks}
+                  tags={tags}
+                  projects={projects}
+                  onClear={selection.clear}
+                />
+              )
+            ) : selectedTask ? (
               isDesktop && (
                 <div key={selectedTask.id} className="animate-puma-swap h-full">
                   <TaskDetailPanel
@@ -562,8 +607,19 @@ export function TasksView({
             )}
           </div>
           <div className="lg:hidden">
-            <BottomSheet open={!!selectedTask} onClose={() => setTaskId(null)}>
-              {selectedTask && !isDesktop && (
+            <BottomSheet
+              open={bulkSheet || (!selection.active && !!selectedTask)}
+              onClose={() => (bulkSheet ? setBulkSheet(false) : setTaskId(null))}
+            >
+              {bulkSheet && !isDesktop && (
+                <BulkEditPanel
+                  tasks={selectedTasks}
+                  tags={tags}
+                  projects={projects}
+                  onClear={selection.clear}
+                />
+              )}
+              {!bulkSheet && !selection.active && selectedTask && !isDesktop && (
                 <div key={selectedTask.id} className="animate-puma-swap">
                   <TaskDetailPanel
                     task={selectedTask}
@@ -578,6 +634,13 @@ export function TasksView({
           </div>
         </div>
       </div>
+      {selection.active && !isDesktop && (
+        <SelectionBar
+          count={selection.ids.length}
+          onEdit={() => setBulkSheet(true)}
+          onClear={selection.clear}
+        />
+      )}
     </>
   );
 }
@@ -702,12 +765,14 @@ function TaskGroupCard({
   selectedId,
   onSelect,
   draggable = false,
+  selection,
 }: {
   group: Group;
   tags: Tag[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   draggable?: boolean;
+  selection?: SelectionController;
 }) {
   const open = group.items.filter((t) => t.status !== "done").length;
   const droppable = draggable && group.dropProjectId !== undefined;
@@ -752,6 +817,7 @@ function TaskGroupCard({
           selectedId={selectedId}
           onSelect={onSelect}
           draggableTasks={draggable}
+          selection={selection}
         />
       ) : (
         <p className="m-0 px-4 py-5 text-center font-mono text-[11px] text-faint2">

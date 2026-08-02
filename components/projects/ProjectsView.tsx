@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { useQueryState } from "nuqs";
@@ -8,15 +8,18 @@ import type { Goal, Project, Task, Tag } from "@/lib/schemas";
 import { projectProgress } from "@/lib/metrics";
 import { parseLifeView } from "@/lib/life-area";
 import { Topbar } from "@/components/shell/Topbar";
-import { KanbanBoard } from "@/components/projects/KanbanBoard";
+import { KanbanBoard, boardOrder } from "@/components/projects/KanbanBoard";
 import { ProjectDetailPanel } from "@/components/projects/ProjectDetailPanel";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
+import { BulkEditPanel } from "@/components/tasks/BulkEditPanel";
+import { SelectionBar } from "@/components/tasks/SelectionBar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NewProjectCard } from "@/components/projects/NewProjectCard";
 import { ProjectRail } from "@/components/projects/ProjectRail";
 import { setTaskProject } from "@/lib/actions/tasks";
 import { toast } from "sonner";
 import { useIsDesktop } from "@/lib/use-media-query";
+import { useTaskSelection } from "@/lib/use-task-selection";
 import { lifeAreaForCreate } from "@/lib/life-area";
 
 type Props = {
@@ -61,6 +64,25 @@ export function ProjectsView({
       toast.success(`Moved to ${destination}`);
     });
   };
+
+  // Multi-select across the board's three columns, in the order they render.
+  const selection = useTaskSelection(useMemo(() => boardOrder(spTasks), [spTasks]));
+  const selectedTasks = useMemo(
+    () =>
+      selection.active
+        ? selection.ids
+            .map((id) => spTasks.find((t) => t.id === id))
+            .filter((t): t is Task => Boolean(t))
+        : [],
+    [selection.active, selection.ids, spTasks]
+  );
+
+  // Phone only: the bulk sheet opens from the selection bar, not from
+  // selecting — a sheet would cover the very cards you're still picking.
+  const [bulkSheet, setBulkSheet] = useState(false);
+  useEffect(() => {
+    if (!selection.active) setBulkSheet(false);
+  }, [selection.active]);
 
   // In-place task editing: ?task=<id> swaps the right panel for the task editor.
   const [taskId, setTaskId] = useQueryState("task");
@@ -169,10 +191,36 @@ export function ProjectsView({
                   tasks={spTasks}
                   tags={tags}
                   onEditTask={(id) => void setTaskId(id)}
+                  selection={selection}
                 />
               </div>
             </div>
-            {editingTask ? (
+            {selection.active ? (
+              <>
+                <div className="hidden min-h-0 overflow-hidden animate-puma-swap lg:block">
+                  {isDesktop && (
+                    <BulkEditPanel
+                      tasks={selectedTasks}
+                      tags={tags}
+                      projects={projects}
+                      onClear={selection.clear}
+                    />
+                  )}
+                </div>
+                <div className="lg:hidden">
+                  <BottomSheet open={bulkSheet} onClose={() => setBulkSheet(false)}>
+                    {bulkSheet && !isDesktop && (
+                      <BulkEditPanel
+                        tasks={selectedTasks}
+                        tags={tags}
+                        projects={projects}
+                        onClear={selection.clear}
+                      />
+                    )}
+                  </BottomSheet>
+                </div>
+              </>
+            ) : editingTask ? (
               // Phone: draggable bottom sheet; desktop: in-grid panel.
               <>
                 {/* One instance only: two mounted editors autosave over
@@ -251,6 +299,13 @@ export function ProjectsView({
           </div>
         )}
       </div>
+      {selection.active && !isDesktop && (
+        <SelectionBar
+          count={selection.ids.length}
+          onEdit={() => setBulkSheet(true)}
+          onClear={selection.clear}
+        />
+      )}
     </>
   );
 }

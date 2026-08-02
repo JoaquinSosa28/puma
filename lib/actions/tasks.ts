@@ -405,6 +405,205 @@ export async function undoDeleteTask(snapshot: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Bulk edits
+//
+// One action rather than N calls from the client: N server actions would be
+// N round trips, N revalidations and N chances to half-apply. These loop
+// server-side and revalidate once, and they reuse exactly the rules the
+// single-task paths use — a bulk move has to rewrite project tags and life
+// tags the same way dragging one task does, or the two ways of doing the same
+// thing would disagree.
+
+const bulkUpdateSchema = z.object({
+  ids: z.array(entityId).min(1).max(200),
+  priority: z.enum(["low", "med", "high"]).optional(),
+  status: z.enum(["todo", "doing", "done"]).optional(),
+  /** null moves them out of every project. */
+  projectId: entityId.nullable().optional(),
+  /** null clears the due date. */
+  due: z.string().max(40).nullable().optional(),
+  addTagIds: z.array(entityId).max(50).optional(),
+  removeTagIds: z.array(entityId).max(50).optional(),
+});
+
+export type BulkTaskPatch = z.infer<typeof bulkUpdateSchema>;
+
+export async function bulkUpdateTasks(
+  input: BulkTaskPatch
+): Promise<ActionResult<{ updated: number }>> {
+  const parsed = bulkUpdateSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  const { ids, priority, status, projectId, due, addTagIds, removeTagIds } =
+    parsed.data;
+  const touchesSomething =
+    priority !== undefined ||
+    status !== undefined ||
+    projectId !== undefined ||
+    due !== undefined ||
+    addTagIds?.length ||
+    removeTagIds?.length;
+  if (!touchesSomething) return { ok: false, error: "Nothing to update" };
+
+  const userId = await requireUserId();
+  const { getTask } = await import("@/lib/db/tasks");
+  const tags = await listTags(userId);
+
+  // A stale client can name a project deleted since it last rendered. Refuse
+  // rather than quietly dropping every selected task out of its project.
+  const target =
+    projectId !== undefined && projectId !== null
+      ? await getProject(userId, projectId)
+      : null;
+  if (projectId && !target) {
+    return { ok: false, error: "That project no longer exists" };
+  }
+
+  const { today: td } = await userToday();
+  // Only tag ids that still exist — same guard updateTaskDetail applies.
+  const add = (addTagIds ?? []).filter((id) => tags.some((t) => t.id === id));
+  const remove = new Set(removeTagIds ?? []);
+
+  // Both ends of every move need their goal progress recomputed, but a project
+  // that appears fifty times only needs it once.
+  const projectsToSync = new Set<string>();
+  let updated = 0;
+
+  for (const id of ids) {
+    const task = await getTask(userId, id);
+    if (!task) continue;
+
+    const patch: Parameters<typeof updateTask>[2] = {};
+    if (priority !== undefined) patch.priority = priority;
+    if (due !== undefined) patch.due = due === "" ? null : due;
+    if (status !== undefined) {
+      patch.status = status;
+      patch.completedAt = status === "done" ? td : null;
+    }
+
+    const retagging = add.length > 0 || remove.size > 0;
+    if (retagging || projectId !== undefined) {
+      let tagIds = task.tagIds.filter((t) => !remove.has(t));
+      for (const t of add) if (!tagIds.includes(t)) tagIds.push(t);
+
+      // An explicit project wins; otherwise a project tag that came in with
+      // `add` files the task, exactly as toggling that tag on its own would.
+      const nextProjectId =
+        projectId !== undefined ? projectId : projectIdFromTags(tagIds, tags);
+
+      tagIds = withSingleProjectTag(tagIds, nextProjectId, tags);
+      if (nextProjectId && nextProjectId !== task.projectId) {
+        const dest =
+          target && target.id === nextProjectId
+            ? target
+            : await getProject(userId, nextProjectId);
+        // The project decides the side of life now — a task in a work project
+        // is work, whatever it used to carry.
+        tagIds = withProjectLifeTags(tagIds, dest?.lifeArea, tags);
+        const flagship = tags.find(
+          (t) => t.projectId === nextProjectId && t.isProjectPrimary
+        );
+        if (flagship && !tagIds.includes(flagship.id)) tagIds.push(flagship.id);
+      }
+
+      patch.tagIds = tagIds;
+      patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
+      patch.projectId = nextProjectId;
+
+      if (task.projectId && task.projectId !== nextProjectId) {
+        projectsToSync.add(task.projectId);
+      }
+      if (nextProjectId) projectsToSync.add(nextProjectId);
+    } else if (task.projectId) {
+      // Status and priority feed project progress too.
+      projectsToSync.add(task.projectId);
+    }
+
+    if (await updateTask(userId, id, patch)) updated++;
+  }
+
+  for (const pid of projectsToSync) await syncGoalsForProject(userId, pid);
+  revalidatePath("/", "layout");
+  return { ok: true, data: { updated } };
+}
+
+const bulkDeleteSchema = z.object({
+  ids: z.array(entityId).min(1).max(200),
+});
+
+/**
+ * Delete several tasks, handing back one snapshot blob so a single UNDO on the
+ * toast brings the whole batch back.
+ */
+export async function bulkDeleteTasks(
+  input: z.infer<typeof bulkDeleteSchema>
+): Promise<ActionResult<{ deleted: number }>> {
+  const parsed = bulkDeleteSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  const userId = await requireUserId();
+  const { getTask } = await import("@/lib/db/tasks");
+  const snapshots: Task[] = [];
+  const projectsToSync = new Set<string>();
+
+  for (const id of parsed.data.ids) {
+    const task = await getTask(userId, id);
+    if (!task) continue;
+    snapshots.push(task);
+    if (task.projectId) projectsToSync.add(task.projectId);
+    await removeTask(userId, id);
+  }
+
+  for (const pid of projectsToSync) await syncGoalsForProject(userId, pid);
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    data: { deleted: snapshots.length },
+    undo: { type: "delete", entity: "task", snapshot: snapshots },
+  };
+}
+
+/** Restore a batch taken by bulkDeleteTasks. */
+export async function undoDeleteTasks(snapshot: string): Promise<ActionResult> {
+  const userId = await requireUserId();
+  // Client-echoed, so bound it before parsing. 200 tasks of prose fit well
+  // inside this; anything larger is not a batch this UI produced.
+  if (typeof snapshot !== "string" || snapshot.length > 2_000_000) {
+    return { ok: false, error: "Invalid snapshot" };
+  }
+  let batch: Task[];
+  try {
+    const raw = JSON.parse(snapshot);
+    if (!Array.isArray(raw)) throw new Error("not an array");
+    batch = raw.slice(0, 200);
+  } catch {
+    return { ok: false, error: "Invalid snapshot" };
+  }
+
+  const [tags, goals] = await Promise.all([listTags(userId), listGoals(userId)]);
+  const projectsToSync = new Set<string>();
+  for (const task of batch) {
+    if (!task || typeof task !== "object" || !task.id) continue;
+    // Linked entities may have gone since the snapshot was taken — restore
+    // without the dead links rather than resurrecting a dangling reference.
+    const project = task.projectId ? await getProject(userId, task.projectId) : null;
+    await insertTask({
+      ...task,
+      _id: task.id,
+      userId,
+      projectId: project ? task.projectId : null,
+      goalId: goals.some((g) => g.id === task.goalId) ? task.goalId : null,
+      tagIds: (task.tagIds ?? []).filter((id) => tags.some((t) => t.id === id)),
+    });
+    if (project) projectsToSync.add(project.id);
+  }
+
+  for (const pid of projectsToSync) await syncGoalsForProject(userId, pid);
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 const setTaskProjectSchema = z.object({
   id: entityId,
   projectId: entityId.nullable(),

@@ -11,7 +11,7 @@ import {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, CheckSquare, ListChecks, Plus, Square, Trash2 } from "lucide-react";
 import type { Tag, Task, Note } from "@/lib/schemas";
 import type { EntityLifeArea } from "@/lib/types";
 import { toggleEntityTag, type TaggableEntity } from "@/lib/actions/tags";
@@ -27,6 +27,19 @@ import {
   projectIdFromTags,
 } from "@/lib/project-tags";
 
+/**
+ * Multi-select, offered by whoever opened the menu. On a phone this menu IS
+ * the long-press menu, so these two items are how selection works without a
+ * keyboard: "Select" is ctrl-click, "Select through here" is shift-click.
+ */
+export type MenuSelection = {
+  selected: boolean;
+  /** True when something is already selected, so a range has an anchor. */
+  active: boolean;
+  onToggle: () => void;
+  onThrough: () => void;
+};
+
 type TagTarget = {
   entity: TaggableEntity;
   id: string;
@@ -34,6 +47,7 @@ type TagTarget = {
   lifeArea: EntityLifeArea;
   x: number;
   y: number;
+  selection?: MenuSelection;
 };
 
 
@@ -117,6 +131,24 @@ export function TagMenuProvider({
     [close]
   );
 
+  // A drag cannot outlive the pointer being down. dnd-kit normally tells us
+  // when one ends, but not if its DndContext unmounts mid-drag (a route change,
+  // a regrouped list) — and a flag left stuck at true silently swallows every
+  // context menu in the app from then on. Releasing the pointer clears it
+  // whatever happened, which still leaves the flag set for the whole of a
+  // touch long-press: that press is exactly what it's there to suppress.
+  useEffect(() => {
+    const release = () => {
+      dragActiveRef.current = false;
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
+  }, []);
+
   const open = useCallback(
     (target: TagTarget) => {
       // A long press that turned into a drag isn't a request for the menu.
@@ -177,8 +209,12 @@ export function TagMenuProvider({
       return;
     }
     const label = menu.entity === "task" ? "Task deleted" : "Note deleted";
+    // JSON, not the object: undoDeleteTask parses a string, and handing it the
+    // raw snapshot made UNDO fail silently.
     const undoSnapshot =
-      menu.entity === "task" ? (res.undo?.snapshot as string | undefined) : undefined;
+      menu.entity === "task" && res.undo
+        ? JSON.stringify(res.undo.snapshot)
+        : undefined;
     close();
     toast.success(label, {
       action: undoSnapshot
@@ -243,7 +279,12 @@ export function TagMenuProvider({
         const w = 200;
         const h = Math.min(
           400,
-          56 + ranked.length * 32 + lifeTags.length * 30 + (adding ? 44 : 28) + 72
+          56 +
+            ranked.length * 32 +
+            lifeTags.length * 30 +
+            (adding ? 44 : 28) +
+            (menu.selection ? 66 : 0) +
+            72
         );
         const x = Math.min(menu.x, window.innerWidth - w - 8);
         const y = Math.min(menu.y, window.innerHeight - h - 8);
@@ -275,6 +316,42 @@ export function TagMenuProvider({
             style={{ left: pos.left, top: pos.top }}
             onContextMenu={(e) => e.preventDefault()}
           >
+            {menu.selection && (
+              <div className="mb-1 border-b border-border2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    menu.selection!.onToggle();
+                    close();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-ink transition-colors hover:bg-hover"
+                >
+                  {menu.selection.selected ? (
+                    <CheckSquare className="h-3.5 w-3.5 text-primary" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 text-faint" />
+                  )}
+                  {menu.selection.selected ? "Deselect" : "Select"}
+                </button>
+                <button
+                  type="button"
+                  disabled={!menu.selection.active}
+                  onClick={() => {
+                    menu.selection!.onThrough();
+                    close();
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-ink transition-colors hover:bg-hover disabled:cursor-not-allowed disabled:text-faint2 disabled:hover:bg-transparent"
+                  title={
+                    menu.selection.active
+                      ? undefined
+                      : "Select one first, then pick the far end"
+                  }
+                >
+                  <ListChecks className="h-3.5 w-3.5 text-faint" />
+                  Select through here
+                </button>
+              </div>
+            )}
             {lifeTags.length > 0 && (
               <div className="mb-1 rounded-md border border-dashed border-border2 bg-surface2/50 p-1">
                 <div className="px-1 pb-0.5 pt-0.5 font-mono text-[9px] font-medium tracking-widest text-faint2">
@@ -401,6 +478,7 @@ export function Taggable({
   className,
   children,
   onClick,
+  selection,
 }: {
   entity: TaggableEntity;
   id: string;
@@ -408,7 +486,9 @@ export function Taggable({
   lifeArea: EntityLifeArea;
   className?: string;
   children: ReactNode;
-  onClick?: () => void;
+  /** Gets the event so callers can read ctrl/shift off the click. */
+  onClick?: (e: React.MouseEvent) => void;
+  selection?: MenuSelection;
 }) {
   const { open } = useTagMenu();
   return (
@@ -419,7 +499,15 @@ export function Taggable({
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        open({ entity, id, tagIds, lifeArea, x: e.clientX, y: e.clientY });
+        open({
+          entity,
+          id,
+          tagIds,
+          lifeArea,
+          x: e.clientX,
+          y: e.clientY,
+          selection,
+        });
       }}
     >
       {children}

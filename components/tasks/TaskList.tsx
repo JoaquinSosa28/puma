@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Minus } from "lucide-react";
 import type { Task, Tag } from "@/lib/schemas";
+import type { SelectionController } from "@/lib/use-task-selection";
 import { tagBg } from "@/lib/parse";
 import { dueDatePart } from "@/lib/date";
 import { toggleTask, cycleTaskPriority, deleteTaskAction } from "@/lib/actions/tasks";
@@ -56,6 +57,8 @@ type Props = {
   onSelect?: (id: string) => void;
   /** Let rows be dragged into another project group. Requires a DndContext. */
   draggableTasks?: boolean;
+  /** Multi-select. Rows show a checkbox and honour ctrl/shift once wired. */
+  selection?: SelectionController;
 };
 
 /**
@@ -126,6 +129,7 @@ export function TaskList({
   selectedId,
   onSelect,
   draggableTasks = false,
+  selection,
 }: Props) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useOptimistic(tasks);
@@ -204,6 +208,7 @@ export function TaskList({
               : dueDatePart(t.due);
 
         const selected = selectedId === t.id;
+        const picked = Boolean(selection?.isSelected(t.id));
         const subtaskDone = t.subtasks.filter((s) => s.done).length;
         const subtaskTotal = t.subtasks.length;
 
@@ -339,9 +344,11 @@ export function TaskList({
                 showDelete
                   ? "grid-cols-[20px_34px_minmax(0,1fr)_72px_28px] max-sm:grid-cols-[20px_16px_minmax(0,1fr)_72px_28px]"
                   : "grid-cols-[20px_34px_minmax(0,1fr)_72px] max-sm:grid-cols-[20px_16px_minmax(0,1fr)_72px]",
-                selected
-                  ? "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35"
-                  : cn("hover:bg-surface2/50", accentBorder)
+                picked
+                  ? "border-l-[3px] border-l-primary bg-primary/[0.10] ring-1 ring-inset ring-primary/40"
+                  : selected
+                    ? "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35"
+                    : cn("hover:bg-surface2/50", accentBorder)
               )
             : cn(
                 "gap-x-[11px]",
@@ -355,12 +362,28 @@ export function TaskList({
                   ? "grid-cols-[18px_34px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_16px_minmax(0,1fr)_40px_44px_16px]"
                   : "grid-cols-[18px_34px_minmax(0,1fr)_92px_52px] max-sm:grid-cols-[18px_16px_minmax(0,1fr)_40px_44px]",
                 isPage && t.status === "doing" && "bg-primary/[0.03]",
-                selected && "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35",
-                !selected && accentBorder
+                picked &&
+                  "border-l-[3px] border-l-primary bg-primary/[0.10] ring-1 ring-inset ring-primary/40",
+                !picked &&
+                  selected &&
+                  "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35",
+                !picked && !selected && accentBorder
               )
         );
 
         const openDetail = () => onSelect?.(t.id);
+
+        // ctrl/cmd and shift are selection gestures; anything else is the
+        // ordinary click that opens the task.
+        const handleRowClick = (e: React.MouseEvent) => {
+          if (selection?.onRowClick(t.id, e)) {
+            // Stop the browser turning a shift-click into a text selection
+            // across half the list.
+            window.getSelection?.()?.removeAllRanges();
+            return;
+          }
+          openDetail();
+        };
 
         const rowHref = linkTaskDetail && lifeView
           ? taskDetailHref(t, lifeView, today)
@@ -374,26 +397,69 @@ export function TaskList({
             tagIds={t.tagIds}
             lifeArea={t.lifeArea}
             className={rowClass}
-            onClick={compact ? openDetail : undefined}
+            onClick={compact || selection ? handleRowClick : undefined}
+            selection={
+              selection
+                ? {
+                    selected: picked,
+                    active: selection.active,
+                    onToggle: () => selection.toggle(t.id),
+                    onThrough: () => selection.selectThrough(t.id),
+                  }
+                : undefined
+            }
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggle(t.id);
-              }}
-              className={cn(
-                "flex shrink-0 items-center justify-center rounded-[5px] border-[1.8px]",
-                isPage ? "h-5 w-5 max-lg:h-6 max-lg:w-6" : "h-[18px] w-[18px] max-lg:h-5 max-lg:w-5",
-                done
-                  ? "border-none bg-habits"
-                  : "border-border bg-transparent"
-              )}
-            >
-              {done && (
-                <Check className="h-[11px] w-[11px] animate-puma-pop text-white" strokeWidth={3.2} />
-              )}
-            </button>
+            {selection?.active ? (
+              // While a selection is live the leading box selects instead of
+              // completing — same cell, so the row never reflows, and "done"
+              // for a batch lives in the bulk panel's Status row.
+              <button
+                type="button"
+                aria-pressed={picked}
+                aria-label={picked ? `Deselect ${t.title}` : `Select ${t.title}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  selection.toggle(t.id);
+                }}
+                className={cn(
+                  "flex shrink-0 items-center justify-center rounded-[5px] border-[1.8px] transition-colors",
+                  isPage
+                    ? "h-5 w-5 max-lg:h-6 max-lg:w-6"
+                    : "h-[18px] w-[18px] max-lg:h-5 max-lg:w-5",
+                  picked
+                    ? "border-primary bg-primary"
+                    : "border-faint2 bg-transparent hover:border-primary"
+                )}
+              >
+                {picked ? (
+                  <Check
+                    className="h-[11px] w-[11px] animate-puma-pop text-white"
+                    strokeWidth={3.2}
+                  />
+                ) : done ? (
+                  <Minus className="h-[10px] w-[10px] text-faint2" strokeWidth={3} />
+                ) : null}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggle(t.id);
+                }}
+                className={cn(
+                  "flex shrink-0 items-center justify-center rounded-[5px] border-[1.8px]",
+                  isPage ? "h-5 w-5 max-lg:h-6 max-lg:w-6" : "h-[18px] w-[18px] max-lg:h-5 max-lg:w-5",
+                  done
+                    ? "border-none bg-habits"
+                    : "border-border bg-transparent"
+                )}
+              >
+                {done && (
+                  <Check className="h-[11px] w-[11px] animate-puma-pop text-white" strokeWidth={3.2} />
+                )}
+              </button>
+            )}
 
             <PriorityChip
               priority={t.priority}
@@ -412,7 +478,7 @@ export function TaskList({
                 !compact && onSelect
                   ? (e) => {
                       e.stopPropagation();
-                      openDetail();
+                      handleRowClick(e);
                     }
                   : undefined
               }

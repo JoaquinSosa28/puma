@@ -8,7 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { Pencil } from "lucide-react";
+import { Check, Pencil } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -39,6 +39,7 @@ import { tagBg } from "@/lib/parse";
 import { moveTaskStatus } from "@/lib/actions/tasks";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
 import { useTagMenu } from "@/components/tags/TagMenuProvider";
+import type { SelectionController } from "@/lib/use-task-selection";
 import { cn } from "@/lib/utils";
 
 export type ColumnId = "todo" | "doing" | "done";
@@ -50,6 +51,16 @@ const COLS: { key: ColumnId; label: string; color: string }[] = [
 ];
 
 type ItemsByColumn = Record<ColumnId, Task[]>;
+
+/**
+ * The cards top-to-bottom, column by column — what a shift-range spans on the
+ * board. Exported so the view can hand the same order to the selection hook
+ * that the board renders in.
+ */
+export function boardOrder(tasks: Task[]): string[] {
+  const by = groupByStatus(tasks);
+  return [...by.todo, ...by.doing, ...by.done].map((t) => t.id);
+}
 
 function groupByStatus(tasks: Task[]): ItemsByColumn {
   return {
@@ -108,6 +119,8 @@ type Props = {
   railHost?: HTMLElement | null;
   /** Dropping a card on a project card in the rail. */
   onMoveToProject?: (taskId: string, projectId: string) => void;
+  /** Multi-select across the columns. */
+  selection?: SelectionController;
 };
 
 export function KanbanBoard({
@@ -117,6 +130,7 @@ export function KanbanBoard({
   rail,
   railHost,
   onMoveToProject,
+  selection,
 }: Props) {
   const [, startTransition] = useTransition();
   const [items, setItems] = useState<ItemsByColumn>(() => groupByStatus(tasks));
@@ -128,8 +142,13 @@ export function KanbanBoard({
   const { setDragActive } = useTagMenu();
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
 
-  const handleCardClick = (taskId: string) => {
+  const handleCardClick = (taskId: string, e: React.MouseEvent) => {
     if (suppressClickRef.current) return;
+    // ctrl/cmd and shift pick cards instead of opening them.
+    if (selection?.onRowClick(taskId, e)) {
+      window.getSelection?.()?.removeAllRanges();
+      return;
+    }
     onEditTask(taskId);
   };
 
@@ -278,6 +297,7 @@ export function KanbanBoard({
           task={task}
           tagMap={tagMap}
           onEdit={handleCardClick}
+          selection={selection}
         />
       ))}
       {items[col.key].length === 0 ? (
@@ -344,6 +364,7 @@ export function KanbanBoard({
                   task={task}
                   tagMap={tagMap}
                   onEdit={handleCardClick}
+                  selection={selection}
                 />
               ))}
               {items[col.key].length === 0 ? (
@@ -452,10 +473,12 @@ function KanbanCard({
   task,
   tagMap,
   onEdit,
+  selection,
 }: {
   task: Task;
   tagMap: Map<string, Tag>;
-  onEdit: (taskId: string) => void;
+  onEdit: (taskId: string, e: React.MouseEvent) => void;
+  selection?: SelectionController;
 }) {
   const {
     attributes,
@@ -482,7 +505,12 @@ function KanbanCard({
       {...attributes}
       {...listeners}
     >
-      <KanbanCardShell task={task} tagMap={tagMap} onEdit={onEdit} />
+      <KanbanCardShell
+        task={task}
+        tagMap={tagMap}
+        onEdit={onEdit}
+        selection={selection}
+      />
     </div>
   );
 }
@@ -492,16 +520,19 @@ function KanbanCardShell({
   tagMap,
   onEdit,
   overlay = false,
+  selection,
 }: {
   task: Task;
   tagMap: Map<string, Tag>;
-  onEdit?: (taskId: string) => void;
+  onEdit?: (taskId: string, e: React.MouseEvent) => void;
   overlay?: boolean;
+  selection?: SelectionController;
 }) {
   const { open } = useTagMenu();
+  const picked = Boolean(selection?.isSelected(task.id));
   return (
     <div
-      onClick={overlay ? undefined : () => onEdit?.(task.id)}
+      onClick={overlay ? undefined : (e) => onEdit?.(task.id, e)}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -512,16 +543,49 @@ function KanbanCardShell({
           lifeArea: task.lifeArea,
           x: e.clientX,
           y: e.clientY,
+          selection: selection
+            ? {
+                selected: picked,
+                active: selection.active,
+                onToggle: () => selection.toggle(task.id),
+                onThrough: () => selection.selectThrough(task.id),
+              }
+            : undefined,
         });
       }}
       className={cn(
-        "rounded-lg border border-border bg-surface p-[10px_11px]",
+        "rounded-lg border bg-surface p-[10px_11px]",
+        picked
+          ? "border-primary bg-primary/[0.08] ring-1 ring-inset ring-primary/40"
+          : "border-border",
         overlay
           ? "kanban-card--overlay rotate-[1.5deg] cursor-grabbing"
           : "cursor-pointer hover:border-faint2 hover:shadow-sm"
       )}
     >
       <div className="mb-2 flex items-start gap-1.5">
+        {selection?.active && !overlay && (
+          <button
+            type="button"
+            aria-pressed={picked}
+            aria-label={picked ? `Deselect ${task.title}` : `Select ${task.title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              selection.toggle(task.id);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={cn(
+              "mt-px flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-[4px] border-[1.8px] transition-colors",
+              picked
+                ? "border-primary bg-primary"
+                : "border-faint2 hover:border-primary"
+            )}
+          >
+            {picked && (
+              <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.4} />
+            )}
+          </button>
+        )}
         <div className="min-w-0 flex-1 text-[13px] font-medium leading-snug">
           {task.title}
         </div>
@@ -532,7 +596,7 @@ function KanbanCardShell({
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-faint transition-colors hover:bg-hover hover:text-ink"
             onClick={(e) => {
               e.stopPropagation();
-              onEdit?.(task.id);
+              onEdit?.(task.id, e);
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >
