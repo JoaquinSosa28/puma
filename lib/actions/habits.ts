@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
 import { requireUserId } from "@/lib/auth/session";
+import { listTags } from "@/lib/db/tags";
+import { deriveLifeAreaFromTags, setLifeTags } from "@/lib/life-area-sync";
 import { userToday } from "@/lib/timezone-server";
 import { entityId, isoDate, title } from "@/lib/validation";
 import { deleteHabit, insertHabit, listHabits, updateHabit } from "@/lib/db/habits";
@@ -92,7 +94,10 @@ export async function toggleHabitDate(
   return { ok: true };
 }
 
-const nameSchema = z.object({ name: title });
+const nameSchema = z.object({
+  name: title,
+  lifeView: z.enum(["personal", "work", "both"]).optional(),
+});
 
 export async function addHabitAction(
   input: z.infer<typeof nameSchema>
@@ -101,6 +106,10 @@ export async function addHabitAction(
   if (!parsed.success) return { ok: false, error: "Invalid name" };
   const userId = await requireUserId();
   const { today: td } = await userToday();
+  // A habit belongs to a side of life like everything else, and the tags are
+  // the only place that lives.
+  const tags = await listTags(userId);
+  const tagIds = setLifeTags([], parsed.data.lifeView ?? "personal", tags);
   await insertHabit({
     userId,
     name: parsed.data.name,
@@ -110,7 +119,8 @@ export async function addHabitAction(
     archived: false,
     goalIds: [],
     goalTargetStreak: null,
-    lifeArea: "personal",
+    tagIds,
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     createdAt: td,
   });
   revalidatePath("/", "layout");

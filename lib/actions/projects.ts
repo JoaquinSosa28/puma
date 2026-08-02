@@ -8,7 +8,11 @@ import {
   detachTagFromProject,
   setTagProject,
 } from "@/lib/db/tags";
-import { isLifeTag } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  isLifeTag,
+  setLifeTags,
+} from "@/lib/life-area-sync";
 import { projectTagSlug, uniqueTagName } from "@/lib/project-tags";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
@@ -21,6 +25,7 @@ import {
   deleteProject,
 } from "@/lib/db/projects";
 import { syncGoalProgress, syncGoalsForProject } from "@/lib/goal-sync-server";
+import { setProjectLifeArea } from "@/lib/project-life-server";
 import { requireUserId } from "@/lib/auth/session";
 import { userToday } from "@/lib/timezone-server";
 import { pickProjectColor } from "@/lib/project-colors";
@@ -40,6 +45,14 @@ export async function createProjectAction(
   const userId = await requireUserId();
   const { today: createdAt } = await userToday();
   const existing = await listProjects(userId);
+  // The project carries its own life tags — the side of life it's on is read
+  // from them, never from a separate field.
+  const allTags = await listTags(userId);
+  const projectTagIds = setLifeTags(
+    [],
+    parsed.data.lifeArea ?? "personal",
+    allTags
+  );
   const project = await insertProject({
     userId,
     title: parsed.data.title,
@@ -48,18 +61,18 @@ export async function createProjectAction(
     progress: 0,
     label: "0/0",
     goalId: null,
-    lifeArea: parsed.data.lifeArea ?? "personal",
+    tagIds: projectTagIds,
+    lifeArea: deriveLifeAreaFromTags(projectTagIds, allTags),
     createdAt,
   });
 
   // Every project gets a flagship tag named after it, so "#wr" on a task is
   // enough to file it here. It's the hint that this works at all.
-  const tags = await listTags(userId);
   await insertTag(
     userId,
     uniqueTagName(
       projectTagSlug(parsed.data.title),
-      tags.map((t) => t.name)
+      allTags.map((t) => t.name)
     ),
     { projectId: project.id, isProjectPrimary: true, color: project.color }
   );
@@ -133,7 +146,7 @@ const updateProjectDetailSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
-  lifeArea: z.enum(["personal", "work"]).optional(),
+  lifeArea: z.enum(["personal", "work", "both"]).optional(),
   color: z.string().optional(),
 });
 
@@ -143,12 +156,20 @@ export async function updateProjectDetail(
   const parsed = updateProjectDetailSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
 
-  const { id, ...patch } = parsed.data;
-  if (!Object.keys(patch).length) return { ok: false, error: "Nothing to update" };
+  const { id, lifeArea, ...patch } = parsed.data;
+  if (!Object.keys(parsed.data).length) {
+    return { ok: false, error: "Nothing to update" };
+  }
 
   const userId = await requireUserId();
   const existing = await getProject(userId, id);
   if (!existing) return { ok: false, error: "Not found" };
+
+  // Switching sides rewrites the life tags — lifeArea is only ever their echo —
+  // and carries the project's tasks across with it.
+  if (lifeArea && lifeArea !== existing.lifeArea) {
+    await setProjectLifeArea(userId, existing, lifeArea, await listTags(userId));
+  }
 
   const updated = await updateProject(userId, id, patch);
   if (!updated) return { ok: false, error: "Not found" };

@@ -4,6 +4,9 @@ import {
   withLifeTags,
   isLifeTag,
   withProjectLifeTags,
+  setLifeTags,
+  goalCategoryForLifeArea,
+  lifeViewForGoalCategory,
 } from "@/lib/life-area-sync";
 import { filterByLifeView, filterGoalsByLifeView, goalLifeArea } from "@/lib/life-area";
 
@@ -122,9 +125,11 @@ describe("filterByLifeView", () => {
 });
 
 describe("filterGoalsByLifeView", () => {
+  // Goals filter on lifeArea like everything else; the column only mirrors it.
   const goals = [
-    { id: "p", category: "personal" as const },
-    { id: "w", category: "professional" as const },
+    { id: "p", lifeArea: "personal" as const },
+    { id: "w", lifeArea: "work" as const },
+    { id: "b", lifeArea: "both" as const },
   ];
 
   it("maps professional onto the work view", () => {
@@ -136,14 +141,19 @@ describe("filterGoalsByLifeView", () => {
     expect(filterGoalsByLifeView(goals, "both").map((g) => g.id)).toEqual([
       "p",
       "w",
+      "b",
     ]);
   });
 
   it("narrows to the matching category", () => {
     expect(filterGoalsByLifeView(goals, "personal").map((g) => g.id)).toEqual([
       "p",
+      "b",
     ]);
-    expect(filterGoalsByLifeView(goals, "work").map((g) => g.id)).toEqual(["w"]);
+    expect(filterGoalsByLifeView(goals, "work").map((g) => g.id)).toEqual([
+      "w",
+      "b",
+    ]);
   });
 });
 
@@ -172,5 +182,38 @@ describe("withProjectLifeTags", () => {
       "t-other",
       "t-work",
     ]);
+  });
+});
+
+describe("setLifeTags", () => {
+  const tags = [
+    { id: "p", name: "personal" },
+    { id: "w", name: "work" },
+    { id: "h", name: "health" },
+  ];
+
+  it("replaces rather than adds — a move is not a widening", () => {
+    expect(setLifeTags(["p", "h"], "work", tags)).toEqual(["h", "w"]);
+  });
+
+  it("attaches both sides for the both view", () => {
+    expect(setLifeTags(["h"], "both", tags)).toEqual(["h", "p", "w"]);
+  });
+
+  it("leaves tags alone when the account has no life tags", () => {
+    expect(setLifeTags(["h"], "work", [{ id: "h", name: "health" }])).toEqual([
+      "h",
+    ]);
+  });
+});
+
+describe("goal columns mirror the life tags", () => {
+  it("maps work onto the professional column and back", () => {
+    expect(goalCategoryForLifeArea("work")).toBe("professional");
+    expect(lifeViewForGoalCategory("professional")).toBe("work");
+  });
+
+  it("keeps a both-tagged goal on the personal side", () => {
+    expect(goalCategoryForLifeArea("both")).toBe("personal");
   });
 });

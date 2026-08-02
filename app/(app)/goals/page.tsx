@@ -10,6 +10,7 @@ export default async function GoalsPage({ searchParams }: Props) {
   return (
     <GoalsView
       goals={data.goals}
+      tags={data.tags}
       projects={data.projects}
       habits={data.habits}
       habitEntries={data.habitEntries}

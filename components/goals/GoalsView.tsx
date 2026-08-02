@@ -25,7 +25,7 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { Goal, Habit, HabitEntry, Project, Task } from "@/lib/schemas";
+import type { Goal, Habit, HabitEntry, Project, Tag, Task } from "@/lib/schemas";
 import { updateGoalsLayoutAction } from "@/lib/actions/goals";
 import { goalHasLinks } from "@/lib/goal-sync";
 import { Topbar } from "@/components/shell/Topbar";
@@ -43,6 +43,7 @@ type ItemsByCategory = Record<GoalCategory, Goal[]>;
 
 type Props = {
   goals: Goal[];
+  tags: Tag[];
   projects: Project[];
   habits: Habit[];
   habitEntries: HabitEntry[];
@@ -91,6 +92,7 @@ function findContainer(
 
 export function GoalsView({
   goals,
+  tags,
   projects,
   habits,
   habitEntries,
@@ -361,6 +363,7 @@ export function GoalsView({
             <div key={selectedGoal.id} className="animate-puma-swap h-full">
             <GoalDetailPanel
               goal={selectedGoal}
+              tags={tags}
               projects={projects}
               habits={habits}
               habitEntries={habitEntries}
@@ -386,6 +389,7 @@ export function GoalsView({
             {selectedGoal && !isDesktop && (
               <GoalDetailPanel
                 goal={selectedGoal}
+                tags={tags}
                 projects={projects}
                 habits={habits}
                 habitEntries={habitEntries}

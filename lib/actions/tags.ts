@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { ActionResult } from "@/lib/types";
+import type { ActionResult, EntityLifeArea } from "@/lib/types";
 import type { Tag } from "@/lib/schemas";
 import { userToday } from "@/lib/timezone-server";
 import { requireUserId } from "@/lib/auth/session";
@@ -19,18 +19,27 @@ import {
   isLifeTag,
   hasLifeTag,
   withProjectLifeTags,
+  goalCategoryForLifeArea,
 } from "@/lib/life-area-sync";
-import { getProject } from "@/lib/db/projects";
+import { getProject, updateProject } from "@/lib/db/projects";
+import { listHabits, updateHabit } from "@/lib/db/habits";
+import { listGoals, nextGoalOrder, updateGoal } from "@/lib/db/goals";
+import { setProjectLifeArea } from "@/lib/project-life-server";
 import {
   projectIdFromTags,
   withSingleProjectTag,
 } from "@/lib/project-tags";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
 
-export type TaggableEntity = "task" | "note";
+export type TaggableEntity =
+  | "task"
+  | "note"
+  | "habit"
+  | "goal"
+  | "project";
 
 const toggleSchema = z.object({
-  entity: z.enum(["task", "note"]),
+  entity: z.enum(["task", "note", "habit", "goal", "project"]),
   entityId,
   tagId: entityId,
 });
@@ -99,6 +108,83 @@ export async function toggleEntityTag(
 
     revalidatePath("/", "layout");
     return { ok: true, data: { applied } };
+  }
+
+  // Every other taggable thing follows the same shape: flip the tag, refuse to
+  // strip the last life tag, and let lifeArea follow from what's left.
+  type Flip =
+    | { ok: false; error: string }
+    | { ok: true; applied: boolean; tagIds: string[]; lifeArea: EntityLifeArea };
+
+  const flip = (current: string[]): Flip => {
+    const applied = !current.includes(tag);
+    const next = applied
+      ? [...current, tag]
+      : current.filter((x) => x !== tag);
+    if (!applied && isLifeTag(tagRecord.name) && !hasLifeTag(next, tags)) {
+      return {
+        ok: false,
+        error: `Pick ${tagRecord.name === "work" ? "personal" : "work"} first — everything belongs to one side or both`,
+      };
+    }
+    return {
+      ok: true,
+      applied,
+      tagIds: next,
+      lifeArea: deriveLifeAreaFromTags(next, tags),
+    };
+  };
+
+  if (parsed.data.entity === "habit") {
+    const habit = (await listHabits(userId)).find((h) => h.id === id);
+    if (!habit) return { ok: false, error: "Not found" };
+    const flipped = flip(habit.tagIds);
+    if (!flipped.ok) return { ok: false, error: flipped.error };
+    await updateHabit(userId, id, {
+      tagIds: flipped.tagIds,
+      lifeArea: flipped.lifeArea,
+    });
+    revalidatePath("/", "layout");
+    return { ok: true, data: { applied: flipped.applied } };
+  }
+
+  if (parsed.data.entity === "goal") {
+    const goals = await listGoals(userId);
+    const goal = goals.find((g) => g.id === id);
+    if (!goal) return { ok: false, error: "Not found" };
+    const flipped = flip(goal.tagIds);
+    if (!flipped.ok) return { ok: false, error: flipped.error };
+    // The Personal/Professional column is the life tag under another name, so
+    // it moves with it — and takes a fresh order so it lands at the end.
+    const category = goalCategoryForLifeArea(flipped.lifeArea);
+    await updateGoal(userId, id, {
+      tagIds: flipped.tagIds,
+      lifeArea: flipped.lifeArea,
+      category,
+      ...(category === goal.category
+        ? {}
+        : { order: nextGoalOrder(goals, category) }),
+    });
+    revalidatePath("/", "layout");
+    return { ok: true, data: { applied: flipped.applied } };
+  }
+
+  if (parsed.data.entity === "project") {
+    const project = await getProject(userId, id);
+    if (!project) return { ok: false, error: "Not found" };
+    const flipped = flip(project.tagIds);
+    if (!flipped.ok) return { ok: false, error: flipped.error };
+    if (isLifeTag(tagRecord.name)) {
+      // Tasks are filed under the project, so they come along.
+      await setProjectLifeArea(userId, project, flipped.lifeArea, tags);
+    } else {
+      await updateProject(userId, id, {
+        tagIds: flipped.tagIds,
+        lifeArea: flipped.lifeArea,
+      });
+    }
+    revalidatePath("/", "layout");
+    return { ok: true, data: { applied: flipped.applied } };
   }
 
   const note = await getNote(userId, id);

@@ -55,6 +55,7 @@ async function buildLinkedGraph() {
     metricLabel: "",
     progress: 0,
     targetDate: null,
+    tagIds: [],
     lifeArea: "personal",
     order: 0,
     createdAt: "2026-07-18",
@@ -67,6 +68,7 @@ async function buildLinkedGraph() {
     progress: 0,
     label: "0/0",
     goalId: goal.id,
+    tagIds: [],
     lifeArea: "personal",
     createdAt: "2026-07-18",
   });
@@ -93,6 +95,7 @@ async function buildLinkedGraph() {
     archived: false,
     goalIds: [goal.id],
     goalTargetStreak: 30,
+    tagIds: [],
     lifeArea: "personal",
     createdAt: "2026-07-18",
   });

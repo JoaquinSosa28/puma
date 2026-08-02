@@ -17,10 +17,14 @@ import { insertProject, listProjects } from "@/lib/db/projects";
 import { insertHabit } from "@/lib/db/habits";
 import { insertTask } from "@/lib/db/tasks";
 import { insertNote } from "@/lib/db/notes";
-import { ensureTags } from "@/lib/db/tags";
+import { ensureTags, listTags } from "@/lib/db/tags";
 import { pickProjectColor } from "@/lib/project-colors";
 import { aiInput } from "@/lib/validation";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  lifeViewForGoalCategory,
+  setLifeTags,
+} from "@/lib/life-area-sync";
 import { goalLifeArea } from "@/lib/life-area";
 
 const HABIT_COLOR = "oklch(0.6 0.13 155)";
@@ -105,6 +109,10 @@ export async function applyPlan(
       ? projectIdByRef.get(ref) ?? (existingProjectIds.has(ref) ? ref : null)
       : null;
 
+  // Life tags are attached to everything the plan creates, so the personal /
+  // work split reads the same way as it does for hand-made items.
+  const tags = await listTags(userId);
+
   const counts: ApplyCounts = { goals: 0, projects: 0, habits: 0, tasks: 0, notes: 0 };
 
   try {
@@ -118,8 +126,8 @@ export async function applyPlan(
         metricLabel: g.metricLabel ?? "",
         progress: 0,
         targetDate: g.targetDate ?? null,
-        // Keep it consistent with the category, which is what the goal views
-        // and the personal/work filter actually read.
+        // Tags carry the life area; the column mirrors them.
+        tagIds: setLifeTags([], lifeViewForGoalCategory(g.category), tags),
         lifeArea: goalLifeArea(g.category),
         order: nextGoalOrder(goalAccum, g.category),
         createdAt: td,
@@ -147,6 +155,7 @@ export async function applyPlan(
         progress: 0,
         label: "0/0",
         goalId: resolveGoal(p.goalRef),
+        tagIds: setLifeTags([], p.lifeArea, tags),
         lifeArea: p.lifeArea,
         createdAt: td,
       });
@@ -170,6 +179,7 @@ export async function applyPlan(
         archived: false,
         goalIds,
         goalTargetStreak: h.goalTargetStreak ?? null,
+        tagIds: setLifeTags([], h.lifeArea, tags),
         lifeArea: h.lifeArea,
         createdAt: td,
       });

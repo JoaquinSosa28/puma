@@ -9,6 +9,7 @@ import { updateProjectDetail, deleteProjectAction } from "@/lib/actions/projects
 import { linkProjectToGoal } from "@/lib/actions/links";
 import { GoalLinkField } from "@/components/links/GoalLinkField";
 import { ProjectTagsField } from "@/components/projects/ProjectTagsField";
+import { EntityTagRow } from "@/components/tags/EntityTagRow";
 import { PROJECT_COLORS } from "@/lib/project-colors";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
@@ -22,11 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { toast } from "sonner";
-
-const LIFE_AREAS = [
-  ["personal", "Personal"],
-  ["work", "Work"],
-] as const;
 
 type Props = {
   project: Project;
@@ -47,7 +43,6 @@ export function ProjectDetailPanel({
   const confirm = useConfirm();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useSyncedDraft(project.title, project.id);
-  const [lifeArea, setLifeArea] = useSyncedDraft(project.lifeArea, project.id);
   const [color, setColor] = useSyncedDraft(project.color, project.id);
   const [, startTransition] = useTransition();
 
@@ -60,7 +55,6 @@ export function ProjectDetailPanel({
     (patch: {
       title?: string;
       description?: string;
-      lifeArea?: Project["lifeArea"];
       color?: string;
     }) => {
       startTransition(async () => {
@@ -172,31 +166,17 @@ export function ProjectDetailPanel({
 
         <section className="mb-5">
           <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
-            Life area
+            Tags
           </h4>
-          <div className="flex gap-1.5">
-            {LIFE_AREAS.map(([value, label]) => {
-              const active = lifeArea === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setLifeArea(value);
-                    persist({ lifeArea: value });
-                  }}
-                  className={cn(
-                    "flex-1 rounded-lg border px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wide transition-colors",
-                    active
-                      ? "border-ink bg-ink text-background"
-                      : "border-border bg-surface2 text-faint hover:border-faint hover:text-ink"
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          <EntityTagRow
+            entity="project"
+            entityId={project.id}
+            tags={tags}
+            selectedTagIds={project.tagIds}
+          />
+          <p className="m-0 mt-1.5 text-[11px] leading-relaxed text-faint">
+            Personal or work — switching takes this project&apos;s tasks with it.
+          </p>
         </section>
 
         <section className="mb-5">
@@ -225,7 +205,7 @@ export function ProjectDetailPanel({
 
         <section>
           <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
-            Tags
+            Task tags
           </h4>
           <ProjectTagsField project={project} tags={tags} />
         </section>

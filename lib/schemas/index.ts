@@ -140,7 +140,10 @@ export const habitSchema = z.preprocess((raw) => {
   archived: z.boolean(),
   goalIds: z.array(z.string()).default([]),
   goalTargetStreak: z.number().nullable().default(null),
-  lifeArea: z.enum(["personal", "work"]),
+  // Backfilled by scripts/migrate-entity-tags.ts. Default keeps pre-migration
+  // docs parseable; the life tags inside are what decide lifeArea.
+  tagIds: z.array(z.string()).default([]),
+  lifeArea: z.enum(["personal", "work", "both"]),
   createdAt: z.string(),
 }));
 
@@ -174,7 +177,10 @@ export const goalSchema = z.object({
   metricLabel: z.string(),
   progress: z.number().min(0).max(100),
   targetDate: z.string().nullable(),
-  lifeArea: z.enum(["personal", "work"]),
+  tagIds: z.array(z.string()).default([]),
+  // Derived from the life tags — see lib/life-area-sync.ts. `category` above
+  // is the column it sits in and mirrors this.
+  lifeArea: z.enum(["personal", "work", "both"]),
   order: z.number().default(0),
   createdAt: z.string(),
 });
@@ -188,7 +194,9 @@ export const projectSchema = z.object({
   progress: z.number(),
   label: z.string(),
   goalId: z.string().nullable(),
-  lifeArea: z.enum(["personal", "work"]),
+  /** The project's own tags — not the tags that file tasks into it. */
+  tagIds: z.array(z.string()).default([]),
+  lifeArea: z.enum(["personal", "work", "both"]),
   createdAt: z.string(),
 });
 

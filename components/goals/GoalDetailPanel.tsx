@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import type { Goal, Habit, HabitEntry, Project, Task } from "@/lib/schemas";
+import type { Goal, Habit, HabitEntry, Project, Tag, Task } from "@/lib/schemas";
 import {
   updateGoalDetailAction,
   setGoalProgress,
@@ -28,9 +28,11 @@ import {
 } from "@/lib/habit-visibility";
 import type { WeekStart } from "@/lib/date";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
+import { EntityTagRow } from "@/components/tags/EntityTagRow";
 
 type Props = {
   goal: Goal;
+  tags: Tag[];
   projects: Project[];
   habits: Habit[];
   habitEntries: HabitEntry[];
@@ -42,6 +44,7 @@ type Props = {
 
 export function GoalDetailPanel({
   goal,
+  tags,
   projects,
   habits,
   habitEntries,
@@ -213,6 +216,21 @@ export function GoalDetailPanel({
             className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-[15px] font-bold text-ink outline-none focus:border-faint"
             maxLength={120}
           />
+        </section>
+
+        <section className="mb-5">
+          <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+            Tags
+          </h4>
+          <EntityTagRow
+            entity="goal"
+            entityId={goal.id}
+            tags={tags}
+            selectedTagIds={goal.tagIds}
+          />
+          <p className="m-0 mt-1.5 text-[11px] leading-relaxed text-faint">
+            Personal or work decides the column this goal sits in.
+          </p>
         </section>
 
         <section className="mb-5 grid gap-3 sm:grid-cols-2">

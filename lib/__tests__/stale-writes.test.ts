@@ -28,6 +28,7 @@ async function makeGoal() {
     metricLabel: "",
     progress: 0,
     targetDate: null,
+    tagIds: [],
     lifeArea: "personal",
     order: 0,
     createdAt: "2026-07-18",
@@ -43,6 +44,7 @@ async function makeProject() {
     progress: 0,
     label: "0/0",
     goalId: null,
+    tagIds: [],
     lifeArea: "personal",
     createdAt: "2026-07-18",
   });

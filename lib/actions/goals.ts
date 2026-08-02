@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { goalLifeArea } from "@/lib/life-area";
+import {
+  deriveLifeAreaFromTags,
+  lifeViewForGoalCategory,
+  setLifeTags,
+} from "@/lib/life-area-sync";
+import { listTags } from "@/lib/db/tags";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
 import { requireUserId } from "@/lib/auth/session";
@@ -30,6 +35,12 @@ export async function addGoalAction(
   const userId = await requireUserId();
   const { today: createdAt } = await userToday();
   const existing = await listGoals(userId);
+  const tags = await listTags(userId);
+  const tagIds = setLifeTags(
+    [],
+    lifeViewForGoalCategory(parsed.data.category),
+    tags
+  );
   await insertGoal({
     userId,
     title: parsed.data.title,
@@ -37,7 +48,10 @@ export async function addGoalAction(
     metricLabel: "",
     progress: 0,
     targetDate: null,
-    lifeArea: goalLifeArea(parsed.data.category),
+    // The column a goal is added under says which side of life it's on, and
+    // the tags are where that lives — the column mirrors them from here on.
+    tagIds,
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     order: nextGoalOrder(existing, parsed.data.category),
     createdAt,
   });
@@ -132,10 +146,32 @@ export async function updateGoalsLayoutAction(
   const parsed = layoutSchema.safeParse({ personalIds, professionalIds });
   if (!parsed.success) return { ok: false, error: "Invalid input" };
   const userId = await requireUserId();
-  await updateGoalsLayout(userId, [
+
+  // Dropping a goal in the other column moves it across life areas, so the
+  // tags have to follow — they're what every view filters on.
+  const goals = await listGoals(userId);
+  const tags = await listTags(userId);
+  const columns: { category: GoalCategory; ids: string[] }[] = [
     { category: "personal", ids: parsed.data.personalIds },
     { category: "professional", ids: parsed.data.professionalIds },
-  ]);
+  ];
+  for (const { category, ids } of columns) {
+    for (const id of ids) {
+      const goal = goals.find((g) => g.id === id);
+      if (!goal || goal.category === category) continue;
+      const tagIds = setLifeTags(
+        goal.tagIds,
+        lifeViewForGoalCategory(category),
+        tags
+      );
+      await updateGoal(userId, id, {
+        tagIds,
+        lifeArea: deriveLifeAreaFromTags(tagIds, tags),
+      });
+    }
+  }
+
+  await updateGoalsLayout(userId, columns);
   revalidatePath("/", "layout");
   return { ok: true };
 }
@@ -154,8 +190,16 @@ export async function moveGoalCategoryAction(
   if (!goal) return { ok: false, error: "Not found" };
   if (goal.category === parsed.data.category) return { ok: true };
 
+  const tags = await listTags(userId);
+  const tagIds = setLifeTags(
+    goal.tagIds,
+    lifeViewForGoalCategory(parsed.data.category),
+    tags
+  );
   await updateGoal(userId, parsed.data.id, {
     category: parsed.data.category,
+    tagIds,
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     order: nextGoalOrder(goals, parsed.data.category),
   });
   revalidatePath("/", "layout");

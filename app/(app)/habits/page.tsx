@@ -11,6 +11,7 @@ export default async function HabitsPage({ searchParams }: Props) {
       habits={data.habits}
       habitEntries={data.habitEntries}
       goals={data.goals}
+      tags={data.tags}
       stats={data.stats}
       habitVisibility={habitVisibilityFromSettings(data.settings)}
       weekStart={data.settings?.weekStart ?? "mon"}

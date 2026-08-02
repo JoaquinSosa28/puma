@@ -1,6 +1,6 @@
 import { hrefWithLife, type LifeView } from "@/lib/life-area";
 import { taskDetailHref } from "@/lib/task-links";
-import type { EntityLifeArea, LifeArea } from "@/lib/types";
+import type { EntityLifeArea } from "@/lib/types";
 
 export type EntityKind = "task" | "project" | "goal" | "habit" | "note";
 
@@ -14,19 +14,19 @@ export type SnapshotTask = {
 export type SnapshotProject = {
   id: string;
   title: string;
-  lifeArea: LifeArea;
+  lifeArea: EntityLifeArea;
 };
 
 export type SnapshotGoal = {
   id: string;
   title: string;
-  lifeArea: LifeArea;
+  lifeArea: EntityLifeArea;
 };
 
 export type SnapshotHabit = {
   id: string;
   name: string;
-  lifeArea: LifeArea;
+  lifeArea: EntityLifeArea;
 };
 
 export type SnapshotNote = {
@@ -44,7 +44,7 @@ export type SnapshotEntities = {
   notes: SnapshotNote[];
 };
 
-function lifeViewFromArea(area: LifeArea | EntityLifeArea): LifeView {
+function lifeViewFromArea(area: EntityLifeArea): LifeView {
   if (area === "work") return "work";
   if (area === "personal") return "personal";
   return "both";

@@ -17,16 +17,17 @@ import type { Task } from "@/lib/schemas";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
 import {
   deriveLifeAreaFromTags,
-  deriveStrictLifeAreaFromTags,
   withLifeTags,
   withProjectLifeTags,
+  setLifeTags,
+  goalCategoryForLifeArea,
+  lifeViewForGoalCategory,
 } from "@/lib/life-area-sync";
 import {
   withSingleProjectTag,
   splitTagsByProject,
   projectIdFromTags,
 } from "@/lib/project-tags";
-import { goalLifeArea } from "@/lib/life-area";
 import { entityId, title as titleField, noteBody } from "@/lib/validation";
 
 const omniSchema = z.object({
@@ -78,8 +79,6 @@ export async function createFromOmni(
     tags
   );
   const title = p.title || text.trim();
-
-  const area = deriveStrictLifeAreaFromTags(tagIds, tags);
 
   if (type === "task") {
     const due =
@@ -183,7 +182,8 @@ export async function createFromOmni(
       archived: false,
       goalIds: [],
       goalTargetStreak: null,
-      lifeArea: area,
+      tagIds,
+      lifeArea: deriveLifeAreaFromTags(tagIds, tags),
       createdAt: td,
     });
     revalidatePath("/", "layout");
@@ -194,7 +194,14 @@ export async function createFromOmni(
     };
   }
 
-  const category = goalCategory ?? "personal";
+  // Asking for a professional goal says which side of life it's on, so it
+  // rewrites the tags the view supplied. Without one the tags stand and the
+  // column follows them.
+  const goalTagIds = goalCategory
+    ? setLifeTags(tagIds, lifeViewForGoalCategory(goalCategory), tags)
+    : tagIds;
+  const goalLife = deriveLifeAreaFromTags(goalTagIds, tags);
+  const category = goalCategoryForLifeArea(goalLife);
   const existingGoals = await listGoals(userId);
   const goal = await insertGoal({
     userId,
@@ -203,9 +210,8 @@ export async function createFromOmni(
     metricLabel: "",
     progress: 0,
     targetDate: p.due,
-    // The category is what decides which view a goal belongs to, so don't let
-    // the view you happened to capture from override it.
-    lifeArea: goalLifeArea(category),
+    tagIds: goalTagIds,
+    lifeArea: goalLife,
     order: nextGoalOrder(existingGoals, category),
     createdAt: td,
   });

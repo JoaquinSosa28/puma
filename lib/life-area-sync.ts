@@ -105,25 +105,57 @@ export function hasLifeTag(
 }
 
 /**
- * Replace an item's life tags with the one its project belongs to.
+ * Set an item's life tags to exactly those of `view`, dropping the others.
  *
- * Moving a personal task into a work project makes it work — adding "work"
- * while leaving "personal" on would land it in both, which is not what moving
- * means. A move replaces; only capturing in the Both view adds two.
+ * This is what a *move* means: dragging a personal goal into the Work column,
+ * or a task into a work project, makes it work — adding "work" while leaving
+ * "personal" on would land it in both, which isn't what moving means. Only
+ * capturing in the Both view legitimately produces two.
  */
-export function withProjectLifeTags(
+export function setLifeTags(
   tagIds: string[],
-  projectLifeArea: LifeArea | null | undefined,
+  view: LifeView,
   tags: { id: string; name: string }[]
 ): string[] {
-  if (!projectLifeArea) return tagIds;
   const nameById = new Map(tags.map((t) => [t.id, t.name.toLowerCase()]));
   const idsByName = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
-  const wanted = idsByName.get(projectLifeArea);
-  if (!wanted) return tagIds;
+  const wanted = lifeTagNamesForView(view)
+    .map((name) => idsByName.get(name))
+    .filter((id): id is string => Boolean(id));
+  // Nothing to put back means the life tags are missing from the account —
+  // leave what's there rather than stripping the item out of every view.
+  if (!wanted.length) return tagIds;
   const withoutLife = tagIds.filter((id) => {
     const name = nameById.get(id);
     return name !== "work" && name !== "personal";
   });
-  return [...withoutLife, wanted];
+  return [...withoutLife, ...wanted];
+}
+
+/** Replace an item's life tags with those of the project it just moved into. */
+export function withProjectLifeTags(
+  tagIds: string[],
+  projectLifeArea: EntityLifeArea | null | undefined,
+  tags: { id: string; name: string }[]
+): string[] {
+  if (!projectLifeArea) return tagIds;
+  return setLifeTags(tagIds, projectLifeArea, tags);
+}
+
+/**
+ * Goals sit in a Personal or Professional column. That column is the life tag
+ * under another word, so it's derived rather than stored independently — a
+ * goal tagged both is at home on the personal side and shows in every view.
+ */
+export function goalCategoryForLifeArea(
+  area: EntityLifeArea
+): "personal" | "professional" {
+  return area === "work" ? "professional" : "personal";
+}
+
+/** The life view a goal's column stands for. */
+export function lifeViewForGoalCategory(
+  category: "personal" | "professional"
+): LifeView {
+  return category === "professional" ? "work" : "personal";
 }

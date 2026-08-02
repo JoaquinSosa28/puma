@@ -1,11 +1,12 @@
 "use client";
 import { DeleteButton } from "@/components/ui/delete-button";
+import { EntityTagRow } from "@/components/tags/EntityTagRow";
 
 import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { useQueryState } from "nuqs";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import type { Goal, Habit, HabitEntry } from "@/lib/schemas";
+import type { Goal, Habit, HabitEntry, Tag } from "@/lib/schemas";
 import { iso, type WeekStart } from "@/lib/date";
 import {
   toggleHabitPeriod,
@@ -36,6 +37,7 @@ type Props = {
   habits: Habit[];
   habitEntries: HabitEntry[];
   goals: Goal[];
+  tags: Tag[];
   stats: { dayPct: number; habitsLabel: string; topStreak: number };
   habitVisibility: HabitVisibilitySettings;
   weekStart: WeekStart;
@@ -47,6 +49,7 @@ export function HabitsView({
   habits,
   habitEntries,
   goals,
+  tags,
   stats,
   habitVisibility,
   weekStart,
@@ -228,6 +231,14 @@ export function HabitsView({
                         })
                       }
                     />
+                    </div>
+                    <div className="mt-2">
+                      <EntityTagRow
+                        entity="habit"
+                        entityId={h.id}
+                        tags={tags}
+                        selectedTagIds={h.tagIds}
+                      />
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-center gap-1">

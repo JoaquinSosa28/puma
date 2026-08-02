@@ -33,14 +33,14 @@ export type SnapshotData = {
     id: string;
     title: string;
     category: string;
-    lifeArea: import("@/lib/types").LifeArea;
+    lifeArea: import("@/lib/types").EntityLifeArea;
     progress: number;
     targetDate: string | null;
   }[];
   projects: {
     id: string;
     title: string;
-    lifeArea: import("@/lib/types").LifeArea;
+    lifeArea: import("@/lib/types").EntityLifeArea;
     goalId: string | null;
     progress: number;
     label: string;
@@ -49,7 +49,7 @@ export type SnapshotData = {
     id: string;
     name: string;
     frequency: string;
-    lifeArea: import("@/lib/types").LifeArea;
+    lifeArea: import("@/lib/types").EntityLifeArea;
     goalIds: string[];
     archived: boolean;
   }[];

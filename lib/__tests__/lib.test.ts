@@ -270,7 +270,7 @@ describe("metrics", () => {
           timerStartedAt: null,
         },
       ],
-      [{ id: "h1", userId: "u", name: "x", color: "", frequency: { type: "daily", target: 1 }, order: 0, archived: false, goalIds: [], lifeArea: "personal", goalTargetStreak: null, createdAt: td }],
+      [{ id: "h1", userId: "u", name: "x", color: "", frequency: { type: "daily", target: 1 }, order: 0, archived: false, goalIds: [], tagIds: [], lifeArea: "personal", goalTargetStreak: null, createdAt: td }],
       [{ id: "e1", userId: "u", habitId: "h1", date: td, done: true }],
       td
     );
