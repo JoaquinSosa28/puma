@@ -31,6 +31,8 @@ import { DEFAULT_HABIT_VISIBILITY, HABIT_VISIBILITY_DEFAULTS } from "@/lib/habit
 import { SettingsNumberField } from "@/components/settings/SettingsNumberField";
 import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
 import { SubscriptionCard } from "@/components/settings/SubscriptionCard";
+import { DataSection } from "@/components/settings/DataSection";
+import type { DeleteAccountBlock } from "@/lib/actions/account";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,8 @@ type Props = {
   authEnabled: boolean;
   // Hosted deployments with an active subscription show the billing card.
   showSubscription?: boolean;
+  /** Set when a live subscription has to be cancelled before deleting. */
+  deletionBlock?: DeleteAccountBlock | null;
   tags: Tag[];
   stats: { dayPct: number; habitsLabel: string; topStreak: number };
 };
@@ -102,6 +106,7 @@ export function SettingsView({
   userEmail,
   authEnabled,
   showSubscription = false,
+  deletionBlock = null,
   tags,
   stats,
 }: Props) {
@@ -413,6 +418,14 @@ export function SettingsView({
                 />
               </div>
             </div>
+          </SettingsSection>
+
+          <SettingsSection
+            title="Data"
+            description="Take a copy with you, or close the account for good."
+            className="lg:col-span-2"
+          >
+            <DataSection userEmail={userEmail} deletionBlock={deletionBlock} />
           </SettingsSection>
 
           <SettingsSection title="Tags" className="lg:col-span-2">

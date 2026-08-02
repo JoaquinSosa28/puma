@@ -3,6 +3,7 @@ import { displayName } from "@/lib/user-display";
 import { resolveLifeView } from "@/lib/life-view-server";
 import { isAuthEnabled, requireAccess } from "@/lib/auth/session";
 import { billingEnabled } from "@/lib/billing/access";
+import { accountDeletionBlock } from "@/lib/actions/account";
 import { SettingsView } from "@/components/settings/SettingsView";
 
 export default async function SettingsPage() {
@@ -12,6 +13,9 @@ export default async function SettingsPage() {
   // nothing to manage, and self-hosted installs never enable billing at all.
   const showSubscription =
     billingEnabled() && (await requireAccess()) === "subscribed";
+  // Resolved on the server so the Data section can explain the block before
+  // the user types anything, rather than failing after they commit.
+  const deletionBlock = await accountDeletionBlock();
 
   return (
     <SettingsView
@@ -20,6 +24,7 @@ export default async function SettingsPage() {
       userEmail={data.user?.email ?? null}
       authEnabled={isAuthEnabled()}
       showSubscription={showSubscription}
+      deletionBlock={deletionBlock}
       tags={data.tags}
       stats={{ dayPct: 0, habitsLabel: "—", topStreak: 0 }}
     />
