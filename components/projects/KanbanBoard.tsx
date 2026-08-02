@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import {
   useEffect,
   useMemo,
@@ -69,9 +70,26 @@ type Props = {
   tags: Tag[];
   /** Open the in-place task editor (right panel). Card click + pencil. */
   onEditTask: (taskId: string) => void;
+  /**
+   * The project rail, rendered through a portal into `railHost` so it sits
+   * above the board on the page while living inside this DndContext in the
+   * React tree — which is what lets its cards act as drop targets. A drag and
+   * the thing it lands on have to share one context.
+   */
+  rail?: React.ReactNode;
+  railHost?: HTMLElement | null;
+  /** Dropping a card on a project card in the rail. */
+  onMoveToProject?: (taskId: string, projectId: string) => void;
 };
 
-export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
+export function KanbanBoard({
+  tasks,
+  tags,
+  onEditTask,
+  rail,
+  railHost,
+  onMoveToProject,
+}: Props) {
   const [, startTransition] = useTransition();
   const [items, setItems] = useState<ItemsByColumn>(() => groupByStatus(tasks));
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
@@ -168,6 +186,21 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
     releaseClickSuppression();
     if (!over) return;
 
+    // Dropped on the rail: that's a change of project, not of status.
+    const overData = over.data.current;
+    if (overData?.type === "project-card") {
+      const taskId = String(active.id);
+      const target = String(overData.projectId);
+      const original = tasks.find((t) => t.id === taskId);
+      if (original && original.projectId !== target) {
+        onMoveToProject?.(taskId, target);
+      }
+      // The card is leaving this board, so undo any column shuffling that the
+      // drag did on the way over the rail.
+      setItems(groupByStatus(tasks));
+      return;
+    }
+
     const activeContainer = findContainer(active.id, items);
     const overContainer = findContainer(over.id, items);
     if (!activeContainer || !overContainer) return;
@@ -226,9 +259,13 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
     </>
   );
 
+  const railPortal = rail && railHost ? createPortal(rail, railHost) : null;
+
   if (!dragReady) {
     return (
-      <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3 max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:scroll-px-3 lg:grid lg:grid-cols-3">
+      <>
+        {railPortal}
+        <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3 max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:scroll-px-3 lg:grid lg:grid-cols-3">
         {COLS.map((col) => (
           <KanbanColumnStatic
             key={col.key}
@@ -239,7 +276,8 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
             {columnBody(col)}
           </KanbanColumnStatic>
         ))}
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -252,6 +290,7 @@ export function KanbanBoard({ tasks, tags, onEditTask }: Props) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      {railPortal}
       <div className="h-full min-h-0 flex-1 gap-3.5 max-lg:flex max-lg:snap-x max-lg:snap-mandatory max-lg:gap-3 max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:scroll-px-3 lg:grid lg:grid-cols-3">
         {COLS.map((col) => (
           <KanbanColumn

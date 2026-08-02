@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { useQueryState } from "nuqs";
@@ -13,8 +13,9 @@ import { ProjectDetailPanel } from "@/components/projects/ProjectDetailPanel";
 import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NewProjectCard } from "@/components/projects/NewProjectCard";
-import { ScrollHint } from "@/components/ui/scroll-hint";
-import { cn } from "@/lib/utils";
+import { ProjectRail } from "@/components/projects/ProjectRail";
+import { setTaskProject } from "@/lib/actions/tasks";
+import { toast } from "sonner";
 import { useIsDesktop } from "@/lib/use-media-query";
 import { lifeAreaForCreate } from "@/lib/life-area";
 
@@ -44,8 +45,22 @@ export function ProjectsView({
   });
   const selected = projects.find((p) => p.id === projectId) ?? projects[0];
   const spTasks = tasks.filter((t) => t.projectId === selected?.id);
-  const railRef = useRef<HTMLDivElement>(null);
+  const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
   const isDesktop = useIsDesktop();
+  const [, startProjectMove] = useTransition();
+
+  const handleMoveToProject = (taskId: string, nextProjectId: string) => {
+    const destination =
+      projects.find((p) => p.id === nextProjectId)?.title ?? "project";
+    startProjectMove(async () => {
+      const res = await setTaskProject({ id: taskId, projectId: nextProjectId });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`Moved to ${destination}`);
+    });
+  };
 
   // In-place task editing: ?task=<id> swaps the right panel for the task editor.
   const [taskId, setTaskId] = useQueryState("task");
@@ -76,62 +91,18 @@ export function ProjectsView({
         }
       />
       <div className="flex min-h-0 flex-1 flex-col pb-6 animate-puma-view">
-        <div className="relative mb-4">
-          <div
-            ref={railRef}
-            className="flex snap-x gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]"
-          >
-          {projects.map((p) => {
-            const prog = projectProgress(p.id, tasks);
-            const active = p.id === selected?.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setProjectId(p.id)}
-                className={cn(
-                  "min-w-[160px] max-w-[240px] shrink-0 snap-start cursor-pointer rounded-[11px] border-[1.5px] p-[11px_14px] text-left hover:border-faint2",
-                  active ? "" : "border-border bg-surface"
-                )}
-                style={
-                  active
-                    ? {
-                        borderColor: p.color,
-                        background: p.color.replace(")", " / 0.06)"),
-                      }
-                    : undefined
-                }
-              >
-                <div className="mb-2 flex items-center gap-1.5 text-[13.5px] font-bold">
-                  <span
-                    className="h-[9px] w-[9px] shrink-0 rounded-[2px]"
-                    style={{ background: p.color }}
-                  />
-                  <span className="min-w-0 truncate">{p.title}</span>
-                </div>
-                <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-border2">
-                  <div
-                    className="h-full"
-                    style={{
-                      width: `${prog.progress}%`,
-                      background: p.color,
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between font-mono text-[10px] text-faint">
-                  <span>{prog.label}</span>
-                  <span>{prog.progress}%</span>
-                </div>
-              </button>
-            );
-          })}
-          <NewProjectCard
-            lifeArea={lifeAreaForCreate(lifeView)}
-            onCreated={(id) => void setProjectId(id)}
-            className="shrink-0"
-          />
-          </div>
-          <ScrollHint targetRef={railRef} direction="right" />
+        {/* The rail renders in here, portaled from inside the board's
+            DndContext so its cards can receive dropped tasks. Without a board
+            there's nothing to drag, so it renders plainly instead. */}
+        <div ref={setRailHost} className="contents">
+          {!selected && (
+            <ProjectRail
+              projects={projects}
+              tasks={tasks}
+              onSelect={(id) => void setProjectId(id)}
+              lifeArea={lifeAreaForCreate(lifeView)}
+            />
+          )}
         </div>
 
         {selected ? (
@@ -165,6 +136,18 @@ export function ProjectsView({
               </div>
               <div className="min-h-0 flex-1 overflow-hidden p-3">
                 <KanbanBoard
+                  rail={
+                    <ProjectRail
+                      projects={projects}
+                      tasks={tasks}
+                      selectedId={selected.id}
+                      onSelect={(id) => void setProjectId(id)}
+                      lifeArea={lifeAreaForCreate(lifeView)}
+                      droppable
+                    />
+                  }
+                  railHost={railHost}
+                  onMoveToProject={handleMoveToProject}
                   tasks={spTasks}
                   tags={tags}
                   onEditTask={(id) => void setTaskId(id)}
