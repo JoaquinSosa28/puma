@@ -21,6 +21,10 @@
     "db:migrate-tags": "tsx scripts/migrate-tags-projects.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.27",
+    "@ai-sdk/google": "^4.0.31",
+    "@ai-sdk/openai": "^4.0.27",
+    "@ai-sdk/openai-compatible": "^3.0.20",
     "@anthropic-ai/sdk": "^0.106.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -33,6 +37,7 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "ai": "^7.0.48",
     "better-auth": "^1.6.23",
     "chrono-node": "^2.8.0",
     "class-variance-authority": "^0.7.1",

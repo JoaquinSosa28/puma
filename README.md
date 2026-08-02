@@ -29,7 +29,9 @@ accounts for hosting.
 - **Life calendar** — every week of your life on one screen.
 - **AI planner & assistant** — describe an ambition and review the generated
   plan graph before anything is created; ask questions about your own data.
-  Bring your own Anthropic API key (stored encrypted).
+  Bring your own key from any of nine providers — Anthropic, OpenAI, Google,
+  OpenRouter, Groq, DeepSeek, Mistral, xAI, or a local Ollama (stored
+  encrypted).
 - **Auto Personal/Work switch** — the sidebar view follows your working hours.
 
 ## Quick start (zero config)
@@ -59,9 +61,16 @@ npm run dev
   only active in `mongodb` mode; `memory` mode stays authless for local dev.
 - **Every record is scoped to a `userId`** — reads, writes and deletes all
   filter by the session user, so accounts are fully isolated.
-- **AI features** are optional. Set `ANTHROPIC_API_KEY`, or let each user paste
-  their own key in Settings (encrypted at rest with AES-256-GCM). Per-user
-  daily quotas prevent runaway spend.
+- **AI features** are optional, and provider-agnostic. Each user picks a
+  provider and model in Settings → Assistant and pastes their own key
+  (encrypted at rest with AES-256-GCM); **Test connection** checks it in one
+  call. For a self-hosted instance, `AI_PROVIDER`, `AI_MODEL` and `AI_API_KEY`
+  set the default for everyone. Per-user daily quotas prevent runaway spend.
+
+  Endpoints come from a fixed list in [`lib/ai/providers.ts`](lib/ai/providers.ts) —
+  no user-supplied URLs, so the server can only reach hosts the repo names.
+  Providers that can't be strictly held to a JSON schema get one automatic
+  retry; small local models may still fail on the planner's larger schema.
 
 See [`.env.example`](.env.example) for every variable, including the optional
 hosted-mode settings — all off by default for self-hosted installs.

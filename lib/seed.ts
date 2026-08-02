@@ -605,6 +605,8 @@ export function createSeedData(userId: string): SeedData {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     aiApiKeyEnc: null,
     aiApiKeyLast4: null,
+    aiProvider: "anthropic",
+    aiModel: null,
     lifeAutoSwitch: false,
     workStart: "09:00",
     workEnd: "18:00",

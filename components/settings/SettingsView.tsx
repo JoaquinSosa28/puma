@@ -10,15 +10,12 @@ import {
   setTheme,
   addTagAction,
   updateUserNameAction,
-  setAiApiKeyAction,
-  clearAiApiKeyAction,
 } from "@/lib/actions/settings";
 import { deleteTagAction, updateTagAction } from "@/lib/actions/tags";
 import { CleanTagsButton } from "@/components/tags/CleanTagsButton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { toast } from "sonner";
-import { KeyRound, Check } from "lucide-react";
 import { TAG_PALETTE } from "@/lib/types";
 import { Topbar } from "@/components/shell/Topbar";
 import { Switch } from "@/components/ui/switch";
@@ -31,6 +28,7 @@ import { DEFAULT_HABIT_VISIBILITY, HABIT_VISIBILITY_DEFAULTS } from "@/lib/habit
 import { SettingsNumberField } from "@/components/settings/SettingsNumberField";
 import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
 import { SubscriptionCard } from "@/components/settings/SubscriptionCard";
+import { AssistantProviderFields } from "@/components/settings/AssistantProviderFields";
 import { DataSection } from "@/components/settings/DataSection";
 import type { DeleteAccountBlock } from "@/lib/actions/account";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
@@ -204,10 +202,14 @@ export function SettingsView({
 
           <SettingsSection
             title="Assistant"
-            description="PUMA's Plan and Ask features call Claude with your own Anthropic API key. It's stored encrypted and used only for your requests."
+            description="Plan and Ask call the AI provider you choose, with your own key. It's stored encrypted and used only for your requests."
             className="lg:col-span-2"
           >
-            <ApiKeyField last4={settings?.aiApiKeyLast4 ?? null} />
+            <AssistantProviderFields
+              provider={settings?.aiProvider ?? null}
+              model={settings?.aiModel ?? null}
+              last4={settings?.aiApiKeyLast4 ?? null}
+            />
           </SettingsSection>
 
           {showSubscription && (
@@ -562,136 +564,6 @@ function WorkDaysPicker({
           </button>
         );
       })}
-    </div>
-  );
-}
-
-/** Paste / replace / remove the user's own Anthropic API key. The raw key is
- *  write-only from the client's perspective — we only ever receive back the
- *  last 4 chars of whatever is stored. */
-function ApiKeyField({ last4 }: { last4: string | null }) {
-  const router = useRouter();
-  const confirm = useConfirm();
-  const [, startTransition] = useTransition();
-  const [draft, setDraft] = useState("");
-  const [editing, setEditing] = useState(false);
-
-  const configured = last4 !== null;
-
-  const save = () => {
-    const key = draft.trim();
-    if (!key) return;
-    startTransition(async () => {
-      const res = await setAiApiKeyAction(key);
-      if (!res.ok) {
-        toast.error(res.error ?? "Could not save key");
-        return;
-      }
-      toast.success("API key saved");
-      setDraft("");
-      setEditing(false);
-      router.refresh();
-    });
-  };
-
-  const remove = async () => {
-    const ok = await confirm({
-      title: "Remove API key?",
-      description: "Plan and Ask will stop working until you add a key again.",
-      confirmLabel: "Remove",
-      destructive: true,
-    });
-    if (!ok) return;
-    startTransition(async () => {
-      const res = await clearAiApiKeyAction();
-      if (!res.ok) {
-        toast.error(res.error ?? "Could not remove key");
-        return;
-      }
-      toast.success("API key removed");
-      setDraft("");
-      setEditing(false);
-      router.refresh();
-    });
-  };
-
-  // Configured and not actively replacing → show the masked status row.
-  if (configured && !editing) {
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-3 rounded-lg border border-border/70 bg-background/40 px-3 py-2.5">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-habits/10 text-habits">
-            <Check className="h-4 w-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-ink">Key configured</p>
-            <p className="font-mono text-[12px] text-faint">sk-ant-••••{last4}</p>
-          </div>
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            Replace
-          </Button>
-          <DeleteButton onClick={remove} label="Remove API key" size="md" />
-        </div>
-        <p className="text-[12px] text-faint">
-          Get a key from the{" "}
-          <a
-            href="https://console.anthropic.com/settings/keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-ink"
-          >
-            Anthropic Console
-          </a>
-          .
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex max-w-xl gap-2">
-        <div className="relative flex-1">
-          <KeyRound className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-faint2" />
-          <Input
-            type="password"
-            autoComplete="off"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && draft.trim()) save();
-            }}
-            placeholder="sk-ant-…"
-            className="pl-8 font-mono"
-          />
-        </div>
-        <Button onClick={save} disabled={!draft.trim()}>
-          Save
-        </Button>
-        {configured && editing ? (
-          <Button
-            variant="outline"
-            onClick={() => {
-              setEditing(false);
-              setDraft("");
-            }}
-          >
-            Cancel
-          </Button>
-        ) : null}
-      </div>
-      <p className="text-[12px] text-faint">
-        Paste your Anthropic key (starts with <code>sk-ant-</code>). Get one from the{" "}
-        <a
-          href="https://console.anthropic.com/settings/keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:text-ink"
-        >
-          Anthropic Console
-        </a>
-        . It&apos;s encrypted before storage and never shown again.
-      </p>
     </div>
   );
 }

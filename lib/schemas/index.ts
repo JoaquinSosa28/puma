@@ -52,6 +52,11 @@ export const settingsSchema = z.object({
   // the only piece the UI is allowed to see.
   aiApiKeyEnc: z.string().nullable().default(null),
   aiApiKeyLast4: z.string().nullable().default(null),
+  // Which provider that key belongs to, and which model to ask for. Both
+  // default, so a row written before providers existed reads as Anthropic on
+  // its default model — exactly what it did before.
+  aiProvider: z.string().default("anthropic"),
+  aiModel: z.string().nullable().default(null),
   // Auto life-area switch: during work hours (on workDays) the Personal/Work
   // toggle follows the clock; a manual pick holds for lifeAutoOverrideMins.
   lifeAutoSwitch: z.boolean().default(false),

@@ -34,6 +34,8 @@ export async function bootstrapNewUser(user: {
     timezone: "UTC", // refined by the client TimezoneSync cookie on first load
     aiApiKeyEnc: null,
     aiApiKeyLast4: null,
+    aiProvider: "anthropic",
+    aiModel: null,
     lifeAutoSwitch: false,
     workStart: "09:00",
     workEnd: "18:00",

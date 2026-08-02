@@ -4,10 +4,16 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { ActionResult, Theme, OmniType } from "@/lib/types";
 import type { Tag } from "@/lib/schemas";
-import { updateSettings } from "@/lib/db/settings";
+import { getSettings, updateSettings } from "@/lib/db/settings";
 import { insertTag } from "@/lib/db/tags";
 import { updateUser } from "@/lib/db/users";
 import { requireUserId } from "@/lib/auth/session";
+import {
+  DEFAULT_PROVIDER,
+  isPlausibleKey,
+  isProviderId,
+  providerDef,
+} from "@/lib/ai/providers";
 import { persistTimezoneCookie } from "@/lib/timezone-server";
 import { isValidTimezone, normalizeTimezone } from "@/lib/timezone";
 import { isoDate, tagName } from "@/lib/validation";
@@ -94,27 +100,68 @@ export async function addTagAction(name: string): Promise<ActionResult<Tag>> {
   return { ok: true, data: tag };
 }
 
-// Anthropic keys look like `sk-ant-...`; accept a generous charset and length
-// so future key formats don't get falsely rejected, but reject obvious garbage.
-const apiKeySchema = z
-  .string()
-  .trim()
-  .regex(/^sk-ant-[A-Za-z0-9_-]{16,200}$/, "That doesn't look like an Anthropic API key (sk-ant-…).");
-
-/** Store the user's own Claude key, encrypted. We keep only the last 4 chars in
- *  plaintext so the UI can show which key is set. */
+/** Store the user's own provider key, encrypted. We keep only the last 4 chars
+ *  in plaintext so the UI can show which key is set. The shape check is per
+ *  provider and deliberately loose — it catches a pasted paragraph, not a
+ *  revoked key; only a real call can tell you that. */
 export async function setAiApiKeyAction(rawKey: string): Promise<ActionResult> {
-  const parsed = apiKeySchema.safeParse(rawKey);
-  if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid API key" };
+  const key = String(rawKey ?? "").trim();
+  if (key.length > 400) return { ok: false, error: "That key is implausibly long" };
+
+  const userId = await requireUserId();
+  const settings = await getSettings(userId);
+  const provider = isProviderId(settings?.aiProvider)
+    ? settings.aiProvider
+    : DEFAULT_PROVIDER;
+  const def = providerDef(provider);
+
+  if (!isPlausibleKey(provider, key)) {
+    return {
+      ok: false,
+      error: `That doesn't look like a ${def.label} key (${def.keyHint}).`,
+    };
   }
-  const key = parsed.data;
+
   const { encryptSecret } = await import("@/lib/crypto");
+  await updateSettings(userId, {
+    aiApiKeyEnc: key ? encryptSecret(key) : null,
+    aiApiKeyLast4: key ? key.slice(-4) : null,
+  });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Switch provider. The stored key goes with it — a key never works across
+ *  providers, and leaving it would fail on the next call with a confusing
+ *  message instead of an obvious empty field. */
+export async function setAiProviderAction(provider: string): Promise<ActionResult> {
+  if (!isProviderId(provider)) return { ok: false, error: "Unknown provider" };
   const userId = await requireUserId();
   await updateSettings(userId, {
-    aiApiKeyEnc: encryptSecret(key),
-    aiApiKeyLast4: key.slice(-4),
+    aiProvider: provider,
+    aiModel: null,
+    aiApiKeyEnc: null,
+    aiApiKeyLast4: null,
   });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+const modelSchema = z
+  .string()
+  .trim()
+  .max(120)
+  // Model ids are vendor-namespaced slugs; anything else is a paste accident.
+  .regex(/^[A-Za-z0-9._:\/-]*$/, "That doesn't look like a model name");
+
+/** Empty means "use the provider's default", which is why null is stored. */
+export async function setAiModelAction(model: string): Promise<ActionResult> {
+  const parsed = modelSchema.safeParse(model);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid model" };
+  }
+  const userId = await requireUserId();
+  await updateSettings(userId, { aiModel: parsed.data || null });
   revalidatePath("/", "layout");
   return { ok: true };
 }
