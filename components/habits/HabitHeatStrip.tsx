@@ -147,7 +147,15 @@ export function HabitHeatStrip({
           );
 
           return (
-            <div key={cell.id} className="flex shrink-0 flex-col gap-0.5">
+            <div
+              key={cell.id}
+              className={cn(
+                "flex shrink-0 flex-col gap-0.5",
+                // A little air where the month turns over, so the run of weeks
+                // reads in month-sized chunks.
+                showMonth && index > 0 && "ml-2.5"
+              )}
+            >
               <span className={cn(labelClass, "h-3 leading-3")}>
                 {showMonth ? monthShort(cell.id) : ""}
               </span>
@@ -189,12 +197,13 @@ export function HabitHeatStrip({
 
   const gutter = compact ? "w-6" : "w-7";
   const gap = compact ? "gap-[3px]" : "gap-1";
-  // Full-width columns with a capped height: square cells at this width would
-  // make a month-tall grid dominate the card.
   const cellBox = compact ? "h-[15px] w-full" : "h-[22px] w-full";
+  // Cap the grid so a cell lands about the size of a weekly/monthly box.
+  // Left to fill the card, seven columns turn into slabs.
+  const gridMax = compact ? "max-w-[228px]" : "max-w-[304px]";
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full", gridMax, className)}>
       {/* Weekday header — all seven, aligned with the columns below. */}
       <div className={cn("flex items-center", gap)}>
         <span className={cn(gutter, "shrink-0")} aria-hidden />
