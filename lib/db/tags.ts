@@ -12,3 +12,4 @@ export const deleteTag = impl.deleteTag;
 export const restoreTags = impl.restoreTags;
 export const ensureTags = impl.ensureTags;
 export const ensureLifeTags = impl.ensureLifeTags;
+export const detachTagFromProject = impl.detachTagFromProject;

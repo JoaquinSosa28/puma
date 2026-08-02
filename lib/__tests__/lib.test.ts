@@ -26,6 +26,8 @@ const tags: Tag[] = [
     name: "work",
     color: "oklch(0.58 0.14 245)",
     isDefault: false,
+    projectId: null,
+    isProjectPrimary: false,
     order: 0,
     createdAt: "2025-01-01",
   },

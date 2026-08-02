@@ -1,6 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  listTags,
+  insertTag,
+  deleteTag,
+  detachTagFromProject,
+} from "@/lib/db/tags";
+import { projectTagSlug, uniqueTagName } from "@/lib/project-tags";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
 import type { Project } from "@/lib/schemas";
@@ -42,6 +49,18 @@ export async function createProjectAction(
     lifeArea: parsed.data.lifeArea ?? "personal",
     createdAt,
   });
+
+  // Every project gets a flagship tag named after it, so "#wr" on a task is
+  // enough to file it here. It's the hint that this works at all.
+  const tags = await listTags(userId);
+  await insertTag(
+    userId,
+    uniqueTagName(
+      projectTagSlug(parsed.data.title),
+      tags.map((t) => t.name)
+    ),
+    { projectId: project.id, isProjectPrimary: true, color: project.color }
+  );
 
   revalidatePath("/", "layout");
   return { ok: true, data: project };
@@ -94,6 +113,18 @@ export async function deleteProjectAction(
     deleteTasks: parsed.data.deleteTasks,
   });
   if (!deleted) return { ok: false, error: "Not found" };
+
+  // The project's own tags go with it — a flagship pointing at nothing would
+  // be undeletable dead weight. Any other tag that had joined the project is
+  // released back to being ordinary, since the user chose to create it.
+  const projectTags = (await listTags(userId)).filter((t) => t.projectId === id);
+  for (const tag of projectTags) {
+    if (tag.isProjectPrimary) {
+      await deleteTag(userId, tag.id);
+    } else {
+      await detachTagFromProject(userId, tag.id);
+    }
+  }
 
   if (goalId) await syncGoalProgress(userId, goalId);
   revalidatePath("/", "layout");

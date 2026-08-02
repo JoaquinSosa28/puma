@@ -31,7 +31,8 @@ export async function getTagByName(
 
 export async function insertTag(
   userId: string,
-  name: string
+  name: string,
+  opts?: { projectId?: string | null; isProjectPrimary?: boolean; color?: string }
 ): Promise<Tag | null> {
   const c = await col();
   const existing = await c.findOne({ userId, name });
@@ -41,8 +42,10 @@ export async function insertTag(
     _id: newId(),
     userId,
     name,
-    color: TAG_PALETTE[count % TAG_PALETTE.length],
+    color: opts?.color ?? TAG_PALETTE[count % TAG_PALETTE.length],
     isDefault: false,
+    projectId: opts?.projectId ?? null,
+    isProjectPrimary: opts?.isProjectPrimary ?? false,
     order: count,
     createdAt: iso(),
   };
@@ -67,6 +70,8 @@ export async function ensureLifeTags(userId: string): Promise<void> {
           name,
           color: LIFE_TAG_COLORS[name],
           isDefault: true,
+          projectId: null,
+          isProjectPrimary: false,
           order: i,
           createdAt: iso(),
         },
@@ -143,4 +148,15 @@ export async function ensureTags(
     ids.push(tag.id);
   }
   return ids;
+}
+
+export async function detachTagFromProject(
+  userId: string,
+  id: string
+): Promise<void> {
+  const c = await col();
+  await c.updateOne(
+    { _id: id, userId },
+    { $set: { projectId: null, isProjectPrimary: false } }
+  );
 }

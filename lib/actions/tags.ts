@@ -15,6 +15,11 @@ import { getSettings, updateSettings } from "@/lib/db/settings";
 import type { TagDoc } from "@/lib/schemas";
 import { cssColor, entityId, tagName } from "@/lib/validation";
 import { deriveLifeAreaFromTags, isLifeTag } from "@/lib/life-area-sync";
+import {
+  projectIdFromTags,
+  withSingleProjectTag,
+} from "@/lib/project-tags";
+import { syncGoalsForProject } from "@/lib/goal-sync-server";
 
 export type TaggableEntity = "task" | "note";
 
@@ -43,11 +48,31 @@ export async function toggleEntityTag(
     const task = await getTask(userId, id);
     if (!task) return { ok: false, error: "Not found" };
     const applied = !task.tagIds.includes(tag);
-    const tagIds = applied
+    let tagIds = applied
       ? [...task.tagIds, tag]
       : task.tagIds.filter((x) => x !== tag);
+
+    // Project tags file the task. A task belongs to one project, so adding a
+    // second project's tag replaces the first rather than stacking.
+    const nextProjectId = projectIdFromTags(tagIds, tags);
+    tagIds = withSingleProjectTag(tagIds, nextProjectId, tags);
+
     const lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-    await updateTask(userId, id, { tagIds, lifeArea });
+    const previousProjectId = task.projectId;
+    await updateTask(userId, id, {
+      tagIds,
+      lifeArea,
+      projectId: nextProjectId,
+    });
+
+    // Project progress counts its tasks, and this just moved one.
+    if (previousProjectId && previousProjectId !== nextProjectId) {
+      await syncGoalsForProject(userId, previousProjectId);
+    }
+    if (nextProjectId && nextProjectId !== previousProjectId) {
+      await syncGoalsForProject(userId, nextProjectId);
+    }
+
     revalidatePath("/", "layout");
     return { ok: true, data: { applied } };
   }
@@ -88,11 +113,25 @@ export async function updateTagAction(input: {
 
   const userId = await requireUserId();
   if (patch.name !== undefined) {
-    const existing = (await listTags(userId)).find((t) => t.id === id);
+    const all = await listTags(userId);
+    const existing = all.find((t) => t.id === id);
     // The derivation matches life tags by name, so a rename would silently
     // orphan every item carrying it. Recolouring is fine.
     if (existing && isLifeTag(existing.name)) {
       return { ok: false, error: `"${existing.name}" is a life tag and can't be renamed` };
+    }
+    // One namespace for ordinary and project tags alike, so "#ai" is never
+    // ambiguous about where it files things.
+    const clash = all.find(
+      (t) => t.id !== id && t.name.toLowerCase() === patch.name!.toLowerCase()
+    );
+    if (clash) {
+      return {
+        ok: false,
+        error: clash.projectId
+          ? `"${patch.name}" is already a project tag`
+          : `"${patch.name}" is already in use`,
+      };
     }
   }
   const updated = await updateTag(userId, id, patch);
@@ -115,6 +154,12 @@ export async function deleteTagAction(id: string): Promise<ActionResult> {
   // would leave everything carrying it with nowhere to belong.
   if (isLifeTag(tag.name)) {
     return { ok: false, error: `"${tag.name}" is a life tag and can't be deleted` };
+  }
+  if (tag.isProjectPrimary) {
+    return {
+      ok: false,
+      error: "That's the project's own tag — rename it, or delete the project",
+    };
   }
   if (tag.isDefault) {
     return { ok: false, error: "Default tags can't be deleted" };
@@ -150,6 +195,8 @@ function toTagDoc(tag: Tag, userId: string): TagDoc {
     name: tag.name,
     color: tag.color,
     isDefault: tag.isDefault,
+    projectId: null,
+    isProjectPrimary: false,
     order: tag.order,
     createdAt: tag.createdAt,
   };

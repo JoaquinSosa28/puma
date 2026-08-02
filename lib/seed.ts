@@ -50,6 +50,8 @@ export function createSeedData(userId: string): SeedData {
     name: t[0],
     color: t[1],
     isDefault: t[2],
+    projectId: null,
+    isProjectPrimary: false,
     order: i,
     createdAt: td,
   }));

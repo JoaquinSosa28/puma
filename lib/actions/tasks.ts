@@ -20,6 +20,10 @@ import {
   deriveStrictLifeAreaFromTags,
   withLifeTags,
 } from "@/lib/life-area-sync";
+import {
+  withSingleProjectTag,
+  projectIdFromTags,
+} from "@/lib/project-tags";
 import { goalLifeArea } from "@/lib/life-area";
 import { entityId, title as titleField, noteBody } from "@/lib/validation";
 
@@ -78,7 +82,14 @@ export async function createFromOmni(
   if (type === "task") {
     const due =
       p.due ?? dueOverride ?? defaultDue(null, settings?.defaultDueToday ?? true, td);
-    const project = projectId ? await getProject(userId, projectId) : null;
+    // "#ml buy a gpu" files itself: a project tag in the text beats the
+    // project the view happened to be scoped to.
+    const taggedProjectId = projectIdFromTags(tagIds, tags);
+    const project = taggedProjectId
+      ? await getProject(userId, taggedProjectId)
+      : projectId
+        ? await getProject(userId, projectId)
+        : null;
     const task = await insertTask({
       userId,
       title,
@@ -89,7 +100,7 @@ export async function createFromOmni(
       priority: p.hasPriorityToken ? p.priority : priorityOverride ?? p.priority,
       status: "todo",
       due,
-      projectId: project ? projectId! : null,
+      projectId: project?.id ?? null,
       goalId: null,
       lifeArea: deriveLifeAreaFromTags(tagIds, tags),
       order: -Date.now(),
@@ -198,10 +209,14 @@ export async function addTask(
     parsed.data.lifeView ?? "personal",
     tags
   );
-  // Stale clients may still point at a just-deleted project — don't relink it.
-  const project = parsed.data.projectId
-    ? await getProject(userId, parsed.data.projectId)
-    : null;
+  // A project tag in the text wins; otherwise the caller's project, if it
+  // still exists (stale clients can point at a deleted one).
+  const taggedProjectId = projectIdFromTags(tagIds, tags);
+  const project = taggedProjectId
+    ? await getProject(userId, taggedProjectId)
+    : parsed.data.projectId
+      ? await getProject(userId, parsed.data.projectId)
+      : null;
   const task = await insertTask({
     userId,
     title: p.title,
@@ -216,7 +231,7 @@ export async function addTask(
     due:
       parsed.data.due ??
       defaultDue(p.due, settings?.defaultDueToday ?? true, td),
-    projectId: project ? parsed.data.projectId! : null,
+    projectId: project?.id ?? null,
     goalId: null,
     lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     order: -Date.now(),
@@ -375,8 +390,19 @@ export async function setTaskProject(
   const nextProjectId = project ? parsed.data.projectId : null;
   if (nextProjectId === existing.projectId) return { ok: true, data: existing };
 
+  // Tags and projectId are two views of one fact, so moving by drag or by the
+  // picker has to rewrite the tags the same way tagging would.
+  const tags = await listTags(userId);
+  const flagship = nextProjectId
+    ? tags.find((t) => t.projectId === nextProjectId && t.isProjectPrimary)
+    : null;
+  let tagIds = withSingleProjectTag(existing.tagIds, nextProjectId, tags);
+  if (flagship && !tagIds.includes(flagship.id)) tagIds = [...tagIds, flagship.id];
+
   const updated = await updateTask(userId, parsed.data.id, {
     projectId: nextProjectId,
+    tagIds,
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
   });
   if (!updated) return { ok: false, error: "Not found" };
 

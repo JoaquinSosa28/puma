@@ -75,6 +75,19 @@ export const tagSchema = z.object({
   name: z.string(),
   color: z.string(),
   isDefault: z.boolean(),
+  /**
+   * The project this tag belongs to, if any. A tag belongs to at most one
+   * project — that single field IS the "projects can't share tags" rule, so
+   * there's nothing to keep in sync and no second object to drift.
+   *
+   * Tagging a task with one of these files the task under that project.
+   */
+  projectId: z.string().nullable().default(null),
+  /**
+   * The project's flagship tag, created with it and named after it. Can be
+   * renamed, can't be deleted or detached — a project always keeps one.
+   */
+  isProjectPrimary: z.boolean().default(false),
   order: z.number(),
   createdAt: z.string(),
 });
