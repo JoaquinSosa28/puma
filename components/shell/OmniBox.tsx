@@ -181,6 +181,64 @@ export function OmniBox({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Capture and plan/ask render different input elements, so a cycle can swap
+  // the node out from under the ref. Focusing from the key handler (or a
+  // requestAnimationFrame inside it) lands before React commits the swap and
+  // hits the node on its way out — so the request is recorded here and honoured
+  // in an effect, once the new input actually exists.
+  const wantFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (!wantFocusRef.current) return;
+    wantFocusRef.current = false;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    const end = el.value?.length ?? 0;
+    try {
+      el.setSelectionRange(end, end);
+    } catch {
+      // Some input types reject selection ranges; focus alone is enough.
+    }
+  }, [mode, type]);
+
+  // Tab drives the omnibar from anywhere on the page. It lives on the window
+  // rather than the input because switching to plan/ask swaps the input element
+  // itself — the old handler died with the unmounted node, which is why the
+  // press after a switch went to the browser and moved focus to a button
+  // instead of cycling.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || e.defaultPrevented || e.isComposing) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const active = document.activeElement;
+      // Someone typing in another field keeps normal Tab — that's their form's
+      // business, not ours.
+      if (active !== inputRef.current && isEditableTarget(active)) return;
+      // Dialogs, sheets and popovers keep normal Tab too, or they stop being
+      // navigable by keyboard at all once open.
+      if (
+        active instanceof HTMLElement &&
+        active.closest('[role="dialog"], [data-radix-popper-content-wrapper]')
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
+      wantFocusRef.current = true;
+      setMode(next.mode);
+      if (next.mode === "capture") setType(next.type);
+      // Covers the case where the cycle doesn't remount the input: the effect
+      // below only runs when mode/type actually change the rendered branch.
+      inputRef.current?.focus();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mode, type]);
+
   useEffect(() => {
     const OMNI_CLEAR_MS = 3000;
 
@@ -395,13 +453,6 @@ export function OmniBox({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Tab") {
-                e.preventDefault();
-                const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
-                setMode(next.mode);
-                if (next.mode === "capture") setType(next.type);
-                return;
-              }
               if (e.key === "Enter") {
                 e.preventDefault();
                 submit();
@@ -417,13 +468,6 @@ export function OmniBox({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Tab") {
-                e.preventDefault();
-                const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
-                setMode(next.mode);
-                if (next.mode === "capture") setType(next.type);
-                return;
-              }
               if (aiMode) {
                 if (e.key === "Enter") {
                   e.preventDefault();
