@@ -9,6 +9,7 @@ import { WidgetHeaderLink } from "@/components/home/WidgetLink";
 import { addDays, iso } from "@/lib/date";
 import { type LifeView } from "@/lib/life-area";
 import { taskDetailHref, tasksListHref } from "@/lib/task-links";
+import { sortTasksByPriority } from "@/lib/task-order";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,11 @@ export function TodayTasksCard({
   const stepDay = (delta: number) =>
     setDay((d) => iso(addDays(delta, new Date(d + "T00:00"), timeZone), timeZone));
 
-  const dayTasks = allTasks.filter((t) => (t.due ?? "").slice(0, 10) === day);
+  // Highest priority first — this widget is the "what should I do next" glance,
+  // so the answer belongs at the top rather than wherever capture order put it.
+  const dayTasks = sortTasksByPriority(
+    allTasks.filter((t) => (t.due ?? "").slice(0, 10) === day)
+  );
   const done = dayTasks.filter((t) => t.status === "done").length;
   const pct = dayTasks.length ? Math.round((done / dayTasks.length) * 100) : 0;
 

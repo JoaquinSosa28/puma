@@ -28,21 +28,15 @@ import {
 const PRIO_COLOR = {
   high: "oklch(0.64 0.18 25)",
   med: "oklch(0.7 0.12 70)",
-  low: "var(--border)",
+  // Not var(--border): against the card that renders as a missing dot rather
+  // than a quiet one. Low should look deliberate, just unimportant.
+  low: "var(--faint2)",
 } as const;
 
 const PRIO_BORDER = {
   high: "border-l-[oklch(0.64_0.18_25)]",
   med: "border-l-[oklch(0.7_0.12_70)]",
-  low: "border-l-border",
-} as const;
-
-// Hover life for widget rows: the priority bar slides in from the left and
-// the row nudges right with it — subtle, but you always know where you are.
-const PRIO_BORDER_HOVER = {
-  high: "hover:border-l-[oklch(0.64_0.18_25)]",
-  med: "hover:border-l-[oklch(0.7_0.12_70)]",
-  low: "hover:border-l-[oklch(0.58_0.14_245)]",
+  low: "border-l-faint2/40",
 } as const;
 
 type Props = {
@@ -321,8 +315,8 @@ export function TaskList({
                 isPage
                   ? "border-b border-border2 px-4 py-2.5 last:border-b-0 hover:bg-surface2/70"
                   : cn(
-                      "rounded-lg border-l-[3px] border-l-transparent px-1 py-1 transition-all duration-150 hover:bg-surface2 hover:pl-1.5",
-                      PRIO_BORDER_HOVER[t.priority]
+                      "rounded-lg border-l-[3px] px-1 py-1 transition-all duration-150 hover:bg-surface2 hover:pl-1.5",
+                      PRIO_BORDER[t.priority]
                     ),
                 showDelete
                   ? "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px_16px]"
