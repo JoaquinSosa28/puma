@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Plus } from "lucide-react";
@@ -67,6 +68,14 @@ function syncSpecialTagIds(
 
 type TagMenuContextValue = {
   open: (target: Omit<TagTarget, "x" | "y"> & { x: number; y: number }) => void;
+  /** Dismiss it — used when the thing it points at is about to move away. */
+  close: () => void;
+  /**
+   * Tell the menu a drag is in flight. On a phone a long press both opens this
+   * menu and arms a drag, so without this the menu ends up hovering over the
+   * board pointing at a card that has since moved somewhere else.
+   */
+  setDragActive: (active: boolean) => void;
 };
 
 const TagMenuContext = createContext<TagMenuContextValue | null>(null);
@@ -108,6 +117,8 @@ export function TagMenuProvider({
     }
   }, [menu]);
 
+  const dragActiveRef = useRef(false);
+
   const close = useCallback(() => {
     setMenu(null);
     setMenuTags([]);
@@ -128,8 +139,19 @@ export function TagMenuProvider({
     return () => window.removeEventListener("keydown", onKey);
   }, [menu, close]);
 
+  const setDragActive = useCallback(
+    (active: boolean) => {
+      dragActiveRef.current = active;
+      // The press that armed the drag may already have opened the menu.
+      if (active) close();
+    },
+    [close]
+  );
+
   const open = useCallback(
     (target: TagTarget) => {
+      // A long press that turned into a drag isn't a request for the menu.
+      if (dragActiveRef.current) return;
       dirtyRef.current = false;
       setMenu(target);
       setTagIds(target.tagIds);
@@ -232,8 +254,13 @@ export function TagMenuProvider({
       })()
     : null;
 
+  const tagMenuValue = useMemo(
+    () => ({ open, close, setDragActive }),
+    [open, close, setDragActive]
+  );
+
   return (
-    <TagMenuContext.Provider value={{ open }}>
+    <TagMenuContext.Provider value={tagMenuValue}>
       {children}
       {menu && pos && (
         <>

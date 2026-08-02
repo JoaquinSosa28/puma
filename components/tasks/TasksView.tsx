@@ -22,6 +22,8 @@ import {
   useSensors,
   useDroppable,
   closestCenter,
+  pointerWithin,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
@@ -43,6 +45,7 @@ import { TaskDetailPanel } from "@/components/tasks/TaskDetailPanel";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { iso } from "@/lib/date";
 import { cn } from "@/lib/utils";
+import { useTagMenu } from "@/components/tags/TagMenuProvider";
 import { Topbar } from "@/components/shell/Topbar";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { useIsDesktop } from "@/lib/use-media-query";
@@ -51,6 +54,17 @@ const tabs = ["today", "upcoming", "all"] as const;
 const groups = ["none", "tag", "project"] as const;
 
 const TASK_ACCENT = "oklch(0.64 0.18 25)";
+
+/**
+ * The group under the pointer wins outright. closestCenter compares the
+ * dragged row's centre instead, so a tall group two cards away could beat the
+ * one you're actually over — the drop lands a group off and you learn to
+ * overshoot. Falls back to closestCenter in the gaps between cards.
+ */
+const groupCollisionDetection: CollisionDetection = (args) => {
+  const hit = pointerWithin(args);
+  return hit.length ? hit : closestCenter(args);
+};
 
 type Props = {
   tasks: Task[];
@@ -108,6 +122,7 @@ export function TasksView({
   );
   const listRef = useRef<HTMLDivElement>(null);
   const [, startTransition] = useTransition();
+  const { setDragActive } = useTagMenu();
   const timeZone = useTimezone();
   const isDesktop = useIsDesktop();
   const td = iso(new Date(), timeZone);
@@ -140,12 +155,15 @@ export function TasksView({
   );
 
   const handleDragStart = (event: DragStartEvent) => {
+    setDragActive(true);
     setDraggingId(String(event.active.id));
   };
+
 
   const handleDragEnd = (event: DragEndEvent) => {
     const taskId = String(event.active.id);
     setDraggingId(null);
+    setDragActive(false);
     const target = event.over?.data.current;
     if (!target || target.type !== "project-group") return;
 
@@ -455,7 +473,10 @@ export function TasksView({
               sensors={sensors}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
-              onDragCancel={() => setDraggingId(null)}
+              onDragCancel={() => {
+                setDraggingId(null);
+                setDragActive(false);
+              }}
               overlay={
                 draggingTask ? (
                   <div className="pointer-events-none rounded-lg border-2 border-ink bg-surface px-3 py-2 text-[13px] font-semibold text-ink shadow-[3px_3px_0_var(--shadow)]">
@@ -664,7 +685,7 @@ function DragArea({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={groupCollisionDetection}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}

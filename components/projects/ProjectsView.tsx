@@ -107,7 +107,25 @@ export function ProjectsView({
 
         {selected ? (
           <div className="flex min-h-0 flex-1 flex-col gap-4 max-lg:gap-0 max-lg:overflow-hidden max-lg:pb-14 lg:grid lg:grid-cols-[1fr_minmax(280px,320px)] lg:overflow-hidden">
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:min-h-0 max-lg:flex-1">
+            {/* Clicking the board's empty space — a column's blank area, the
+                gap between cards — closes the task editor and puts the project
+                back in the right panel. Anything interactive is left alone, so
+                this only ever fires on genuinely dead space. */}
+            <div
+              onClick={(e) => {
+                if (!taskId) return;
+                const el = e.target as HTMLElement;
+                if (
+                  el.closest(
+                    ".kanban-card, button, a, input, textarea, select, [role=\"button\"]"
+                  )
+                ) {
+                  return;
+                }
+                void setTaskId(null);
+              }}
+              className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border border-border bg-surface max-lg:min-h-0 max-lg:flex-1"
+            >
               <div className="flex shrink-0 items-center gap-2 border-b border-border2 px-4 py-3">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-[3px]"

@@ -23,6 +23,8 @@ import {
   type DragOverEvent,
   type DragStartEvent,
   type UniqueIdentifier,
+  pointerWithin,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -56,6 +58,32 @@ function groupByStatus(tasks: Task[]): ItemsByColumn {
     done: tasks.filter((t) => t.status === "done"),
   };
 }
+
+/**
+ * Columns keep closestCorners, which is what makes a card slot in sensibly
+ * among its neighbours. The rail can't use it: closestCorners measures the
+ * dragged card's corners, not the pointer, so a wide card sitting between two
+ * project chips scores whichever chip its edge happens to reach — which reads
+ * as the target being off to one side, and needing to overshoot to correct.
+ *
+ * A project chip therefore only wins while the pointer is literally inside it.
+ */
+const boardCollisionDetection: CollisionDetection = (args) => {
+  const railHit = pointerWithin(args).find(
+    (collision) =>
+      args.droppableContainers.find((d) => d.id === collision.id)?.data.current
+        ?.type ===
+      "project-card"
+  );
+  if (railHit) return [railHit];
+  // Never let a chip win on proximity alone once the pointer has left it.
+  return closestCorners(args).filter(
+    (collision) =>
+      args.droppableContainers.find((d) => d.id === collision.id)?.data.current
+        ?.type !==
+      "project-card"
+  );
+};
 
 function findContainer(
   id: UniqueIdentifier,
@@ -97,6 +125,7 @@ export function KanbanBoard({
   // After a drag, the browser still fires a click on the dropped card — swallow
   // it so finishing a drag never pops the editor open.
   const suppressClickRef = useRef(false);
+  const { setDragActive } = useTagMenu();
   const tagMap = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
 
   const handleCardClick = (taskId: string) => {
@@ -133,8 +162,10 @@ export function KanbanBoard({
 
   const handleDragStart = (event: DragStartEvent) => {
     suppressClickRef.current = true;
+    setDragActive(true);
     setActiveId(event.active.id);
   };
+
 
   const releaseClickSuppression = () => {
     window.setTimeout(() => {
@@ -183,6 +214,7 @@ export function KanbanBoard({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setDragActive(false);
     releaseClickSuppression();
     if (!over) return;
 
@@ -233,6 +265,7 @@ export function KanbanBoard({
 
   const handleDragCancel = () => {
     setActiveId(null);
+    setDragActive(false);
     releaseClickSuppression();
     setItems(groupByStatus(tasks));
   };
@@ -284,7 +317,7 @@ export function KanbanBoard({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={boardCollisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
