@@ -25,6 +25,19 @@ import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { sectionMetaFor } from "@/components/shell/MobileDock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { cn } from "@/lib/utils";
+import { PRIORITY_COLOR } from "@/components/tasks/PriorityChip";
+import type { TaskPriority } from "@/lib/types";
+import { ArrowUp, ArrowDown, Minus } from "lucide-react";
+
+const PRIORITY_OPTIONS: {
+  value: TaskPriority;
+  label: string;
+  Icon: typeof ArrowUp;
+}[] = [
+  { value: "high", label: "High", Icon: ArrowUp },
+  { value: "med", label: "Mid", Icon: Minus },
+  { value: "low", label: "Low", Icon: ArrowDown },
+];
 
 type Mode = "capture" | "plan" | "ask";
 
@@ -87,6 +100,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
   const [text, setText] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [pickedDue, setPickedDue] = useState<string | null>(null);
+  const [pickedPriority, setPickedPriority] = useState<TaskPriority>("med");
   const [pending, startTransition] = useTransition();
   const busy = assistant.status === "pending";
 
@@ -109,6 +123,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
     setText("");
     setSelectedTagIds([]);
     setPickedDue(null);
+    setPickedPriority("med");
     setOpen(true);
   };
 
@@ -185,6 +200,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
         type,
         projectId: type === "task" ? capture.projectId : undefined,
         due: type === "task" ? parsed.due ?? pickedDue ?? undefined : undefined,
+        priority: type === "task" ? pickedPriority : undefined,
         goalCategory: type === "goal" ? capture.goalCategory : undefined,
         lifeArea: lifeAreaForCreate(life),
         tagIds: taggable ? selectedTagIds : undefined,
@@ -446,6 +462,49 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
                           className="w-[7.5rem] border-none bg-transparent text-[13px] text-ink outline-none"
                         />
                       </label>
+                    </div>
+                  </>
+                )}
+
+                {isTask && !parsed.hasPriorityToken && (
+                  <>
+                    <p className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+                      Priority
+                    </p>
+                    <div className="mb-5 flex items-center gap-2">
+                      {PRIORITY_OPTIONS.map(({ value, label, Icon }) => {
+                        const active = pickedPriority === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setPickedPriority(value)}
+                            aria-pressed={active}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-xl border px-4 py-2.5 font-mono text-[13px] font-semibold transition-colors",
+                              active
+                                ? "border-2"
+                                : "border-border bg-surface text-muted"
+                            )}
+                            style={
+                              active
+                                ? {
+                                    borderColor: PRIORITY_COLOR[value],
+                                    background: PRIORITY_COLOR[value].replace(")", " / 0.12)"),
+                                    color: PRIORITY_COLOR[value],
+                                  }
+                                : undefined
+                            }
+                          >
+                            <Icon
+                              className="h-4 w-4"
+                              strokeWidth={3}
+                              style={active ? undefined : { color: PRIORITY_COLOR[value] }}
+                            />
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 )}

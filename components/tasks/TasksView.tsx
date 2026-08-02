@@ -9,6 +9,7 @@ import {
 } from "nuqs";
 import { ListTodo, Search, X } from "lucide-react";
 import { searchTasks } from "@/lib/task-search";
+import { sortTasksByPriority } from "@/lib/task-order";
 import {
   applyTaskFilters,
   countActiveFilters,
@@ -140,7 +141,9 @@ export function TasksView({
     if (projectFilter) {
       items = items.filter((t) => t.projectId === projectFilter);
     }
-    return applyTaskFilters(items, filters);
+    // Same order as the home widget: whatever the list is, the most important
+    // thing in it is at the top.
+    return sortTasksByPriority(applyTaskFilters(items, filters));
   }, [
     tasks,
     carryover,
@@ -158,7 +161,7 @@ export function TasksView({
     const items = projectFilter
       ? carryover.filter((t) => t.projectId === projectFilter)
       : carryover;
-    return applyTaskFilters(items, filters);
+    return sortTasksByPriority(applyTaskFilters(items, filters));
   }, [carryover, projectFilter, filters]);
 
   const todayTasks = useMemo(() => {

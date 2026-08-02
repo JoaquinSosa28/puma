@@ -23,6 +23,7 @@ const omniSchema = z.object({
   type: z.enum(["task", "habit", "goal", "note"]),
   projectId: z.string().nullable().optional(),
   due: z.string().nullable().optional(),
+  priority: z.enum(["low", "med", "high"]).optional(),
   goalCategory: z.enum(["personal", "professional"]).optional(),
   lifeArea: z.enum(["personal", "work"]).optional(),
   tagIds: z.array(z.string()).optional(),
@@ -34,8 +35,16 @@ export async function createFromOmni(
   const parsed = omniSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
 
-  const { text, type, projectId, due: dueOverride, goalCategory, lifeArea, tagIds: pickedTagIds } =
-    parsed.data;
+  const {
+    text,
+    type,
+    projectId,
+    due: dueOverride,
+    priority: priorityOverride,
+    goalCategory,
+    lifeArea,
+    tagIds: pickedTagIds,
+  } = parsed.data;
   const userId = await requireUserId();
   const settings = await getSettings(userId);
   const tags = await listTags(userId);
@@ -60,7 +69,9 @@ export async function createFromOmni(
       userId,
       title,
       tagIds,
-      priority: p.priority,
+      // A "!high" in the text is the more specific instruction, so it wins over
+      // whatever the picker is showing — the picker hides itself in that case.
+      priority: p.hasPriorityToken ? p.priority : priorityOverride ?? p.priority,
       status: "todo",
       due,
       projectId: project ? projectId! : null,
@@ -146,6 +157,7 @@ export async function createFromOmni(
 const addTaskSchema = z.object({
   text: z.string().min(1),
   due: z.string().nullable().optional(),
+  priority: z.enum(["low", "med", "high"]).optional(),
   projectId: z.string().nullable().optional(),
   lifeArea: z.enum(["personal", "work"]).optional(),
 });
@@ -171,7 +183,9 @@ export async function addTask(
     userId,
     title: p.title,
     tagIds,
-    priority: p.priority,
+    // A "!high" in the text is the more specific instruction, so it wins over
+    // whatever the picker is showing — the picker hides itself in that case.
+    priority: p.hasPriorityToken ? p.priority : parsed.data.priority ?? p.priority,
     status: "todo",
     // Respect "default due today" — this used to hardcode today, so turning
     // the setting off changed nothing.

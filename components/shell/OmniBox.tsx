@@ -15,6 +15,8 @@ import { lifeAreaForCreate } from "@/lib/life-area";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
 import { TagQuickPick, SelectedTagsTray } from "@/components/shell/TagQuickPick";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
+import { PriorityQuickPick } from "@/components/shell/PriorityQuickPick";
+import type { TaskPriority } from "@/lib/types";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
@@ -114,6 +116,7 @@ export function OmniBox({
   const [text, setText] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [pickedDue, setPickedDue] = useState<string | null>(null);
+  const [pickedPriority, setPickedPriority] = useState<TaskPriority>("med");
   const [type, setType] = useState<OmniType>(defaultType);
   const [mode, setMode] = useState<OmniMode>("capture");
   const [pending, startTransition] = useTransition();
@@ -265,6 +268,7 @@ export function OmniBox({
         type,
         projectId: type === "task" ? capture.projectId : undefined,
         due: type === "task" ? taskDue : undefined,
+        priority: type === "task" ? pickedPriority : undefined,
         goalCategory: type === "goal" ? capture.goalCategory : undefined,
         lifeArea: lifeAreaForCreate(life),
         tagIds: taggable ? selectedTagIds : undefined,
@@ -287,6 +291,7 @@ export function OmniBox({
       setText("");
       setSelectedTagIds([]);
       setPickedDue(defaultTaskDue);
+      setPickedPriority("med");
       router.refresh();
     });
   };
@@ -530,6 +535,16 @@ export function OmniBox({
               nullable={!defaultDueToday}
               clearable={!defaultDueToday}
               clearLabel="No date"
+            />
+          </>
+        )}
+        {isTask && !parsed.hasPriorityToken && (
+          <>
+            <span className="h-3.5 w-px shrink-0 bg-border" aria-hidden />
+            <PriorityQuickPick
+              value={pickedPriority}
+              onChange={setPickedPriority}
+              disabled={pending}
             />
           </>
         )}

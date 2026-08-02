@@ -36,21 +36,35 @@ describe("sortTasksByPriority", () => {
     expect(ids(out)).toEqual(["high", "med", "low"]);
   });
 
-  it("sinks done tasks below open ones, whatever their priority", () => {
+  it("ranks on priority alone — done tasks are not sunk", () => {
     const out = sortTasksByPriority([
       task({ id: "doneHigh", priority: "high", status: "done" }),
       task({ id: "openLow", priority: "low" }),
     ]);
-    expect(ids(out)).toEqual(["openLow", "doneHigh"]);
+    expect(ids(out)).toEqual(["doneHigh", "openLow"]);
   });
 
-  it("still ranks done tasks among themselves", () => {
+  it("never splits the list into two priority runs", () => {
+    // Sinking done tasks used to produce high,low,high,low — which reads as a
+    // broken sort. The sequence must descend exactly once.
     const out = sortTasksByPriority([
-      task({ id: "doneLow", priority: "low", status: "done" }),
+      task({ id: "doneMed", priority: "med", status: "done" }),
+      task({ id: "openLow", priority: "low" }),
       task({ id: "doneHigh", priority: "high", status: "done" }),
-      task({ id: "open", priority: "med" }),
+      task({ id: "openMed", priority: "med" }),
+      task({ id: "openHigh", priority: "high" }),
     ]);
-    expect(ids(out)).toEqual(["open", "doneHigh", "doneLow"]);
+    expect(ids(out)).toEqual([
+      "doneHigh",
+      "openHigh",
+      "doneMed",
+      "openMed",
+      "openLow",
+    ]);
+
+    const rank = { high: 0, med: 1, low: 2 } as const;
+    const ranks = out.map((t) => rank[t.priority]);
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 
   it("keeps timed tasks chronological within a priority band", () => {
