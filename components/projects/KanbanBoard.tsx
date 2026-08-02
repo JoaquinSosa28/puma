@@ -39,7 +39,10 @@ import { tagBg } from "@/lib/parse";
 import { moveTaskStatus } from "@/lib/actions/tasks";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
 import { useTagMenu } from "@/components/tags/TagMenuProvider";
-import type { SelectionController } from "@/lib/use-task-selection";
+import {
+  suppressRangeTextSelection,
+  type SelectionController,
+} from "@/lib/use-task-selection";
 import { cn } from "@/lib/utils";
 
 export type ColumnId = "todo" | "doing" | "done";
@@ -533,6 +536,7 @@ function KanbanCardShell({
   return (
     <div
       onClick={overlay ? undefined : (e) => onEdit?.(task.id, e)}
+      onMouseDownCapture={selection ? suppressRangeTextSelection : undefined}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();

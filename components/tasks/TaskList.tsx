@@ -5,7 +5,10 @@ import { useOptimistic, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Minus } from "lucide-react";
 import type { Task, Tag } from "@/lib/schemas";
-import type { SelectionController } from "@/lib/use-task-selection";
+import {
+  suppressRangeTextSelection,
+  type SelectionController,
+} from "@/lib/use-task-selection";
 import { tagBg } from "@/lib/parse";
 import { dueDatePart } from "@/lib/date";
 import { toggleTask, cycleTaskPriority, deleteTaskAction } from "@/lib/actions/tasks";
@@ -194,7 +197,12 @@ export function TaskList({
   };
 
   return (
-    <div className={cn("flex flex-col", isPage || isCalendar ? "gap-1" : "gap-px")}>
+    <div
+      className={cn("flex flex-col", isPage || isCalendar ? "gap-1" : "gap-px")}
+      // Capture, so it lands before any row's own handler and covers the
+      // whole list including whatever child the click actually hit.
+      onMouseDownCapture={selection ? suppressRangeTextSelection : undefined}
+    >
       {listed.map((t) => {
         const done = t.status === "done";
         const taskTags = t.tagIds
