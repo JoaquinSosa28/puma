@@ -167,14 +167,20 @@ export function TaskDetailPanel({
   const toggleTag = (tagId: string) => {
     startTransition(async () => {
       const res = await toggleEntityTag("task", task.id, tagId);
-      if (res.ok && res.data) {
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      if (res.data) {
         setTagIds((prev) =>
           res.data!.applied
             ? [...prev, tagId]
             : prev.filter((id) => id !== tagId)
         );
-        router.refresh();
       }
+      // A project tag rewrites projectId and strips the old project's tags, so
+      // the server's version is the one to believe.
+      router.refresh();
     });
   };
 
@@ -474,6 +480,8 @@ export function TaskDetailPanel({
             tags={tags}
             selectedTagIds={tagIds}
             onToggle={toggleTag}
+            projects={projects}
+            projectId={task.projectId}
           />
         </section>
       </div>

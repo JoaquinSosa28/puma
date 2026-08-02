@@ -15,6 +15,7 @@ import type {
 import { taskSchema } from "@/lib/schemas";
 import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import { addDays, iso, oid } from "@/lib/date";
+import { projectTagSlug } from "@/lib/project-tags";
 
 export type SeedData = {
   users: UserDoc[];
@@ -109,6 +110,22 @@ export function createSeedData(userId: string): SeedData {
       createdAt: td,
     },
   ];
+
+  // Every project owns a flagship tag named after it — same rule the app
+  // applies on create, so the fixture matches a real account.
+  for (const [i, project] of projects.entries()) {
+    tags.push({
+      _id: oid(),
+      userId,
+      name: projectTagSlug(project.title),
+      color: project.color,
+      isDefault: false,
+      projectId: project._id,
+      isProjectPrimary: true,
+      order: tags.length + i,
+      createdAt: td,
+    });
+  }
 
   const tasks = [
     {
