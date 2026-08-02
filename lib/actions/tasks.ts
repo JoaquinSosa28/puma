@@ -22,6 +22,7 @@ import {
 } from "@/lib/life-area-sync";
 import {
   withSingleProjectTag,
+  splitTagsByProject,
   projectIdFromTags,
 } from "@/lib/project-tags";
 import { goalLifeArea } from "@/lib/life-area";
@@ -82,36 +83,63 @@ export async function createFromOmni(
   if (type === "task") {
     const due =
       p.due ?? dueOverride ?? defaultDue(null, settings?.defaultDueToday ?? true, td);
-    // "#ml buy a gpu" files itself: a project tag in the text beats the
-    // project the view happened to be scoped to.
-    const taggedProjectId = projectIdFromTags(tagIds, tags);
-    const project = taggedProjectId
-      ? await getProject(userId, taggedProjectId)
-      : projectId
-        ? await getProject(userId, projectId)
-        : null;
-    const task = await insertTask({
-      userId,
-      title,
-      description: p.description,
-      tagIds,
-      // A "!high" in the text is the more specific instruction, so it wins over
-      // whatever the picker is showing — the picker hides itself in that case.
-      priority: p.hasPriorityToken ? p.priority : priorityOverride ?? p.priority,
-      status: "todo",
-      due,
-      projectId: project?.id ?? null,
-      goalId: null,
-      lifeArea: deriveLifeAreaFromTags(tagIds, tags),
-      order: -Date.now(),
-      createdAt: td,
-      completedAt: null,
-    });
+
+    // Tags from two projects mean two pieces of work. Rather than pick a
+    // winner, the capture becomes one task per project, each carrying only
+    // that project's tags — see docs/tags-and-projects.md.
+    const buckets = splitTagsByProject(tagIds, tags);
+    const scoped = projectId ? await getProject(userId, projectId) : null;
+
+    const created = [];
+    for (const bucket of buckets) {
+      // An untagged capture still files into the project you're looking at.
+      const target = bucket.projectId
+        ? await getProject(userId, bucket.projectId)
+        : scoped;
+      const bucketTags = bucket.projectId
+        ? bucket.tagIds
+        : withSingleProjectTag(bucket.tagIds, target?.id ?? null, tags);
+      created.push(
+        await insertTask({
+          userId,
+          title,
+          description: p.description,
+          tagIds: bucketTags,
+          // A "!high" in the text is the more specific instruction, so it wins
+          // over whatever the picker is showing — the picker hides itself then.
+          priority: p.hasPriorityToken
+            ? p.priority
+            : priorityOverride ?? p.priority,
+          status: "todo",
+          due,
+          projectId: target?.id ?? null,
+          goalId: null,
+          lifeArea: deriveLifeAreaFromTags(bucketTags, tags),
+          order: -Date.now(),
+          createdAt: td,
+          completedAt: null,
+        })
+      );
+    }
+
+    for (const bucket of buckets) {
+      if (bucket.projectId) await syncGoalsForProject(userId, bucket.projectId);
+    }
+
     revalidatePath("/", "layout");
+    const label =
+      created.length > 1
+        ? `Task added to ${created.length} projects`
+        : "Task added";
     return {
       ok: true,
-      data: { id: task.id, label: "Task added" },
-      undo: { type: "create", entity: "task", snapshot: task.id },
+      data: { id: created[0].id, label },
+      // Undo removes every copy the capture made, not just the first.
+      undo: {
+        type: "create",
+        entity: "task",
+        snapshot: created.map((t) => t.id).join(","),
+      },
     };
   }
 
@@ -317,10 +345,14 @@ export async function moveTaskStatus(
 
 export async function undoCreate(entity: string, id: string): Promise<ActionResult> {
   const userId = await requireUserId();
-  if (entity === "task") await removeTask(userId, id);
-  else if (entity === "note") {
+  // A capture tagged for several projects creates one task each, so undo has
+  // to take them all back — the snapshot is a comma-joined list.
+  const ids = String(id).split(",").filter(Boolean).slice(0, 50);
+  if (entity === "task") {
+    for (const one of ids) await removeTask(userId, one);
+  } else if (entity === "note") {
     const { deleteNote } = await import("@/lib/db/notes");
-    await deleteNote(userId, id);
+    for (const one of ids) await deleteNote(userId, one);
   }
   revalidatePath("/", "layout");
   return { ok: true };

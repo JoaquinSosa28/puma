@@ -6,6 +6,7 @@ import {
   withSingleProjectTag,
   tagsForProject,
   isProjectTag,
+  splitTagsByProject,
 } from "@/lib/project-tags";
 
 const tags = [
@@ -17,18 +18,19 @@ const tags = [
 ];
 
 describe("projectTagSlug", () => {
-  it("uses a single word whole", () => {
+  it("lowercases and dashes the project name", () => {
+    expect(projectTagSlug("Game Dev Ops")).toBe("game-dev-ops");
+    expect(projectTagSlug("Website redesign")).toBe("website-redesign");
     expect(projectTagSlug("Marketing")).toBe("marketing");
   });
 
-  it("uses initials for multi-word titles", () => {
-    expect(projectTagSlug("Side app MVP")).toBe("sam");
-    expect(projectTagSlug("Website redesign")).toBe("wr");
+  it("strips punctuation and accents", () => {
+    expect(projectTagSlug("Café — rebuild!")).toBe("cafe-rebuild");
+    expect(projectTagSlug("Q3/Q4 push")).toBe("q3q4-push");
   });
 
-  it("strips punctuation and accents", () => {
-    expect(projectTagSlug("Café — rebuild!")).toBe("cr");
-    expect(projectTagSlug("Q3/Q4 push")).toBe("qp");
+  it("collapses runs of spaces and dashes", () => {
+    expect(projectTagSlug("  Side   app -- MVP ")).toBe("side-app-mvp");
   });
 
   it("falls back rather than returning nothing", () => {
@@ -111,5 +113,47 @@ describe("isProjectTag", () => {
   it("is true only when a project owns it", () => {
     expect(isProjectTag(tags[0])).toBe(false);
     expect(isProjectTag(tags[2])).toBe(true);
+  });
+});
+
+describe("splitTagsByProject", () => {
+  it("keeps a single-project capture as one task", () => {
+    expect(splitTagsByProject(["t-work", "t-ai", "t-ml"], tags)).toEqual([
+      { projectId: "p-ai", tagIds: ["t-work", "t-ai", "t-ml"] },
+    ]);
+  });
+
+  it("fans out across projects, each keeping only its own tags", () => {
+    expect(splitTagsByProject(["t-ai", "t-web"], tags)).toEqual([
+      { projectId: "p-ai", tagIds: ["t-ai"] },
+      { projectId: "p-web", tagIds: ["t-web"] },
+    ]);
+  });
+
+  it("puts unprojected tags on every copy", () => {
+    // Life and ordinary tags aren't about projects, so both tasks get them.
+    expect(
+      splitTagsByProject(["t-work", "t-idea", "t-ai", "t-web"], tags)
+    ).toEqual([
+      { projectId: "p-ai", tagIds: ["t-work", "t-idea", "t-ai"] },
+      { projectId: "p-web", tagIds: ["t-work", "t-idea", "t-web"] },
+    ]);
+  });
+
+  it("gives one unfiled task when nothing is a project tag", () => {
+    expect(splitTagsByProject(["t-work", "t-idea"], tags)).toEqual([
+      { projectId: null, tagIds: ["t-work", "t-idea"] },
+    ]);
+  });
+
+  it("handles no tags at all", () => {
+    expect(splitTagsByProject([], tags)).toEqual([
+      { projectId: null, tagIds: [] },
+    ]);
+  });
+
+  it("orders buckets by the order the projects were typed", () => {
+    expect(splitTagsByProject(["t-web", "t-ai"], tags).map((b) => b.projectId))
+      .toEqual(["p-web", "p-ai"]);
   });
 });

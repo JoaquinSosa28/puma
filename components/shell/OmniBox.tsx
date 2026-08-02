@@ -22,6 +22,7 @@ import { PriorityQuickPick } from "@/components/shell/PriorityQuickPick";
 import type { TaskPriority } from "@/lib/types";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
+import { completeOmniToken } from "@/lib/omni-complete";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { MessageCircleQuestion, Pencil, Sparkles } from "lucide-react";
@@ -228,6 +229,26 @@ export function OmniBox({
         return;
       }
 
+      // Half-typed "#gam" or "!hi"? Tab finishes the word rather than
+      // switching type — completing what you're writing is the more specific
+      // intent, and there's nothing to complete the rest of the time.
+      const el = inputRef.current;
+      if (el && active === el && !e.shiftKey) {
+        const done = completeOmniToken(
+          el.value,
+          el.selectionStart ?? el.value.length,
+          tags.map((t) => t.name)
+        );
+        if (done) {
+          e.preventDefault();
+          setText(done.text);
+          requestAnimationFrame(() => {
+            el.setSelectionRange(done.caret, done.caret);
+          });
+          return;
+        }
+      }
+
       e.preventDefault();
       const next = cycleOmniTab(mode, type, e.shiftKey ? -1 : 1);
       wantFocusRef.current = true;
@@ -240,7 +261,7 @@ export function OmniBox({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mode, type]);
+  }, [mode, type, tags, setText]);
 
   useEffect(() => {
     const OMNI_CLEAR_MS = 3000;

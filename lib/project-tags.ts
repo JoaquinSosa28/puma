@@ -15,27 +15,25 @@ export function isProjectTag(tag: ProjectTagLike): boolean {
 }
 
 /**
- * The slug a new project's flagship tag gets: lowercase, no spaces, short
- * enough to be worth typing after a "#".
+ * The flagship tag for a project: its name, lowercased, spaces as dashes.
+ * "Game Dev Ops" -> "game-dev-ops".
  *
- * "Side app MVP" -> "sideappmvp" is unhelpful, so words are joined by a dash
- * and the whole thing is capped. Empty input (a title of only punctuation)
- * falls back to "project" and the caller de-duplicates.
+ * Readable beats short here — the tag is how you'll refer to the project for
+ * the rest of its life, and autocomplete means you only type a few characters
+ * of it anyway.
  */
 export function projectTagSlug(title: string): string {
-  const cleaned = title
+  const slug = title
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, "")
-    .trim();
-  if (!cleaned) return "project";
-  const words = cleaned.split(/[\s-]+/).filter(Boolean);
-  // One word: take it whole. Several: initials read better than a long dash
-  // chain and are quicker to type — "Side app MVP" -> "sam".
-  const slug =
-    words.length === 1 ? words[0] : words.map((w) => w[0]).join("");
-  return slug.slice(0, 24) || "project";
+    .trim()
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .join("-");
+  // A title of pure punctuation would otherwise produce an unusable empty tag.
+  return slug.slice(0, 40) || "project";
 }
 
 /**
@@ -98,4 +96,42 @@ export function tagsForProject<T extends ProjectTagLike>(
   return tags
     .filter((t) => t.projectId === projectId)
     .sort((a, b) => Number(b.isProjectPrimary) - Number(a.isProjectPrimary));
+}
+
+/**
+ * Split a capture's tags into one bucket per project.
+ *
+ * Tags from two projects mean two pieces of work owned by two projects, so the
+ * capture becomes one task each rather than picking a winner. Every bucket
+ * keeps the tags that belong to no project — life tags and ordinary labels
+ * aren't about projects, so they ride along on all of them.
+ *
+ * No project tags at all gives a single bucket with a null project: untagged
+ * means unfiled.
+ */
+export function splitTagsByProject(
+  tagIds: string[],
+  tags: ProjectTagLike[]
+): { projectId: string | null; tagIds: string[] }[] {
+  const byId = new Map(tags.map((t) => [t.id, t]));
+  const shared: string[] = [];
+  // Insertion-ordered, so the first project you typed is the first task made.
+  const byProject = new Map<string, string[]>();
+
+  for (const id of tagIds) {
+    const projectId = byId.get(id)?.projectId;
+    if (!projectId) {
+      shared.push(id);
+      continue;
+    }
+    const bucket = byProject.get(projectId);
+    if (bucket) bucket.push(id);
+    else byProject.set(projectId, [id]);
+  }
+
+  if (!byProject.size) return [{ projectId: null, tagIds: shared }];
+  return [...byProject.entries()].map(([projectId, own]) => ({
+    projectId,
+    tagIds: [...shared, ...own],
+  }));
 }
