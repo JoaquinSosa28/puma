@@ -9,6 +9,7 @@ import {
   parseAgendaDurationMins,
 } from "@/lib/agenda-timeline";
 import { dayDonePercent, tagsByUsage } from "@/lib/metrics";
+import { quarterOf, formatTopbarDateLine } from "@/lib/date-context";
 import {
   DEFAULT_HABIT_VISIBILITY,
   habitHeatCells,
@@ -256,5 +257,22 @@ describe("habitHeatCells", () => {
     const cells = habitHeatCells("daily", visibility, new Set([today]), "mon", today);
     expect(cells).toHaveLength(30);
     expect(cells.at(-1)?.done).toBe(true);
+  });
+});
+
+describe("quarter", () => {
+  it("maps months to calendar quarters", () => {
+    const q = (m: number) => quarterOf(new Date(Date.UTC(2026, m - 1, 15)), "UTC");
+    expect([q(1), q(2), q(3)]).toEqual([1, 1, 1]);
+    expect([q(4), q(5), q(6)]).toEqual([2, 2, 2]);
+    expect([q(7), q(8), q(9)]).toEqual([3, 3, 3]);
+    expect([q(10), q(11), q(12)]).toEqual([4, 4, 4]);
+  });
+
+  it("puts the quarter last on the topbar line", () => {
+    const line = formatTopbarDateLine(new Date(Date.UTC(2026, 7, 1, 12)), {
+      timeZone: "UTC",
+    });
+    expect(line.endsWith("· Q3")).toBe(true);
   });
 });

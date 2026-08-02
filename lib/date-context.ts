@@ -93,5 +93,18 @@ export function formatTopbarDateLine(
     parts.push("WEEKEND");
   }
 
+  parts.push(`Q${quarterOf(d, tz)}`);
+
   return parts.join(" · ");
+}
+
+/** Calendar quarter (1–4) for a date, in the given timezone. */
+export function quarterOf(d: Date = new Date(), timeZone?: string): number {
+  const monthNum = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: normalizeTimezone(timeZone),
+      month: "numeric",
+    }).format(d)
+  );
+  return Math.floor((monthNum - 1) / 3) + 1;
 }
