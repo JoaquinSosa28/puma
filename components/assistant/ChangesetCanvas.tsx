@@ -69,7 +69,7 @@ function opTitle(op: ChangeOp): string {
 /** Which draft op (by key) this op files under, if any. */
 function parentRef(op: ChangeOp): string | null {
   if (op.op === "delete") return null;
-  return op.fields.parentRef || op.fields.goalRefs[0] || null;
+  return op.fields.projectId || op.fields.goalId || op.fields.goalIds?.[0] || null;
 }
 
 function setTitle(op: ChangeOp, title: string): ChangeOp {
@@ -80,8 +80,13 @@ function setTitle(op: ChangeOp, title: string): ChangeOp {
 /** Re-file a draft op under another draft op (or a real id). */
 function setParent(op: ChangeOp, ref: string | null): ChangeOp {
   if (op.op === "delete") return op;
-  if (op.entity !== "task" && op.entity !== "project") return op;
-  return { ...op, fields: { ...op.fields, parentRef: ref ?? "" } };
+  if (op.entity === "task") {
+    return { ...op, fields: { ...op.fields, projectId: ref ?? undefined } };
+  }
+  if (op.entity === "project") {
+    return { ...op, fields: { ...op.fields, goalId: ref ?? undefined } };
+  }
+  return op;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,10 +115,15 @@ export function ChangesetCanvas({
   const [draft, setDraft] = useState<DraftOp[]>(() =>
     changeset.ops.map((op) => ({ key: mintKey(), op }))
   );
+  // A changeset with nothing in it is a real outcome ("archive the habits I do
+  // less than weekly" when none qualify) — say so rather than showing an empty
+  // canvas with an Apply button that does nothing.
+  const emptyDraft = !changeset.ops.length;
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [phase, setPhase] = useState<Phase>({ name: "editing" });
   const [problems, setProblems] = useState<Map<string, string>>(new Map());
   const [deletes, setDeletes] = useState<DeleteRadius[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [undoDone, setUndoDone] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -135,6 +145,7 @@ export function ChangesetCanvas({
         )
       );
       setDeletes(res.data.deletes);
+      setNames(res.data.names);
     });
   }, [draft, changeset.summary, keyAt]);
 
@@ -240,6 +251,41 @@ export function ChangesetCanvas({
     patchOp(from, setParent(source.op, ref));
   };
 
+  if (emptyDraft) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="block h-2 w-2 bg-primary" />
+          <span className="font-mono text-[10px] uppercase tracking-widest text-faint2">
+            Nothing to change
+          </span>
+        </div>
+        <p className="m-0 max-w-[52ch] text-[17px] font-semibold leading-snug tracking-tight text-ink">
+          {changeset.summary}
+        </p>
+        <p className="m-0 text-[13px] text-muted">
+          You asked: <span className="text-ink">“{intent}”</span>
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={onFlipMode}
+            className="rounded-[9px] border-[1.5px] border-border bg-surface px-3 py-2 text-[12.5px] font-semibold text-ink hover:border-faint2"
+          >
+            Ask about it instead
+          </button>
+          <button
+            type="button"
+            onClick={onDiscard}
+            className="rounded-[9px] bg-ink px-3.5 py-2 text-[12.5px] font-bold text-background"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // --- applied view ---------------------------------------------------------
   if (phase.name === "applied") {
     return (
@@ -316,6 +362,7 @@ export function ChangesetCanvas({
               <NodeTree
                 key={d.key}
                 node={d}
+                names={names}
                 childrenOf={childrenOf}
                 excluded={excluded}
                 problems={problems}
@@ -445,6 +492,7 @@ export function ChangesetCanvas({
 
 function NodeTree(props: {
   node: DraftOp;
+  names: Record<string, string>;
   childrenOf: Map<string, DraftOp[]>;
   excluded: Set<string>;
   problems: Map<string, string>;
@@ -494,6 +542,7 @@ function NodeTree(props: {
 
 function NodeRow({
   node,
+  names,
   childrenOf,
   excluded,
   problems,
@@ -630,7 +679,7 @@ function NodeRow({
               </button>
             )}
 
-            {op.op === "update" && <DiffGrid op={op} />}
+            {op.op === "update" && <DiffGrid op={op} names={names} />}
             {op.op === "delete" && (deleteRadius.get(node.key)?.length ?? 0) > 0 && (
               <div className="mt-1.5">
                 <p className="m-0 text-[12px] text-ink">Also deletes:</p>
@@ -700,9 +749,15 @@ function NodeRow({
 }
 
 /** old → new, per field, straight from the op's before block. */
-function DiffGrid({ op }: { op: Extract<ChangeOp, { op: "update" }> }) {
+function DiffGrid({
+  op,
+  names,
+}: {
+  op: Extract<ChangeOp, { op: "update" }>;
+  names: Record<string, string>;
+}) {
   const rows = Object.entries(op.fields).filter(
-    ([, v]) => v !== "" && v !== "unset" && !(Array.isArray(v) && !v.length)
+    ([, v]) => v != null && v !== "" && !(Array.isArray(v) && !v.length)
   );
   if (!rows.length) return null;
   return (
@@ -710,22 +765,34 @@ function DiffGrid({ op }: { op: Extract<ChangeOp, { op: "update" }> }) {
       {rows.map(([field, next]) => (
         <FieldDiff
           key={field}
-          field={field}
+          field={field === "projectId" || field === "goalId" ? "moves to" : field}
           before={(op.before as Record<string, unknown>)[field]}
           next={next}
+          names={names}
         />
       ))}
     </div>
   );
 }
 
-function FieldDiff({ field, before, next }: { field: string; before: unknown; next: unknown }) {
-  const show = (v: unknown) =>
-    v == null || v === "" || v === "unset"
-      ? "none"
-      : typeof v === "object"
-        ? JSON.stringify(v)
-        : String(v);
+function FieldDiff({
+  field,
+  before,
+  next,
+  names,
+}: {
+  field: string;
+  before: unknown;
+  next: unknown;
+  names: Record<string, string>;
+}) {
+  // Ids are noise in a diff — show what they point at.
+  const show = (v: unknown) => {
+    if (v == null || v === "") return "none";
+    if (typeof v === "object") return JSON.stringify(v);
+    const str = String(v);
+    return names[str] ?? str;
+  };
   return (
     <>
       <span className="uppercase tracking-wider text-faint2">{field}</span>

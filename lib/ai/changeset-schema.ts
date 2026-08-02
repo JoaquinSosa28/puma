@@ -2,37 +2,79 @@
 // that exists, not a description of a new one. Pure schema — no db/SDK
 // imports, so the canvas (a Client Component) can share the types.
 //
-// Shape constraints matter more than elegance here. Anthropic's structured-
-// output grammar caps optional parameters (24) AND union-typed parameters,
-// nullable included (16). So: no .optional(), no .nullable() — every field is
-// required, and "not set" is a sentinel: "" for strings, [] for arrays, and an
-// explicit "unset" member on enums. One flat fields block serves all five
-// entities; which keys mean anything depends on the entity.
+// One flat fields block serves all five entities; which keys mean anything
+// depends on the entity. Keys are OPTIONAL: a model asked to change a task's
+// priority sends { priority } and nothing else, which is both what it does
+// naturally and what "only what changes" means for an update.
+//
+// (An earlier version made every key required with sentinel values, to satisfy
+// Anthropic's structured-output grammar caps. Those caps only apply to
+// grammar-compiled outputs; we send the schema as a tool input_schema instead
+// — see lib/ai/generate.ts — where they don't exist.)
 import * as z from "zod/v4";
 
 const entity = z.enum(["goal", "project", "habit", "task", "note"]);
 
 /**
- * The one fields block. "" / [] / "unset" mean "not set" on a create and
+ * The one fields block. An absent key means "not set" on a create and
  * "unchanged" on an update.
  *
  * Per entity: `title` is a habit's name; `description` is a note's body;
- * `date` is a task's due or a goal's targetDate; `parentRef` files a task
- * into a project or a project under a goal.
+ * `date` is a task's due or a goal's targetDate; `projectId`/`goalId` file
+ * things where they belong — named exactly as the snapshot names them.
  */
 export const opFieldsSchema = z.object({
-  title: z.string(),
-  description: z.string(),
-  lifeArea: z.enum(["personal", "work", "unset"]),
-  priority: z.enum(["low", "med", "high", "unset"]),
-  frequency: z.enum(["daily", "weekly", "monthly", "unset"]),
-  /** "YYYY-MM-DD" or "". */
-  date: z.string(),
-  /** refId of a created op, or a real id from the snapshot. "" = none. */
-  parentRef: z.string(),
-  /** Habit → goals. */
-  goalRefs: z.array(z.string()),
-  tagNames: z.array(z.string()),
+  title: z
+    .string()
+    .optional()
+    .describe("Name of the goal/project/task/note, or the habit's name."),
+  description: z
+    .string()
+    .optional()
+    .describe("Longer text for a project or task; for a note this is its body."),
+  lifeArea: z
+    .enum(["personal", "work"])
+    .optional()
+    .describe("Which side of life this belongs to."),
+  priority: z.enum(["low", "med", "high"]).optional().describe("Task priority."),
+  frequency: z
+    .enum(["daily", "weekly", "monthly"])
+    .optional()
+    .describe("How often a habit repeats."),
+  date: z
+    .string()
+    .optional()
+    .describe("YYYY-MM-DD. A task's due date, or a goal's target date."),
+  // These carry the same names the snapshot uses for the same links. The model
+  // reads tasks with a projectId and projects with a goalId, and reaches for
+  // those words when it writes ops — a differently-named field here just gets
+  // dropped as an unknown key, leaving an update that changes nothing.
+  projectId: z
+    .string()
+    .optional()
+    .describe(
+      "For a task: the project it belongs to. Set this to move a task into a project. Accepts a real project id from the snapshot, or the refId of a project created in this same changeset."
+    ),
+  goalId: z
+    .string()
+    .optional()
+    .describe(
+      "For a project: the goal it belongs to. Accepts a real goal id, or the refId of a goal created in this same changeset."
+    ),
+  goalIds: z
+    .array(z.string())
+    .optional()
+    .describe("For a habit: the goals it feeds. Real ids or refIds."),
+  tagNames: z
+    .array(z.string())
+    .optional()
+    .describe("Tag names for a task or note. Plain words, no # prefix."),
+  archived: z
+    .boolean()
+    .optional()
+    .describe(
+      "For a habit: true to archive it (stop tracking without deleting its history), false to bring it back. Archiving is the gentle alternative to deleting."
+    ),
 });
 
 export const createOpSchema = z.object({
@@ -86,22 +128,7 @@ export type DeleteOp = z.infer<typeof deleteOpSchema>;
 export type Changeset = z.infer<typeof changesetSchema>;
 export type ChangeEntity = z.infer<typeof entity>;
 
-/** Whether a string field carries a value. */
-export function isSet(value: string): boolean {
-  return value !== "";
-}
-
-/** A fully-unset fields block — hand-made draft ops satisfy the model's schema. */
+/** An empty fields block, for ops the user adds by hand on the canvas. */
 export function blankOpFields(): OpFields {
-  return {
-    title: "",
-    description: "",
-    lifeArea: "unset",
-    priority: "unset",
-    frequency: "unset",
-    date: "",
-    parentRef: "",
-    goalRefs: [],
-    tagNames: [],
-  };
+  return {};
 }

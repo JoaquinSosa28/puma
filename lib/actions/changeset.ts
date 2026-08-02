@@ -121,7 +121,14 @@ export type DeleteRadius = {
 
 export async function previewChangesetAction(
   raw: Changeset
-): Promise<ActionResult<{ problems: OpProblem[]; deletes: DeleteRadius[] }>> {
+): Promise<
+  ActionResult<{
+    problems: OpProblem[];
+    deletes: DeleteRadius[];
+    /** id → display name, so a parentRef diff reads as a name not a hex id. */
+    names: Record<string, string>;
+  }>
+> {
   const parsed = changesetSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "Invalid changeset." };
   const userId = await requireUserId();
@@ -141,6 +148,15 @@ export async function previewChangesetAction(
       });
       return;
     }
+    if (op.op === "update" && !Object.keys(op.fields).length) {
+      // A no-op update is always a modelling mistake, and in a merge it's the
+      // dangerous kind: it looks like the work moved when it didn't.
+      problems.push({
+        index,
+        message: `"${op.label}" has no changes — this operation would do nothing.`,
+      });
+      return;
+    }
     if (op.op === "delete") {
       const also =
         op.entity === "project"
@@ -150,7 +166,18 @@ export async function previewChangesetAction(
     }
   });
 
-  return { ok: true, data: { problems, deletes } };
+  // Any id the draft mentions — as an op target or a parentRef — gets a name.
+  const [goals, projects, habits, notes] = await Promise.all([
+    listGoals(userId), listProjects(userId), listHabits(userId), listNotes(userId),
+  ]);
+  const names: Record<string, string> = {};
+  for (const g of goals) names[g.id] = g.title;
+  for (const p of projects) names[p.id] = p.title;
+  for (const h of habits) names[h.id] = h.name;
+  for (const t of tasks) names[t.id] = t.title;
+  for (const n of notes) names[n.id] = n.title;
+
+  return { ok: true, data: { problems, deletes, names } };
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +248,10 @@ export async function applyChangesetAction(
       }
 
       if (op.op === "update") {
+        if (!Object.keys(op.fields).length) {
+          skipped.push({ label: op.label, reason: "had no changes" });
+          continue;
+        }
         const before = await applyUpdate(userId, op, { tags, resolve, touchedProjects });
         if (before) {
           undo.updated.push({ entity: op.entity, id: op.id, before });
@@ -289,8 +320,8 @@ type Ctx = {
   touchedProjects: Set<string>;
 };
 
-/** "" and "unset" are the schema's sentinels for "not set / unchanged". */
-const val = (v: string): string | null => (v === "" || v === "unset" ? null : v);
+/** An absent or blank field means "not set / unchanged". */
+const val = (v: string | undefined): string | null => (v ? v : null);
 
 async function applyCreate(
   userId: string,
@@ -326,11 +357,11 @@ async function applyCreate(
       const p = await insertProject({
         userId,
         title: val(f.title) ?? "Untitled project",
-        description: f.description,
+        description: f.description ?? "",
         color: pickProjectColor(projects),
         progress: 0,
         label: "0/0",
-        goalId: resolve("goal", val(f.parentRef)),
+        goalId: resolve("goal", val(f.goalId)),
         tagIds,
         lifeArea: deriveLifeAreaFromTags(tagIds, tags),
         createdAt: td,
@@ -346,7 +377,7 @@ async function applyCreate(
     }
     case "habit": {
       const tagIds = setLifeTags([], area, tags);
-      const goalIds = f.goalRefs
+      const goalIds = (f.goalIds ?? [])
         .map((r) => resolve("goal", r))
         .filter((id): id is string => id !== null);
       const h = await insertHabit({
@@ -355,7 +386,7 @@ async function applyCreate(
         color: HABIT_COLOR,
         frequency: { type: val(f.frequency) ?? "daily", target: 1 },
         order: 999,
-        archived: false,
+        archived: f.archived ?? false,
         goalIds,
         goalTargetStreak: null,
         tagIds,
@@ -365,8 +396,8 @@ async function applyCreate(
       return { id: h.id, title: h.name };
     }
     case "task": {
-      const projectId = resolve("project", val(f.parentRef));
-      const named = await ensureTags(userId, f.tagNames);
+      const projectId = resolve("project", val(f.projectId));
+      const named = await ensureTags(userId, f.tagNames ?? []);
       // The task carries its life tag, and — when filed — the project's
       // flagship, so the tag-driven model holds for AI-created rows too.
       const fresh = await listTags(userId);
@@ -380,7 +411,7 @@ async function applyCreate(
       const t = await insertTask({
         userId,
         title: val(f.title) ?? "Untitled task",
-        description: f.description,
+        description: f.description ?? "",
         subtasks: [],
         tagIds,
         priority: (val(f.priority) ?? "med") as "low" | "med" | "high",
@@ -396,14 +427,14 @@ async function applyCreate(
       return { id: t.id, title: t.title };
     }
     case "note": {
-      const named = await ensureTags(userId, f.tagNames);
+      const named = await ensureTags(userId, f.tagNames ?? []);
       const fresh = await listTags(userId);
       const tagIds = setLifeTags(named, area, fresh);
       const n = await insertNote({
         userId,
         title: val(f.title) ?? "Untitled note",
         // Scaffolding: an empty body is the normal case, not a failure.
-        body: f.description,
+        body: f.description ?? "",
         tagIds,
         pinned: false,
         lifeArea: deriveLifeAreaFromTags(tagIds, fresh),
@@ -454,8 +485,8 @@ async function applyUpdate(
       if (!current) return null;
       if (val(f.title)) { patch.title = f.title; before.title = current.title; }
       if (val(f.description)) { patch.description = f.description; before.description = current.description; }
-      if (val(f.parentRef)) {
-        patch.goalId = resolve("goal", f.parentRef);
+      if (val(f.goalId)) {
+        patch.goalId = resolve("goal", f.goalId);
         before.goalId = current.goalId;
       }
       applyLife(current.tagIds, current);
@@ -470,9 +501,13 @@ async function applyUpdate(
         patch.frequency = { type: f.frequency, target: 1 };
         before.frequency = current.frequency;
       }
-      if (f.goalRefs.length) {
-        patch.goalIds = f.goalRefs.map((r) => resolve("goal", r)).filter(Boolean);
+      if (f.goalIds?.length) {
+        patch.goalIds = f.goalIds.map((r) => resolve("goal", r)).filter(Boolean);
         before.goalIds = current.goalIds;
+      }
+      if (f.archived !== undefined) {
+        patch.archived = f.archived;
+        before.archived = current.archived;
       }
       applyLife(current.tagIds, current);
       return (await updateHabit(userId, op.id, patch)) ? before : null;
@@ -484,8 +519,8 @@ async function applyUpdate(
       if (val(f.description)) { patch.description = f.description; before.description = current.description; }
       if (val(f.priority)) { patch.priority = f.priority; before.priority = current.priority; }
       if (val(f.date)) { patch.due = f.date; before.due = current.due; }
-      if (val(f.parentRef)) {
-        const projectId = resolve("project", f.parentRef);
+      if (val(f.projectId)) {
+        const projectId = resolve("project", f.projectId);
         let tagIds = withSingleProjectTag(current.tagIds, projectId, tags);
         const flagship = projectId
           ? tags.find((t) => t.projectId === projectId && t.isProjectPrimary)

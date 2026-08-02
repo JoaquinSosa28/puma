@@ -92,11 +92,19 @@ export async function generateStructured<T>(
     if (!canRetry || !NoObjectGeneratedError.isInstance(error)) {
       throw describeFailure(error, creds, opts);
     }
+    debugDump("first attempt failed schema validation", error);
     try {
+      // Hand the model its own validation error. A generic "try again" makes
+      // it repeat the same mistake; the specific complaint gets it fixed.
       result = await run(
-        "Your previous reply did not match the required schema. Reply with JSON matching it exactly — no prose, no markdown fence."
+        [
+          "Your previous reply was rejected. Fix exactly this and reply again:",
+          validationDetail(error),
+          "Return JSON matching the schema — no prose, no markdown fence.",
+        ].join("\n\n")
       );
     } catch (retryError) {
+      debugDump("retry failed too", retryError);
       // The second failure is the one the user sees, so it gets the same
       // translation as the first — otherwise the SDK's own wording leaks out.
       throw describeFailure(retryError, creds, opts);
@@ -218,4 +226,29 @@ function isConnectionError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
   const message = String((error as { message?: string }).message ?? "");
   return /ECONNREFUSED|ENOTFOUND|fetch failed|network/i.test(message);
+}
+
+/**
+ * AI_DEBUG=1 prints what the model actually said when it fails validation.
+ * Off by default: the raw text can contain the user's own data.
+ */
+function debugDump(stage: string, error: unknown): void {
+  if (process.env.AI_DEBUG !== "1") return;
+  const detail = NoObjectGeneratedError.isInstance(error)
+    ? `finish=${error.finishReason}\ntext=${String(error.text ?? "").slice(0, 4000)}\ncause=${String(error.cause ?? "").slice(0, 2000)}`
+    : String(error);
+  console.error(`\n[ai-debug] ${stage}\n${detail}\n`);
+}
+
+/**
+ * The part of a validation failure worth showing the model: what it sent that
+ * the schema rejected, and why. Trimmed hard — the whole payload back would
+ * bury the complaint it needs to act on.
+ */
+function validationDetail(error: unknown): string {
+  if (!NoObjectGeneratedError.isInstance(error)) return "The reply did not match the schema.";
+  const cause = String(error.cause ?? "");
+  // Zod's message lives after "Error message:" in the SDK's wrapper.
+  const zod = cause.split("Error message:")[1] ?? cause;
+  return zod.trim().slice(0, 1500) || "The reply did not match the schema.";
 }

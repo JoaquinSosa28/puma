@@ -12,8 +12,34 @@ const responseUnion = z.discriminatedUnion("kind", [
 /**
  * Wrapped in an object because a tool's input_schema must be type: "object"
  * at the root — a bare anyOf is rejected by the API.
+ *
+ * The refinement is load-bearing, not decoration: an update op with no fields
+ * changes nothing, and in a merge it reads as "the work moved" when it didn't.
+ * JSON Schema can't express "at least one key", so this is enforced at parse
+ * time — which puts the model's own mistake into the retry prompt, where it
+ * gets corrected. Saying it in prose alone did not hold.
  */
-export const assistantResponseSchema = z.object({ response: responseUnion });
+export const assistantResponseSchema = z
+  .preprocess((raw) => {
+    // Seen in the wild: the model nests the wrapper twice. Cheaper to accept
+    // than to fail a whole generation over a redundant layer.
+    const r = raw as { response?: { response?: unknown } } | null;
+    if (r?.response && typeof r.response === "object" && "response" in r.response) {
+      return { response: r.response.response };
+    }
+    return raw;
+  }, z.object({ response: responseUnion }))
+  .refine(
+    (r) =>
+      r.response.kind !== "changeset" ||
+      r.response.ops.every(
+        (op) => op.op !== "update" || Object.keys(op.fields).length > 0
+      ),
+    {
+      message:
+        "Every update op must set at least one field. To move a task into a project, set fields.parentRef to that project's id.",
+    }
+  );
 
 export type AssistantResponse = z.infer<typeof responseUnion>;
 

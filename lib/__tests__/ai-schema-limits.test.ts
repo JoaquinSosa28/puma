@@ -1,43 +1,64 @@
-// Anthropic's structured-output grammar rejects schemas past hard limits:
-// 24 optional parameters, 16 union-typed parameters (nullable counts). Both
-// failures happen at request time with a working API key — which is exactly
-// where a test suite can't see them unless we count the compiled schema here.
+// The assistant schema is sent as a tool input_schema, so the grammar caps
+// (24 optionals / 16 unions) don't apply — but two other shapes do bite, and
+// both cost a live round-trip to discover:
+//   1. a tool's input_schema must be an object at the root
+//   2. a model that sets one field must not be forced to emit the other eight
 import { describe, it, expect } from "vitest";
 import * as z from "zod/v4";
 import { assistantResponseSchema } from "@/lib/ai/assistant-schema";
 
-function count(schema: z.ZodType): { optionals: number; unions: number } {
-  const json = z.toJSONSchema(schema, { io: "input" });
-  let optionals = 0;
-  let unions = 0;
-  const walk = (node: unknown): void => {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (n.properties && typeof n.properties === "object") {
-      const required = new Set((n.required as string[]) ?? []);
-      for (const [key, child] of Object.entries(
-        n.properties as Record<string, unknown>
-      )) {
-        if (!required.has(key)) optionals++;
-        const c = child as Record<string, unknown>;
-        if (c && (c.anyOf || c.oneOf || Array.isArray(c.type))) unions++;
-      }
-    }
-    for (const v of Object.values(n)) {
-      if (Array.isArray(v)) v.forEach(walk);
-      else walk(v);
-    }
-  };
-  walk(json);
-  return { optionals, unions };
-}
-
-describe("the assistant schema vs Anthropic's grammar limits", () => {
-  it("stays under 24 optional parameters", () => {
-    expect(count(assistantResponseSchema).optionals).toBeLessThanOrEqual(24);
+describe("the assistant schema as a tool input_schema", () => {
+  it("is an object at the root", () => {
+    const json = z.toJSONSchema(assistantResponseSchema, { io: "input" }) as {
+      type?: string;
+    };
+    expect(json.type).toBe("object");
   });
 
-  it("stays under 16 union-typed parameters", () => {
-    expect(count(assistantResponseSchema).unions).toBeLessThanOrEqual(16);
+  it("accepts an update that touches exactly one field", () => {
+    // Precisely the payload that used to fail: "make my overdue tasks high
+    // priority" sets priority and nothing else.
+    const parsed = assistantResponseSchema.safeParse({
+      response: {
+        kind: "changeset",
+        summary: "Raise priority",
+        ops: [
+          {
+            op: "update",
+            entity: "task",
+            id: "7f5a39fec5f505891bad486b",
+            label: "Send invoice",
+            fields: { priority: "high" },
+            before: { priority: "med" },
+          },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts a minimal create and a bare delete", () => {
+    const parsed = assistantResponseSchema.safeParse({
+      response: {
+        kind: "changeset",
+        summary: "Set up and clean up",
+        ops: [
+          { op: "create", entity: "project", refId: "p1", fields: { title: "Kitchen" } },
+          { op: "delete", entity: "habit", id: "abc", label: "Old habit" },
+        ],
+      },
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts an answer whose widgets omit their optional extras", () => {
+    const parsed = assistantResponseSchema.safeParse({
+      response: {
+        kind: "answer",
+        answer: "You have 7 open tasks.",
+        widgets: [{ type: "stat", title: "Open", span: "1", value: "7", label: "", hint: "" }],
+      },
+    });
+    expect(parsed.success).toBe(true);
   });
 });
