@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import type { TaskPriority } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +24,22 @@ const CHIP: Record<TaskPriority, string> = {
   low: "border-[oklch(0.62_0.12_245)]/40 bg-[oklch(0.62_0.12_245)]/10 text-[oklch(0.52_0.13_245)]",
 };
 
-const ICON = { high: ArrowUp, med: Minus, low: ArrowDown };
+/**
+ * Lineless arrowheads rather than stemmed arrows — U+2303/U+2304, with an en
+ * dash holding the middle. All three are one glyph wide in JetBrains Mono, so
+ * the column doesn't twitch as a task changes priority.
+ */
+const GLYPH_NUDGE: Record<TaskPriority, string> = {
+  high: "translate-y-[1px]",
+  med: "",
+  low: "-translate-y-[1.5px]",
+};
+
+export const PRIORITY_GLYPH: Record<TaskPriority, string> = {
+  high: "\u2303",
+  med: "\u2013",
+  low: "\u2304",
+};
 
 /**
  * The priority of a task, said out loud.
@@ -51,7 +65,6 @@ export function PriorityChip({
   className?: string;
 }) {
   const label = PRIORITY_SHORT[priority];
-  const Icon = ICON[priority];
 
   const body = (
     <>
@@ -64,10 +77,14 @@ export function PriorityChip({
         {label}
       </span>
       <span
-        className="task-prio-icon hidden items-center justify-center max-sm:inline-flex"
+        aria-hidden
+        className={cn(
+          "task-prio-icon hidden w-4 justify-center text-center font-mono text-[15px] font-bold leading-[13px] max-sm:inline-flex",
+          GLYPH_NUDGE[priority]
+        )}
         style={{ color: PRIORITY_COLOR[priority] }}
       >
-        <Icon className="h-3 w-3" strokeWidth={3} />
+        {PRIORITY_GLYPH[priority]}
       </span>
     </>
   );

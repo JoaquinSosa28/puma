@@ -1,14 +1,13 @@
 "use client";
 
-import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import type { TaskPriority } from "@/lib/types";
-import { PRIORITY_COLOR } from "@/components/tasks/PriorityChip";
+import { PRIORITY_COLOR, PRIORITY_GLYPH } from "@/components/tasks/PriorityChip";
 import { cn } from "@/lib/utils";
 
-const OPTIONS: { value: TaskPriority; label: string; Icon: typeof ArrowUp }[] = [
-  { value: "high", label: "High", Icon: ArrowUp },
-  { value: "med", label: "Mid", Icon: Minus },
-  { value: "low", label: "Low", Icon: ArrowDown },
+const OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: "high", label: "High" },
+  { value: "med", label: "Mid" },
+  { value: "low", label: "Low" },
 ];
 
 /**
@@ -34,7 +33,7 @@ export function PriorityQuickPick({
       role="radiogroup"
       aria-label="Priority"
     >
-      {OPTIONS.map(({ value: v, label, Icon }) => {
+      {OPTIONS.map(({ value: v, label }) => {
         const active = value === v;
         return (
           <button
@@ -61,11 +60,13 @@ export function PriorityQuickPick({
                 : undefined
             }
           >
-            <Icon
-              className="h-3 w-3 shrink-0"
-              strokeWidth={3}
+            <span
+              aria-hidden
+              className="w-2.5 shrink-0 text-center text-[14px] font-bold leading-[11px]"
               style={active ? undefined : { color: PRIORITY_COLOR[v] }}
-            />
+            >
+              {PRIORITY_GLYPH[v]}
+            </span>
             {label}
           </button>
         );

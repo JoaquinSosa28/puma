@@ -25,18 +25,13 @@ import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { sectionMetaFor } from "@/components/shell/MobileDock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { cn } from "@/lib/utils";
-import { PRIORITY_COLOR } from "@/components/tasks/PriorityChip";
+import { PRIORITY_COLOR, PRIORITY_GLYPH } from "@/components/tasks/PriorityChip";
 import type { TaskPriority } from "@/lib/types";
-import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 
-const PRIORITY_OPTIONS: {
-  value: TaskPriority;
-  label: string;
-  Icon: typeof ArrowUp;
-}[] = [
-  { value: "high", label: "High", Icon: ArrowUp },
-  { value: "med", label: "Mid", Icon: Minus },
-  { value: "low", label: "Low", Icon: ArrowDown },
+const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
+  { value: "high", label: "High" },
+  { value: "med", label: "Mid" },
+  { value: "low", label: "Low" },
 ];
 
 type Mode = "capture" | "plan" | "ask";
@@ -472,7 +467,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
                       Priority
                     </p>
                     <div className="mb-5 flex items-center gap-2">
-                      {PRIORITY_OPTIONS.map(({ value, label, Icon }) => {
+                      {PRIORITY_OPTIONS.map(({ value, label }) => {
                         const active = pickedPriority === value;
                         return (
                           <button
@@ -496,11 +491,13 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
                                 : undefined
                             }
                           >
-                            <Icon
-                              className="h-4 w-4"
-                              strokeWidth={3}
+                            <span
+                              aria-hidden
+                              className="w-3 text-center text-[17px] font-bold leading-[13px]"
                               style={active ? undefined : { color: PRIORITY_COLOR[value] }}
-                            />
+                            >
+                              {PRIORITY_GLYPH[value]}
+                            </span>
                             {label}
                           </button>
                         );
