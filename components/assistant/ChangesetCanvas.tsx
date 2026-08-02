@@ -27,8 +27,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  BLANK_BLOCK,
-  blankTaskFields,
+  blankOpFields,
   type ChangeOp,
   type Changeset,
   type ChangeEntity,
@@ -64,67 +63,25 @@ const ENTITY_COLOR: Record<ChangeEntity, string> = {
 /** The op's display title, whatever shape its fields take. */
 function opTitle(op: ChangeOp): string {
   if (op.op !== "create") return op.label;
-  const f = op.fields;
-  return (
-    f.goal?.title ??
-    f.project?.title ??
-    f.habit?.name ??
-    f.task?.title ??
-    f.note?.title ??
-    "Untitled"
-  );
+  return op.fields.title || "Untitled";
 }
 
 /** Which draft op (by key) this op files under, if any. */
 function parentRef(op: ChangeOp): string | null {
   if (op.op === "delete") return null;
-  const f = op.fields;
-  return (
-    f.task?.projectRef ??
-    f.project?.goalRef ??
-    f.habit?.goalRefs?.[0] ??
-    null
-  );
+  return op.fields.parentRef || op.fields.goalRefs[0] || null;
 }
 
 function setTitle(op: ChangeOp, title: string): ChangeOp {
   if (op.op === "delete") return op;
-  const key = op.entity === "habit" ? "name" : "title";
-  return {
-    ...op,
-    fields: {
-      ...op.fields,
-      [op.entity]: {
-        ...BLANK_BLOCK[op.entity],
-        ...(op.fields[op.entity] ?? {}),
-        [key]: title,
-      },
-    },
-  } as ChangeOp;
+  return { ...op, fields: { ...op.fields, title } };
 }
 
 /** Re-file a draft op under another draft op (or a real id). */
 function setParent(op: ChangeOp, ref: string | null): ChangeOp {
   if (op.op === "delete") return op;
-  if (op.entity === "task") {
-    return {
-      ...op,
-      fields: {
-        ...op.fields,
-        task: { ...BLANK_BLOCK.task, ...(op.fields.task ?? {}), projectRef: ref },
-      },
-    } as ChangeOp;
-  }
-  if (op.entity === "project") {
-    return {
-      ...op,
-      fields: {
-        ...op.fields,
-        project: { ...BLANK_BLOCK.project, ...(op.fields.project ?? {}), goalRef: ref },
-      },
-    } as ChangeOp;
-  }
-  return op;
+  if (op.entity !== "task" && op.entity !== "project") return op;
+  return { ...op, fields: { ...op.fields, parentRef: ref ?? "" } };
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +160,7 @@ export function ChangesetCanvas({
           op: "create",
           entity: "task",
           refId: `new-${mintKey()}`,
-          fields: blankTaskFields(projectRefOrId),
+          fields: { ...blankOpFields(), parentRef: projectRefOrId },
         },
       },
     ]);
@@ -744,9 +701,9 @@ function NodeRow({
 
 /** old → new, per field, straight from the op's before block. */
 function DiffGrid({ op }: { op: Extract<ChangeOp, { op: "update" }> }) {
-  const fields = op.fields[op.entity] ?? {};
-  const before = op.before[op.entity] ?? {};
-  const rows = Object.entries(fields).filter(([, v]) => v !== undefined && v !== null);
+  const rows = Object.entries(op.fields).filter(
+    ([, v]) => v !== "" && v !== "unset" && !(Array.isArray(v) && !v.length)
+  );
   if (!rows.length) return null;
   return (
     <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-1 font-mono text-[11px]">
@@ -754,7 +711,7 @@ function DiffGrid({ op }: { op: Extract<ChangeOp, { op: "update" }> }) {
         <FieldDiff
           key={field}
           field={field}
-          before={(before as Record<string, unknown>)[field]}
+          before={(op.before as Record<string, unknown>)[field]}
           next={next}
         />
       ))}
@@ -764,7 +721,11 @@ function DiffGrid({ op }: { op: Extract<ChangeOp, { op: "update" }> }) {
 
 function FieldDiff({ field, before, next }: { field: string; before: unknown; next: unknown }) {
   const show = (v: unknown) =>
-    v == null ? "none" : typeof v === "object" ? JSON.stringify(v) : String(v);
+    v == null || v === "" || v === "unset"
+      ? "none"
+      : typeof v === "object"
+        ? JSON.stringify(v)
+        : String(v);
   return (
     <>
       <span className="uppercase tracking-wider text-faint2">{field}</span>

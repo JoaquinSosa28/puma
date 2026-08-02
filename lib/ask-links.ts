@@ -128,12 +128,13 @@ export function resolveFocusHref(
   item: {
     label: string;
     href?: string | null;
-    entityKind?: EntityKind | null;
+    /** "none" and "" both mean "not an entity" — the schema's sentinel. */
+    entityKind?: EntityKind | "none" | "" | null;
     entityId?: string | null;
   },
   data: SnapshotEntities
 ): string | null {
-  if (item.entityKind && item.entityId) {
+  if (item.entityKind && item.entityKind !== "none" && item.entityId) {
     const fromEntity = entityFocusHref(item.entityKind, item.entityId, data);
     if (fromEntity) return fromEntity;
   }

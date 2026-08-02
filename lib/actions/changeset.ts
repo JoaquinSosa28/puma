@@ -13,7 +13,6 @@ import { AI_QUOTA_MESSAGE, reserveAiCall } from "@/lib/ai/quota";
 import { assist, type AssistOutcome } from "@/lib/ai/assist";
 import { aiInput } from "@/lib/validation";
 import {
-  BLANK_BLOCK,
   changesetSchema,
   type Changeset,
   type ChangeEntity,
@@ -290,28 +289,30 @@ type Ctx = {
   touchedProjects: Set<string>;
 };
 
+/** "" and "unset" are the schema's sentinels for "not set / unchanged". */
+const val = (v: string): string | null => (v === "" || v === "unset" ? null : v);
+
 async function applyCreate(
   userId: string,
   op: CreateOp,
   ctx: Ctx
 ): Promise<{ id: string; title: string } | null> {
   const { td, tags, resolve } = ctx;
-  const life = (a?: string | null) => (a === "work" ? "work" : "personal") as "personal" | "work";
+  const f = op.fields;
+  const area = (val(f.lifeArea) ?? "personal") as "personal" | "work";
 
   switch (op.entity) {
     case "goal": {
-      const f = op.fields.goal ?? BLANK_BLOCK.goal;
-      const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
       const goals = await listGoals(userId);
       const category = goalCategoryForLifeArea(area);
       const g = await insertGoal({
         userId,
-        title: f.title ?? "Untitled goal",
+        title: val(f.title) ?? "Untitled goal",
         category,
         metricLabel: "",
         progress: 0,
-        targetDate: f.targetDate ?? null,
+        targetDate: val(f.date),
         tagIds,
         lifeArea: deriveLifeAreaFromTags(tagIds, tags),
         order: nextGoalOrder(goals, category),
@@ -320,18 +321,16 @@ async function applyCreate(
       return { id: g.id, title: g.title };
     }
     case "project": {
-      const f = op.fields.project ?? BLANK_BLOCK.project;
-      const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
       const projects = await listProjects(userId);
       const p = await insertProject({
         userId,
-        title: f.title ?? "Untitled project",
-        description: f.description ?? "",
+        title: val(f.title) ?? "Untitled project",
+        description: f.description,
         color: pickProjectColor(projects),
         progress: 0,
         label: "0/0",
-        goalId: resolve("goal", f.goalRef),
+        goalId: resolve("goal", val(f.parentRef)),
         tagIds,
         lifeArea: deriveLifeAreaFromTags(tagIds, tags),
         createdAt: td,
@@ -346,17 +345,15 @@ async function applyCreate(
       return { id: p.id, title: p.title };
     }
     case "habit": {
-      const f = op.fields.habit ?? BLANK_BLOCK.habit;
-      const area = life(f.lifeArea);
       const tagIds = setLifeTags([], area, tags);
-      const goalIds = (f.goalRefs ?? [])
+      const goalIds = f.goalRefs
         .map((r) => resolve("goal", r))
         .filter((id): id is string => id !== null);
       const h = await insertHabit({
         userId,
-        name: f.name ?? "Untitled habit",
+        name: val(f.title) ?? "Untitled habit",
         color: HABIT_COLOR,
-        frequency: { type: f.frequency ?? "daily", target: 1 },
+        frequency: { type: val(f.frequency) ?? "daily", target: 1 },
         order: 999,
         archived: false,
         goalIds,
@@ -368,13 +365,12 @@ async function applyCreate(
       return { id: h.id, title: h.name };
     }
     case "task": {
-      const f = op.fields.task ?? BLANK_BLOCK.task;
-      const projectId = resolve("project", f.projectRef);
-      const named = await ensureTags(userId, f.tagNames ?? []);
+      const projectId = resolve("project", val(f.parentRef));
+      const named = await ensureTags(userId, f.tagNames);
       // The task carries its life tag, and — when filed — the project's
       // flagship, so the tag-driven model holds for AI-created rows too.
       const fresh = await listTags(userId);
-      let tagIds = setLifeTags(named, life(f.lifeArea), fresh);
+      let tagIds = setLifeTags(named, area, fresh);
       if (projectId) {
         tagIds = withSingleProjectTag(tagIds, projectId, fresh);
         const flagship = fresh.find((t) => t.projectId === projectId && t.isProjectPrimary);
@@ -383,13 +379,13 @@ async function applyCreate(
       }
       const t = await insertTask({
         userId,
-        title: f.title ?? "Untitled task",
-        description: f.description ?? "",
+        title: val(f.title) ?? "Untitled task",
+        description: f.description,
         subtasks: [],
         tagIds,
-        priority: f.priority ?? "med",
+        priority: (val(f.priority) ?? "med") as "low" | "med" | "high",
         status: "todo",
-        due: f.due ?? null,
+        due: val(f.date),
         projectId,
         goalId: null,
         lifeArea: deriveLifeAreaFromTags(tagIds, fresh),
@@ -400,15 +396,14 @@ async function applyCreate(
       return { id: t.id, title: t.title };
     }
     case "note": {
-      const f = op.fields.note ?? BLANK_BLOCK.note;
-      const named = await ensureTags(userId, f.tagNames ?? []);
+      const named = await ensureTags(userId, f.tagNames);
       const fresh = await listTags(userId);
-      const tagIds = setLifeTags(named, life(f.lifeArea), fresh);
+      const tagIds = setLifeTags(named, area, fresh);
       const n = await insertNote({
         userId,
-        title: f.title ?? "Untitled note",
+        title: val(f.title) ?? "Untitled note",
         // Scaffolding: an empty body is the normal case, not a failure.
-        body: f.body ?? "",
+        body: f.description,
         tagIds,
         pinned: false,
         lifeArea: deriveLifeAreaFromTags(tagIds, fresh),
@@ -427,82 +422,70 @@ async function applyUpdate(
   ctx: Omit<Ctx, "td">
 ): Promise<Record<string, unknown> | null> {
   const { tags, resolve } = ctx;
+  const f = op.fields;
+  const patch: Record<string, unknown> = {};
+  const before: Record<string, unknown> = {};
+
+  const applyLife = (currentTagIds: string[], current: { lifeArea: string; tagIds: string[] }) => {
+    const area = val(f.lifeArea);
+    if (!area) return;
+    const tagIds = setLifeTags(currentTagIds, area as "personal" | "work", tags);
+    patch.tagIds = tagIds;
+    patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
+    if (before.tagIds === undefined) before.tagIds = current.tagIds;
+    before.lifeArea = current.lifeArea;
+  };
 
   switch (op.entity) {
     case "goal": {
-      const f = op.fields.goal ?? BLANK_BLOCK.goal;
       const current = (await listGoals(userId)).find((g) => g.id === op.id);
       if (!current) return null;
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      if (f.title != null) { patch.title = f.title; before.title = current.title; }
-      if (f.targetDate != null) { patch.targetDate = f.targetDate; before.targetDate = current.targetDate; }
-      if (f.lifeArea != null) {
-        const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
-        patch.tagIds = tagIds;
-        patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-        patch.category = goalCategoryForLifeArea(deriveLifeAreaFromTags(tagIds, tags));
-        before.tagIds = current.tagIds;
-        before.lifeArea = current.lifeArea;
+      if (val(f.title)) { patch.title = f.title; before.title = current.title; }
+      if (val(f.date)) { patch.targetDate = f.date; before.targetDate = current.targetDate; }
+      applyLife(current.tagIds, current);
+      if (patch.lifeArea) {
+        patch.category = goalCategoryForLifeArea(patch.lifeArea as "personal" | "work" | "both");
         before.category = current.category;
       }
       return (await updateGoal(userId, op.id, patch)) ? before : null;
     }
     case "project": {
-      const f = op.fields.project ?? BLANK_BLOCK.project;
       const current = (await listProjects(userId)).find((p) => p.id === op.id);
       if (!current) return null;
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      if (f.title != null) { patch.title = f.title; before.title = current.title; }
-      if (f.description != null) { patch.description = f.description; before.description = current.description; }
-      if (f.goalRef != null) { patch.goalId = resolve("goal", f.goalRef); before.goalId = current.goalId; }
-      if (f.lifeArea != null) {
-        const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
-        patch.tagIds = tagIds;
-        patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-        before.tagIds = current.tagIds;
-        before.lifeArea = current.lifeArea;
+      if (val(f.title)) { patch.title = f.title; before.title = current.title; }
+      if (val(f.description)) { patch.description = f.description; before.description = current.description; }
+      if (val(f.parentRef)) {
+        patch.goalId = resolve("goal", f.parentRef);
+        before.goalId = current.goalId;
       }
+      applyLife(current.tagIds, current);
       ctx.touchedProjects.add(op.id);
       return (await updateProject(userId, op.id, patch)) ? before : null;
     }
     case "habit": {
-      const f = op.fields.habit ?? BLANK_BLOCK.habit;
       const current = (await listHabits(userId)).find((h) => h.id === op.id);
       if (!current) return null;
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      if (f.name != null) { patch.name = f.name; before.name = current.name; }
-      if (f.frequency != null) {
+      if (val(f.title)) { patch.name = f.title; before.name = current.name; }
+      if (val(f.frequency)) {
         patch.frequency = { type: f.frequency, target: 1 };
         before.frequency = current.frequency;
       }
-      if (f.goalRefs != null) {
+      if (f.goalRefs.length) {
         patch.goalIds = f.goalRefs.map((r) => resolve("goal", r)).filter(Boolean);
         before.goalIds = current.goalIds;
       }
-      if (f.lifeArea != null) {
-        const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
-        patch.tagIds = tagIds;
-        patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-        before.tagIds = current.tagIds;
-        before.lifeArea = current.lifeArea;
-      }
+      applyLife(current.tagIds, current);
       return (await updateHabit(userId, op.id, patch)) ? before : null;
     }
     case "task": {
-      const f = op.fields.task ?? BLANK_BLOCK.task;
       const current = (await listTasks(userId)).find((t) => t.id === op.id);
       if (!current) return null;
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      if (f.title != null) { patch.title = f.title; before.title = current.title; }
-      if (f.description != null) { patch.description = f.description; before.description = current.description; }
-      if (f.priority != null) { patch.priority = f.priority; before.priority = current.priority; }
-      if (f.due != null) { patch.due = f.due; before.due = current.due; }
-      if (f.projectRef != null) {
-        const projectId = resolve("project", f.projectRef);
+      if (val(f.title)) { patch.title = f.title; before.title = current.title; }
+      if (val(f.description)) { patch.description = f.description; before.description = current.description; }
+      if (val(f.priority)) { patch.priority = f.priority; before.priority = current.priority; }
+      if (val(f.date)) { patch.due = f.date; before.due = current.due; }
+      if (val(f.parentRef)) {
+        const projectId = resolve("project", f.parentRef);
         let tagIds = withSingleProjectTag(current.tagIds, projectId, tags);
         const flagship = projectId
           ? tags.find((t) => t.projectId === projectId && t.isProjectPrimary)
@@ -515,31 +498,15 @@ async function applyUpdate(
         if (current.projectId) ctx.touchedProjects.add(current.projectId);
         if (projectId) ctx.touchedProjects.add(projectId);
       }
-      if (f.lifeArea != null) {
-        const baseTags = (patch.tagIds as string[]) ?? current.tagIds;
-        const tagIds = setLifeTags(baseTags, f.lifeArea, tags);
-        patch.tagIds = tagIds;
-        patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-        if (before.tagIds === undefined) before.tagIds = current.tagIds;
-        before.lifeArea = current.lifeArea;
-      }
+      applyLife((patch.tagIds as string[]) ?? current.tagIds, current);
       return (await updateTask(userId, op.id, patch)) ? before : null;
     }
     case "note": {
-      const f = op.fields.note ?? BLANK_BLOCK.note;
       const current = (await listNotes(userId)).find((n) => n.id === op.id);
       if (!current) return null;
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      if (f.title != null) { patch.title = f.title; before.title = current.title; }
-      if (f.body != null) { patch.body = f.body; before.body = current.body; }
-      if (f.lifeArea != null) {
-        const tagIds = setLifeTags(current.tagIds, f.lifeArea, tags);
-        patch.tagIds = tagIds;
-        patch.lifeArea = deriveLifeAreaFromTags(tagIds, tags);
-        before.tagIds = current.tagIds;
-        before.lifeArea = current.lifeArea;
-      }
+      if (val(f.title)) { patch.title = f.title; before.title = current.title; }
+      if (val(f.description)) { patch.body = f.description; before.body = current.body; }
+      applyLife(current.tagIds, current);
       return (await updateNote(userId, op.id, patch)) ? before : null;
     }
   }

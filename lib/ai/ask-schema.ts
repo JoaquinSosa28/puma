@@ -3,9 +3,13 @@
 // client dashboard can import these types. Authored against zod/v4 for zodOutputFormat.
 import * as z from "zod/v4";
 
-// Grid width (columns) the AI assigns each gadget. Literal union avoids min/max,
-// which structured outputs doesn't support.
-const span = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+// No .nullable()/.optional() anywhere: Anthropic's structured-output grammar
+// caps optional parameters (24) and union-typed parameters, nullable included
+// (16). "" means "none" for every string field; "none" is an enum member.
+
+// Grid width (columns) the AI assigns each gadget: "1", "2" or "3". A string
+// enum, not a number union — unions count against the grammar limit.
+const span = z.enum(["1", "2", "3"]);
 
 const textWidget = z.object({
   type: z.literal("text"),
@@ -19,23 +23,25 @@ const statWidget = z.object({
   title: z.string(),
   span,
   value: z.string(), // string so "78%", "12 days", "3 / 8" all work
-  label: z.string().nullable(),
-  hint: z.string().nullable(),
+  /** "" = none. */
+  label: z.string(),
+  hint: z.string(),
 });
 
-const entityKind = z.enum(["task", "project", "goal", "habit", "note"]);
+const entityKind = z.enum(["task", "project", "goal", "habit", "note", "none"]);
 
+/** Deep-link fields. "none"/"" when the item isn't a specific entity. */
 const focusFields = {
-  entityKind: entityKind.nullable(),
-  entityId: z.string().nullable(),
-  href: z.string().nullable(),
+  entityKind,
+  entityId: z.string(),
+  href: z.string(),
 };
 
 const barWidget = z.object({
   type: z.literal("bar"),
   title: z.string(),
   span,
-  unit: z.string().nullable(),
+  unit: z.string(),
   series: z.array(
     z.object({
       label: z.string(),
@@ -52,7 +58,7 @@ const listWidget = z.object({
   items: z.array(
     z.object({
       label: z.string(),
-      sublabel: z.string().nullable(),
+      sublabel: z.string(),
       ...focusFields,
     })
   ),
@@ -66,8 +72,8 @@ const calendarWidget = z.object({
   marks: z.array(
     z.object({
       date: z.string(), // "YYYY-MM-DD"
-      intensity: z.number().nullable(), // 0..1 shading
-      label: z.string().nullable(),
+      intensity: z.number(), // 0..1 shading; 0 = default
+      label: z.string(),
     })
   ),
 });
@@ -93,8 +99,8 @@ const pieWidget = z.object({
       ...focusFields,
     })
   ),
-  unit: z.string().nullable(),
-  centerLabel: z.string().nullable(),
+  unit: z.string(),
+  centerLabel: z.string(),
 });
 
 const lineWidget = z.object({
@@ -102,7 +108,7 @@ const lineWidget = z.object({
   title: z.string(),
   span,
   points: z.array(z.object({ label: z.string(), value: z.number() })),
-  unit: z.string().nullable(),
+  unit: z.string(),
 });
 
 const progressWidget = z.object({

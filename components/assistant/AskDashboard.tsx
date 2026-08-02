@@ -29,7 +29,7 @@ export function AskDashboard({
       )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         {result.widgets.map((w, i) => (
-          <div key={i} className={cn(SPAN[w.span] ?? "md:col-span-1")}>
+          <div key={i} className={cn(SPAN[Number(w.span)] ?? "md:col-span-1")}>
             <WidgetCard widget={w} />
           </div>
         ))}
