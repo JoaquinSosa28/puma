@@ -11,6 +11,7 @@ import { toggleTask, cycleTaskPriority, deleteTaskAction } from "@/lib/actions/t
 import { Taggable } from "@/components/tags/TagMenuProvider";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
 import { DeleteButton } from "@/components/ui/delete-button";
+import { useDraggable } from "@dnd-kit/core";
 import { PriorityChip } from "@/components/tasks/PriorityChip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,7 +46,41 @@ type Props = {
   calendarDay?: string;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** Let rows be dragged into another project group. Requires a DndContext. */
+  draggableTasks?: boolean;
 };
+
+/**
+ * Wraps a row so it can be picked up and dropped on a project group. Kept as
+ * its own component because the hook has to run per row, and left out entirely
+ * when dragging is off so lists that don't need it pay nothing.
+ */
+function DraggableRow({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    data: { type: "task" },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "cursor-grab touch-manipulation active:cursor-grabbing",
+        isDragging && "opacity-35"
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
+    </div>
+  );
+}
 
 const STATUS_STYLE = {
   todo: "border-border bg-surface2 text-faint",
@@ -82,6 +117,7 @@ export function TaskList({
   calendarDay,
   selectedId,
   onSelect,
+  draggableTasks = false,
 }: Props) {
   const router = useRouter();
   const [optimistic, setOptimistic] = useOptimistic(tasks);
@@ -322,9 +358,9 @@ export function TaskList({
           ? taskDetailHref(t, lifeView, today)
           : linkRowsTo;
 
-        return (
+        const row = (
           <Taggable
-            key={t.id}
+            key={draggableTasks ? undefined : t.id}
             entity="task"
             id={t.id}
             tagIds={t.tagIds}
@@ -498,6 +534,14 @@ export function TaskList({
               />
             )}
           </Taggable>
+        );
+
+        return draggableTasks ? (
+          <DraggableRow key={t.id} id={t.id}>
+            {row}
+          </DraggableRow>
+        ) : (
+          row
         );
       })}
     </div>

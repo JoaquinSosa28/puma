@@ -10,12 +10,17 @@ import {
   oid,
   taskDueDateInput,
 } from "@/lib/date";
-import { updateTaskDetail, moveTaskStatus } from "@/lib/actions/tasks";
+import {
+  updateTaskDetail,
+  moveTaskStatus,
+  setTaskProject,
+} from "@/lib/actions/tasks";
 import { toggleEntityTag } from "@/lib/actions/tags";
 import { TagGridPicker } from "@/components/tags/TagGridPicker";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { ScrollHint } from "@/components/ui/scroll-hint";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSyncedDraft } from "@/lib/use-synced-draft";
 import { useAutosaveDraft } from "@/lib/use-autosave-draft";
@@ -60,9 +65,20 @@ export function TaskDetailPanel({
   const [status, setStatus] = useSyncedDraft(task.status, task.id);
   const [priority, setPriority] = useSyncedDraft(task.priority, task.id);
   const [dueDate, setDueDate] = useSyncedDraft(taskDueDateInput(task.due), task.id);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   const project = projects.find((p) => p.id === task.projectId);
+
+  const moveToProject = (projectId: string | null) => {
+    startTransition(async () => {
+      const res = await setTaskProject({ id: task.id, projectId });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   const persist = useCallback(
     (patch: {
@@ -335,6 +351,33 @@ export function TaskDetailPanel({
                 </button>
               );
             })}
+          </div>
+        </section>
+
+        <section className="mb-4">
+          <h4 className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+            Project
+          </h4>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-[3px] transition-colors"
+              style={{ background: project?.color ?? "var(--border)" }}
+              aria-hidden
+            />
+            <select
+              value={task.projectId ?? ""}
+              disabled={pending}
+              onChange={(e) => moveToProject(e.target.value || null)}
+              aria-label="Project"
+              className="min-w-0 flex-1 truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-[12.5px] text-ink outline-none transition-colors focus:border-faint disabled:opacity-50"
+            >
+              <option value="">No project</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
           </div>
         </section>
 

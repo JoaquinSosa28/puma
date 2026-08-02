@@ -316,6 +316,54 @@ export async function undoDeleteTask(snapshot: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+const setTaskProjectSchema = z.object({
+  id: entityId,
+  projectId: entityId.nullable(),
+});
+
+/**
+ * Move a task into a project, or out of every project with `null`.
+ *
+ * Shared by the drag-between-groups gesture and the picker in the detail
+ * panel, so both go through the same ownership checks and the same goal
+ * resync.
+ */
+export async function setTaskProject(
+  input: z.infer<typeof setTaskProjectSchema>
+): Promise<ActionResult<Task>> {
+  const parsed = setTaskProjectSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+
+  const userId = await requireUserId();
+  const { getTask } = await import("@/lib/db/tasks");
+  const existing = await getTask(userId, parsed.data.id);
+  if (!existing) return { ok: false, error: "Not found" };
+
+  // A stale client can name a project that was deleted since it last rendered;
+  // refuse rather than quietly dropping the task out of every project.
+  const project = parsed.data.projectId
+    ? await getProject(userId, parsed.data.projectId)
+    : null;
+  if (parsed.data.projectId && !project) {
+    return { ok: false, error: "That project no longer exists" };
+  }
+
+  const nextProjectId = project ? parsed.data.projectId : null;
+  if (nextProjectId === existing.projectId) return { ok: true, data: existing };
+
+  const updated = await updateTask(userId, parsed.data.id, {
+    projectId: nextProjectId,
+  });
+  if (!updated) return { ok: false, error: "Not found" };
+
+  // Goal progress rolls up per project, so both ends of the move resettle.
+  if (existing.projectId) await syncGoalsForProject(userId, existing.projectId);
+  if (nextProjectId) await syncGoalsForProject(userId, nextProjectId);
+
+  revalidatePath("/", "layout");
+  return { ok: true, data: updated };
+}
+
 const subtaskSchema = z.object({
   id: z.string().max(64),
   title: z.string().max(500),

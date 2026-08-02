@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   useQueryState,
   parseAsStringLiteral,
@@ -10,6 +10,21 @@ import {
 import { ListTodo, Search, X } from "lucide-react";
 import { searchTasks } from "@/lib/task-search";
 import { sortTasksByPriority } from "@/lib/task-order";
+import { setTaskProject } from "@/lib/actions/tasks";
+import { toast } from "sonner";
+import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import {
   applyTaskFilters,
   countActiveFilters,
@@ -47,7 +62,15 @@ type Props = {
   lifeSpanYears?: number;
 };
 
-type Group = { label: string; count: number; color: string; items: Task[] };
+type Group = {
+  label: string;
+  count: number;
+  color: string;
+  items: Task[];
+  /** Set only when grouping by project — the drop target's project, null for
+   *  the "No project" bucket. Undefined means the group can't be dropped on. */
+  dropProjectId?: string | null;
+};
 
 export function TasksView({
   tasks,
@@ -84,6 +107,7 @@ export function TasksView({
     parseAsArrayOf(parseAsString).withDefault([])
   );
   const listRef = useRef<HTMLDivElement>(null);
+  const [, startTransition] = useTransition();
   const timeZone = useTimezone();
   const isDesktop = useIsDesktop();
   const td = iso(new Date(), timeZone);
@@ -96,6 +120,52 @@ export function TasksView({
   useEffect(() => {
     if (taskId && !selectedTask) setTaskId(null);
   }, [taskId, selectedTask, setTaskId]);
+
+  // Dragging a task from one project group into another. Only wired up while
+  // grouping by project — that's the only view where the drop target means
+  // something.
+  const dragEnabled = group === "project";
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const draggingTask = useMemo(
+    () => (draggingId ? tasks.find((t) => t.id === draggingId) ?? null : null),
+    [draggingId, tasks]
+  );
+
+  const sensors = useSensors(
+    // A plain click must still open the task, so the mouse needs a little
+    // travel first; touch needs a long-press or the list stops scrolling.
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 280, tolerance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggingId(String(event.active.id));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const taskId = String(event.active.id);
+    setDraggingId(null);
+    const target = event.over?.data.current;
+    if (!target || target.type !== "project-group") return;
+
+    const nextProjectId = (target.projectId ?? null) as string | null;
+    const moved = tasks.find((t) => t.id === taskId);
+    if (!moved || moved.projectId === nextProjectId) return;
+
+    const destination = nextProjectId
+      ? projects.find((p) => p.id === nextProjectId)?.title ?? "project"
+      : "No project";
+
+    startTransition(async () => {
+      const res = await setTaskProject({ id: taskId, projectId: nextProjectId });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`Moved to ${destination}`);
+    });
+  };
 
   const trimmedQuery = query.trim();
   const searching = trimmedQuery.length > 0;
@@ -229,24 +299,23 @@ export function TasksView({
     const result: Group[] = [];
     for (const pr of projects) {
       const items = filtered.filter((t) => t.projectId === pr.id);
-      if (items.length) {
-        result.push({
-          label: pr.title,
-          count: items.length,
-          color: pr.color,
-          items,
-        });
-      }
-    }
-    const np = filtered.filter((t) => !t.projectId);
-    if (np.length) {
+      // Empty projects still render while grouping, so there's somewhere to
+      // drop the first task into.
       result.push({
-        label: "No project",
-        count: np.length,
-        color: "var(--faint2)",
-        items: np,
+        label: pr.title,
+        count: items.length,
+        color: pr.color,
+        items,
+        dropProjectId: pr.id,
       });
     }
+    result.push({
+      label: "No project",
+      count: filtered.filter((t) => !t.projectId).length,
+      color: "var(--faint2)",
+      items: filtered.filter((t) => !t.projectId),
+      dropProjectId: null,
+    });
     return result;
   }, [group, tags, projects, filtered, tab, filteredProject, searching, filtersActive]);
 
@@ -381,6 +450,20 @@ export function TasksView({
             ref={listRef}
             className="min-h-0 overflow-y-auto p-3 max-lg:pb-28 lg:border-r lg:border-border2 lg:p-4"
           >
+            <DragArea
+              enabled={dragEnabled}
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => setDraggingId(null)}
+              overlay={
+                draggingTask ? (
+                  <div className="pointer-events-none rounded-lg border-2 border-ink bg-surface px-3 py-2 text-[13px] font-semibold text-ink shadow-[3px_3px_0_var(--shadow)]">
+                    {draggingTask.title}
+                  </div>
+                ) : null
+              }
+            >
             <div className="flex flex-col gap-4">
               {!filtered.length && !(showCarryover && filteredCarryover.length) ? (
                 <div className="rounded-[13px] border-2 border-dashed border-border bg-surface2/50 px-6 py-12 text-center">
@@ -403,7 +486,9 @@ export function TasksView({
                 </div>
               ) : (
                 taskGroups
-                  .filter((grp) => grp.items.length > 0)
+                  // Empty project groups stay while dragging, so there's
+                  // somewhere to drop the first task into.
+                  .filter((grp) => grp.items.length > 0 || dragEnabled)
                   .map((grp) => (
                     <TaskGroupCard
                       key={grp.label}
@@ -411,6 +496,7 @@ export function TasksView({
                       tags={tags}
                       selectedId={taskId}
                       onSelect={(id) => setTaskId(taskId === id ? null : id)}
+                      draggable={dragEnabled}
                     />
                   ))
               )}
@@ -425,6 +511,7 @@ export function TasksView({
                 />
               )}
             </div>
+            </DragArea>
           </div>
 
           {/* Desktop: right-hand pane. Phone: draggable bottom sheet.
@@ -552,21 +639,73 @@ function TaskStat({
   );
 }
 
+/**
+ * Only mounts a DndContext when dragging is actually on, so every other view of
+ * this list keeps its old, plain render tree.
+ */
+function DragArea({
+  enabled,
+  sensors,
+  onDragStart,
+  onDragEnd,
+  onDragCancel,
+  overlay,
+  children,
+}: {
+  enabled: boolean;
+  sensors: ReturnType<typeof useSensors>;
+  onDragStart: (e: DragStartEvent) => void;
+  onDragEnd: (e: DragEndEvent) => void;
+  onDragCancel: () => void;
+  overlay: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
+      {children}
+      <DragOverlay dropAnimation={null}>{overlay}</DragOverlay>
+    </DndContext>
+  );
+}
+
 function TaskGroupCard({
   group,
   tags,
   selectedId,
   onSelect,
+  draggable = false,
 }: {
   group: Group;
   tags: Tag[];
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  draggable?: boolean;
 }) {
   const open = group.items.filter((t) => t.status !== "done").length;
+  const droppable = draggable && group.dropProjectId !== undefined;
+  const { setNodeRef, isOver } = useDroppable({
+    id: `project-group:${group.dropProjectId ?? "none"}`,
+    disabled: !droppable,
+    data: { type: "project-group", projectId: group.dropProjectId },
+  });
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border2 bg-surface">
+    <section
+      ref={droppable ? setNodeRef : undefined}
+      className={cn(
+        "overflow-hidden rounded-lg border bg-surface transition-colors",
+        isOver
+          ? "border-primary/50 bg-primary/[0.04] ring-1 ring-inset ring-primary/25"
+          : "border-border2"
+      )}
+    >
       <header className="flex items-center gap-2.5 border-b border-border2 bg-surface2/60 px-4 py-3">
         <span
           className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -582,15 +721,22 @@ function TaskGroupCard({
           </span>
         )}
       </header>
-      <TaskList
-        tasks={group.items}
-        tags={tags}
-        showDelete
-        dueField="full"
-        variant="page"
-        selectedId={selectedId}
-        onSelect={onSelect}
-      />
+      {group.items.length ? (
+        <TaskList
+          tasks={group.items}
+          tags={tags}
+          showDelete
+          dueField="full"
+          variant="page"
+          selectedId={selectedId}
+          onSelect={onSelect}
+          draggableTasks={draggable}
+        />
+      ) : (
+        <p className="m-0 px-4 py-5 text-center font-mono text-[11px] text-faint2">
+          Drop a task here
+        </p>
+      )}
     </section>
   );
 }
