@@ -38,15 +38,19 @@ export async function assist(
     invalidMessage: "The model did not return a usable result. Please try again.",
   });
 
-  if (object.kind === "answer") {
-    const { widgets, answer } = object;
+  const response = object.response;
+  if (response.kind === "answer") {
+    const { widgets, answer } = response;
     return {
       kind: "answer",
       answer: enrichAskAnswer({ answer, widgets }, data),
       dataMode,
     };
   }
-  return { kind: "changeset", changeset: { summary: object.summary, ops: object.ops } };
+  return {
+    kind: "changeset",
+    changeset: { summary: response.summary, ops: response.ops },
+  };
 }
 
 /**
@@ -73,10 +77,17 @@ export async function repromptSubtree(
       cacheable: ASSISTANT_CONTEXT,
       volatile: [
         "# Node-scoped rewrite",
-        "You are rewriting ONE SUBTREE of an existing draft changeset. Return ops that REPLACE the subtree below — nothing else. Keep refIds stable where an op survives; mint new refIds for new ops. The scaffolding rule applies: structure only, the user's words only.",
+        [
+          "You are rewriting ONE SUBTREE of a draft changeset. Your ops REPLACE the subtree below wholesale — whatever you leave out ceases to exist.",
+          "",
+          "So: return the FULL subtree after the change, not just the new parts. That means the root node itself (first op, same refId as now unless the instruction says to split or remove it), then every child that should survive — unchanged ones included, copied as they are.",
+          "Children must keep pointing at their parent through `parentRef`; a child whose parentRef is empty becomes a loose top-level node, which is almost never what the instruction meant.",
+          "Keep refIds stable for ops that survive; mint new ones only for genuinely new ops.",
+          "The scaffolding rule still applies: structure only, the user's words only.",
+        ].join("\n"),
         `Original request: ${input.intent}`,
         `Other nodes in the draft (do not recreate these): ${input.context.join("; ") || "none"}`,
-        `Current subtree:\n${JSON.stringify(input.subtree, null, 2)}`,
+        `Current subtree (the root node is first):\n${JSON.stringify(input.subtree, null, 2)}`,
       ].join("\n\n"),
     },
     prompt: input.instruction,

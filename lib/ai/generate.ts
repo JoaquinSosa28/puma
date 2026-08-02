@@ -59,9 +59,11 @@ export async function generateStructured<T>(
   const creds = await resolveAiCredentials(opts.userId);
   if (!creds) throw new Error(NO_API_KEY_MESSAGE);
 
-  const def = providerDef(creds.provider);
   const model = buildModel(creds);
-  const canRetry = def.structured !== "strict" && def.structured !== "native";
+  // Every provider gets the schema-mismatch retry: even Anthropic runs in
+  // jsonTool mode here (see providerOptions below), where adherence is very
+  // good but not grammar-guaranteed.
+  const canRetry = true;
 
   const run = (extra?: string) =>
     generateObject({
@@ -74,6 +76,13 @@ export async function generateStructured<T>(
       maxOutputTokens: opts.maxTokens,
       abortSignal: AbortSignal.timeout(TIMEOUT_MS),
       maxRetries: 1,
+      providerOptions: {
+        // Tool-calling mode instead of grammar-compiled structured outputs.
+        // The grammar compiler enforces hard caps (24 optionals, 16 unions,
+        // total size) that a nine-widget × three-op union can never fit;
+        // jsonTool has no such limits.
+        anthropic: { structuredOutputMode: "jsonTool" },
+      },
     });
 
   let result;

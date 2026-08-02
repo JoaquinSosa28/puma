@@ -4,12 +4,18 @@ import * as z from "zod/v4";
 import { askAnswerSchema } from "@/lib/ai/ask-schema";
 import { changesetSchema } from "@/lib/ai/changeset-schema";
 
-export const assistantResponseSchema = z.discriminatedUnion("kind", [
+const responseUnion = z.discriminatedUnion("kind", [
   askAnswerSchema.extend({ kind: z.literal("answer") }),
   changesetSchema.extend({ kind: z.literal("changeset") }),
 ]);
 
-export type AssistantResponse = z.infer<typeof assistantResponseSchema>;
+/**
+ * Wrapped in an object because a tool's input_schema must be type: "object"
+ * at the root — a bare anyOf is rejected by the API.
+ */
+export const assistantResponseSchema = z.object({ response: responseUnion });
+
+export type AssistantResponse = z.infer<typeof responseUnion>;
 
 /** The caller can pin a branch when the router guessed wrong ("I meant to…"). */
 export type AssistantMode = "auto" | "answer" | "changeset";
