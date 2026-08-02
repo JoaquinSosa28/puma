@@ -11,10 +11,12 @@ import {
   useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 import type { Tag, Task, Note } from "@/lib/schemas";
 import type { EntityLifeArea } from "@/lib/types";
 import { toggleEntityTag, type TaggableEntity } from "@/lib/actions/tags";
+import { deleteTaskAction, undoDeleteTask } from "@/lib/actions/tasks";
+import { deleteNoteAction } from "@/lib/actions/notes";
 import { addTagAction } from "@/lib/actions/settings";
 import { tagsByUsage } from "@/lib/metrics";
 import { isLifeTag, SPECIAL_LIFE_TAGS } from "@/lib/life-area-sync";
@@ -160,6 +162,36 @@ export function TagMenuProvider({
     // a row that has already moved.
     const moved = tags.find((t) => t.id === tagId)?.projectId;
     if (moved) close();
+  };
+
+  const handleDelete = async () => {
+    if (!menu || pending) return;
+    setPending(true);
+    const res =
+      menu.entity === "task"
+        ? await deleteTaskAction(menu.id)
+        : await deleteNoteAction(menu.id);
+    setPending(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    const label = menu.entity === "task" ? "Task deleted" : "Note deleted";
+    const undoSnapshot =
+      menu.entity === "task" ? (res.undo?.snapshot as string | undefined) : undefined;
+    close();
+    toast.success(label, {
+      action: undoSnapshot
+        ? {
+            label: "UNDO",
+            onClick: async () => {
+              await undoDeleteTask(undoSnapshot);
+              router.refresh();
+            },
+          }
+        : undefined,
+    });
+    router.refresh();
   };
 
   const handleAddTag = async () => {
@@ -342,6 +374,17 @@ export function TagMenuProvider({
                   New tag
                 </button>
               )}
+            </div>
+            <div className="mt-1 border-t border-border2 pt-1">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => void handleDelete()}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px] text-tasks transition-colors hover:bg-tasks/10 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete {menu.entity}
+              </button>
             </div>
           </div>
         </>

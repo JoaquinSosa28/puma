@@ -108,15 +108,24 @@ export function completeOmniToken(
     };
   };
 
+  // One option left is the only thing that ends a cycle: the tag is settled,
+  // so it's written out in full with a space after it.
   if (candidates.length === 1) return finish(candidates[0], true);
 
-  // Several options. Fill in what they agree on first; only once that's
-  // already typed does Tab start cycling.
+  // Several options. Fill in what they all agree on first — that much is known
+  // rather than guessed.
   const shared = commonPrefix(candidates);
-  if (rotate === undefined && shared.length > typed.length) {
+  if (rotate === undefined && shared.length > token.word.length) {
     return finish(shared, false);
   }
 
-  const pick = candidates[(rotate ?? 0) % candidates.length];
-  return finish(pick, false);
+  // Otherwise cycle. Landing on a candidate exactly doesn't stop anything
+  // while others remain — "#web" with "web" and "website" keeps alternating,
+  // and only space or enter (which change the text) end it.
+  let index = rotate;
+  if (index === undefined) {
+    const at = candidates.indexOf(token.word);
+    index = at === -1 ? 0 : at + 1;
+  }
+  return finish(candidates[index % candidates.length], false);
 }

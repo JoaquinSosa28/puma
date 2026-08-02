@@ -171,3 +171,34 @@ describe("rotation over the originally typed prefix", () => {
     );
   });
 });
+
+describe("an exact match does not end the cycle", () => {
+  const pool = ["web", "website", "webhook"];
+
+  it("steps past a candidate the token already equals", () => {
+    // "#web" IS a tag, but two others still match — Tab moves on rather than
+    // settling, since settling would hide them.
+    expect(completeOmniToken("x #web", 6, pool)?.completion).toBe("website");
+  });
+
+  it("keeps alternating on repeat presses", () => {
+    const a = completeOmniToken("x #web", 6, pool, 1, "web");
+    const b = completeOmniToken("x #web", 6, pool, 2, "web");
+    const c = completeOmniToken("x #web", 6, pool, 3, "web");
+    expect([a?.completion, b?.completion, c?.completion]).toEqual([
+      "website",
+      "webhook",
+      "web",
+    ]);
+  });
+
+  it("never auto-spaces while options remain", () => {
+    expect(completeOmniToken("x #web", 6, pool)?.exact).toBe(false);
+  });
+
+  it("settles only when one option is left", () => {
+    const out = completeOmniToken("x #webh", 7, pool);
+    expect(out?.text).toBe("x #webhook ");
+    expect(out?.exact).toBe(true);
+  });
+});
