@@ -89,6 +89,59 @@ export function GoalDetailPanel({
     [goal.id, router]
   );
 
+  // Manual progress: the bar used to render the server value and fire one
+  // round-trip per tap, so nothing moved until it landed — you tap again, and
+  // the deltas pile up. Show the change instantly and send a single request
+  // once the tapping settles.
+  const [shownProgress, setShownProgress] = useState<number | null>(null);
+  const pendingDeltaRef = useRef(0);
+  const bumpTimerRef = useRef<number | null>(null);
+
+  const flushProgress = useCallback(() => {
+    if (bumpTimerRef.current) {
+      window.clearTimeout(bumpTimerRef.current);
+      bumpTimerRef.current = null;
+    }
+    const total = pendingDeltaRef.current;
+    pendingDeltaRef.current = 0;
+    if (!total) return;
+    // Not wrapped in startTransition: this also runs while the panel unmounts.
+    void setGoalProgress(goal.id, total);
+  }, [goal.id]);
+
+  // The live value also lives in a ref: rapid taps are batched, so reading it
+  // from render state made every tap in a burst compute from the same stale
+  // number and the bar moved once instead of once per tap.
+  const displayedRef = useRef(goal.progress);
+
+  // Adopt the server value again once it catches up (or the goal changes).
+  useEffect(() => {
+    setShownProgress(null);
+    displayedRef.current = goal.progress;
+    pendingDeltaRef.current = 0;
+  }, [goal.id, goal.progress]);
+
+  // Never drop taps that haven't been sent yet.
+  useEffect(() => {
+    return () => {
+      flushProgress();
+    };
+  }, [goal.id, flushProgress]);
+
+  const displayedProgress = shownProgress ?? goal.progress;
+
+  const bumpProgress = (delta: number) => {
+    const base = displayedRef.current;
+    const next = Math.max(0, Math.min(100, base + delta));
+    displayedRef.current = next;
+    // Accumulate the EFFECTIVE change, so clamping at 0/100 can't drift the
+    // pending total away from what's on screen.
+    pendingDeltaRef.current += next - base;
+    setShownProgress(next);
+    if (bumpTimerRef.current) window.clearTimeout(bumpTimerRef.current);
+    bumpTimerRef.current = window.setTimeout(flushProgress, 350);
+  };
+
   const saveTitle = () => {
     const next = title.trim();
     if (next === goal.title) return;
@@ -202,13 +255,17 @@ export function GoalDetailPanel({
               className="font-mono text-sm font-semibold"
               style={{ color: categoryColor }}
             >
-              {goal.progress}%
+              {displayedProgress}%
             </span>
           </div>
           <div className="mb-2 h-2 overflow-hidden rounded-full bg-border2">
             <div
               className="h-full rounded-full"
-              style={{ width: `${goal.progress}%`, background: categoryColor }}
+              style={{
+                width: `${displayedProgress}%`,
+                background: categoryColor,
+                transition: "width 150ms ease-out",
+              }}
             />
           </div>
           {autoProgress ? (
@@ -220,24 +277,14 @@ export function GoalDetailPanel({
               <button
                 type="button"
                 className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border text-muted hover:bg-hover"
-                onClick={() =>
-                  startTransition(async () => {
-                    await setGoalProgress(goal.id, -5);
-                    router.refresh();
-                  })
-                }
+                onClick={() => bumpProgress(-5)}
               >
                 −
               </button>
               <button
                 type="button"
                 className="flex h-[26px] w-[26px] items-center justify-center rounded-md border border-border text-muted hover:bg-hover"
-                onClick={() =>
-                  startTransition(async () => {
-                    await setGoalProgress(goal.id, 5);
-                    router.refresh();
-                  })
-                }
+                onClick={() => bumpProgress(5)}
               >
                 +
               </button>
