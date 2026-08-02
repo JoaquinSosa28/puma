@@ -82,7 +82,7 @@ export function HabitHeatStrip({
   // ---- monthly: one wide box per month, labelled with the month ----
   if (frequency === "monthly") {
     return (
-      <div className={cn("flex flex-wrap items-center gap-2", className)}>
+      <div className={cn("flex flex-wrap items-center justify-center gap-2", className)}>
         {cells.map((cell) => {
           const cls = cn(
             compact ? "h-5 min-w-[38px] px-1" : "h-6 min-w-[44px] px-1.5",
@@ -124,7 +124,7 @@ export function HabitHeatStrip({
   // ---- weekly: a month caption sits above the box that starts a new month ----
   if (frequency === "weekly") {
     return (
-      <div className={cn("flex flex-wrap items-end gap-1.5", className)}>
+      <div className={cn("flex flex-wrap items-end justify-center gap-1.5", className)}>
         {cells.map((cell, index) => {
           const prev = cells[index - 1];
           const showMonth =
@@ -203,7 +203,7 @@ export function HabitHeatStrip({
   const gridMax = compact ? "max-w-[228px]" : "max-w-[304px]";
 
   return (
-    <div className={cn("w-full", gridMax, className)}>
+    <div className={cn("mx-auto w-full", gridMax, className)}>
       {/* Weekday header — all seven, aligned with the columns below. */}
       <div className={cn("flex items-center", gap)}>
         <span className={cn(gutter, "shrink-0")} aria-hidden />
