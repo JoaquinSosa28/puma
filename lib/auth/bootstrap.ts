@@ -3,7 +3,7 @@
 import "server-only";
 import { insertUser } from "@/lib/db/users";
 import { insertSettings } from "@/lib/db/settings";
-import { ensureDefaultTag } from "@/lib/db/tags";
+import { ensureLifeTags } from "@/lib/db/tags";
 import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import { iso } from "@/lib/date";
 
@@ -43,5 +43,5 @@ export async function bootstrapNewUser(user: {
     tagAutoCleanDays: 30,
     tagsCleanedAt: null,
   });
-  await ensureDefaultTag(user.id);
+  await ensureLifeTags(user.id);
 }

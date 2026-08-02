@@ -12,7 +12,10 @@ import { createFromOmni, undoCreate } from "@/lib/actions/tasks";
 import { cn } from "@/lib/utils";
 import { useLifeView } from "@/components/shell/LifeAreaToggle";
 import { lifeAreaForCreate } from "@/lib/life-area";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  withLifeTags,
+} from "@/lib/life-area-sync";
 import { TagQuickPick, SelectedTagsTray } from "@/components/shell/TagQuickPick";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { PriorityQuickPick } from "@/components/shell/PriorityQuickPick";
@@ -284,14 +287,18 @@ export function OmniBox({
   // typed/picked work/personal tags override it (mirrors the server's derive
   // rule, so the chip is always truthful).
   const baseArea = lifeAreaForCreate(life);
-  const captureArea: EntityLifeArea =
-    type === "task" || type === "note"
-      ? deriveLifeAreaFromTags(
+  // Preview exactly what will be stored: the view's life tags get attached
+  // on create unless one was typed or picked explicitly.
+  const captureArea: EntityLifeArea = type === "task" || type === "note"
+    ? deriveLifeAreaFromTags(
+        withLifeTags(
           [...new Set([...selectedTagIds, ...parsed.tagIds])],
-          tags,
-          baseArea
-        )
-      : baseArea;
+          life,
+          tags
+        ),
+        tags
+      )
+    : baseArea;
   const lifeTint = LIFE_META[captureArea];
   // Only tint when the view (or a tag) pins an area; the Both view stays neutral.
   const showLifeSignal =
@@ -328,7 +335,7 @@ export function OmniBox({
         due: type === "task" ? taskDue : undefined,
         priority: type === "task" ? pickedPriority : undefined,
         goalCategory: type === "goal" ? capture.goalCategory : undefined,
-        lifeArea: lifeAreaForCreate(life),
+        lifeView: life,
         tagIds: taggable ? selectedTagIds : undefined,
       });
       if (!res.ok) {

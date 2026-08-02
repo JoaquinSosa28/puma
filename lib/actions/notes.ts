@@ -13,19 +13,28 @@ import {
   getNote,
 } from "@/lib/db/notes";
 import { insertTask } from "@/lib/db/tasks";
-import { listTags } from "@/lib/db/tags";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { listTags, ensureLifeTags } from "@/lib/db/tags";
+import {
+  deriveLifeAreaFromTags,
+  withLifeTags,
+} from "@/lib/life-area-sync";
+import type { LifeView } from "@/lib/types";
 
-export async function createNote(): Promise<ActionResult<{ id: string }>> {
+export async function createNote(
+  view: LifeView = "personal"
+): Promise<ActionResult<{ id: string }>> {
   const userId = await requireUserId();
   const { today: td } = await userToday();
+  await ensureLifeTags(userId);
+  const tags = await listTags(userId);
+  const tagIds = withLifeTags([], view, tags);
   const note = await insertNote({
     userId,
     title: "Untitled note",
     body: "",
-    tagIds: [],
+    tagIds,
     pinned: false,
-    lifeArea: "personal",
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     createdAt: td,
     updatedAt: td,
   });
@@ -99,7 +108,7 @@ export async function convertNoteToTask(id: string): Promise<ActionResult> {
     due: td,
     projectId: null,
     goalId: null,
-    lifeArea: deriveLifeAreaFromTags(note.tagIds, tags, note.lifeArea),
+    lifeArea: deriveLifeAreaFromTags(note.tagIds, tags),
     order: -Date.now(),
     createdAt: td,
     completedAt: null,

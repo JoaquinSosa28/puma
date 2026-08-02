@@ -1,21 +1,50 @@
 // Pure, no server-only import — unit-testable. Shared by every place that
-// mutates task/note tagIds so the "work"/"personal" special tags and
-// lifeArea never drift apart.
-import type { EntityLifeArea } from "@/lib/types";
+// mutates tagIds so the "work"/"personal" tags and lifeArea never drift apart.
+import type { EntityLifeArea, LifeArea, LifeView } from "@/lib/types";
 
 export const SPECIAL_LIFE_TAGS = ["work", "personal"] as const;
 
+/** Colours match the sidebar's Personal/Work toggle. */
+export const LIFE_TAG_COLORS: Record<
+  (typeof SPECIAL_LIFE_TAGS)[number],
+  string
+> = {
+  work: "oklch(0.58 0.14 245)",
+  personal: "oklch(0.55 0.16 274)",
+};
+
 /**
- * Derive a task/note's lifeArea from its tags. Only the special "work"/
- * "personal" tags (matched case-insensitively) drive this — both present
- * means "both", either alone means that area, and if NEITHER is present the
- * item's area is left as-is (tags are dynamic; their absence must never move
- * an item that was placed deliberately).
+ * Tags named "work" or "personal" are the life area itself — not ordinary
+ * labels. They can't be deleted, and every taggable thing carries at least one.
+ */
+export function isLifeTag(name: string): boolean {
+  return (SPECIAL_LIFE_TAGS as readonly string[]).includes(
+    name.trim().toLowerCase()
+  );
+}
+
+/**
+ * Which life tags a new item gets, given the view it was created in. Capturing
+ * in Both means it genuinely belongs to both, so it gets both tags rather than
+ * a third state stored somewhere else.
+ */
+export function lifeTagNamesForView(view: LifeView): string[] {
+  if (view === "work") return ["work"];
+  if (view === "personal") return ["personal"];
+  return ["personal", "work"];
+}
+
+/**
+ * Derive an item's lifeArea from its tags — the tags are the only input.
+ *
+ * Nothing should ever reach here untagged: every create path attaches the tags
+ * for the view it ran in. "personal" is the fallback for the case that
+ * shouldn't happen, because vanishing from every view is a far worse failure
+ * than showing up in the wrong one.
  */
 export function deriveLifeAreaFromTags(
   tagIds: string[],
-  tags: { id: string; name: string }[],
-  current: EntityLifeArea
+  tags: { id: string; name: string }[]
 ): EntityLifeArea {
   const nameById = new Map(tags.map((t) => [t.id, t.name.toLowerCase()]));
   const names = new Set(
@@ -25,6 +54,40 @@ export function deriveLifeAreaFromTags(
   const hasPersonal = names.has("personal");
   if (hasWork && hasPersonal) return "both";
   if (hasWork) return "work";
-  if (hasPersonal) return "personal";
-  return current;
+  return "personal";
+}
+
+/**
+ * Same rule for entities whose lifeArea has no "both" state. They still carry
+ * both tags when they belong to both; "personal" is simply the side they file
+ * under.
+ */
+export function deriveStrictLifeAreaFromTags(
+  tagIds: string[],
+  tags: { id: string; name: string }[]
+): LifeArea {
+  return deriveLifeAreaFromTags(tagIds, tags) === "work" ? "work" : "personal";
+}
+
+/**
+ * Add the life tags for `view` to a tag list. Used on create so nothing is ever
+ * stored without one. An explicit life tag already in the list wins over the
+ * view — typing "#work" while in Personal means work.
+ */
+export function withLifeTags(
+  tagIds: string[],
+  view: LifeView,
+  tags: { id: string; name: string }[]
+): string[] {
+  const nameById = new Map(tags.map((t) => [t.id, t.name.toLowerCase()]));
+  const present = new Set(tagIds.map((id) => nameById.get(id)));
+  if (present.has("work") || present.has("personal")) return [...tagIds];
+
+  const idsByName = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
+  const next = [...tagIds];
+  for (const name of lifeTagNamesForView(view)) {
+    const id = idsByName.get(name);
+    if (id && !next.includes(id)) next.push(id);
+  }
+  return next;
 }

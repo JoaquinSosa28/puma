@@ -1,4 +1,8 @@
 import { getDb } from "@/lib/mongodb";
+import {
+  SPECIAL_LIFE_TAGS,
+  LIFE_TAG_COLORS,
+} from "@/lib/life-area-sync";
 import { newId } from "@/lib/store/memory";
 import { toDto, type Tag, tagSchema } from "@/lib/schemas";
 import type { NoteDoc, TagDoc, TaskDoc } from "@/lib/schemas";
@@ -47,23 +51,29 @@ export async function insertTag(
 }
 
 /** Signup bootstrap: the "note" default tag every account starts with. */
-export async function ensureDefaultTag(userId: string): Promise<void> {
+/**
+ * The two life tags every account has. They carry the personal/work split, so
+ * they're created up front and can't be removed — see isLifeTag.
+ */
+export async function ensureLifeTags(userId: string): Promise<void> {
   const c = await col();
-  await c.updateOne(
-    { userId, name: "note" },
-    {
-      $setOnInsert: {
-        _id: newId(),
-        userId,
-        name: "note",
-        color: "#8a8580",
-        isDefault: true,
-        order: 0,
-        createdAt: iso(),
+  for (const [i, name] of SPECIAL_LIFE_TAGS.entries()) {
+    await c.updateOne(
+      { userId, name },
+      {
+        $setOnInsert: {
+          _id: newId(),
+          userId,
+          name,
+          color: LIFE_TAG_COLORS[name],
+          isDefault: true,
+          order: i,
+          createdAt: iso(),
+        },
       },
-    },
-    { upsert: true }
-  );
+      { upsert: true }
+    );
+  }
 }
 
 export async function updateTag(

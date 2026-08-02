@@ -15,7 +15,11 @@ import { getSettings } from "@/lib/db/settings";
 import { userToday } from "@/lib/timezone-server";
 import type { Task } from "@/lib/schemas";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  deriveStrictLifeAreaFromTags,
+  withLifeTags,
+} from "@/lib/life-area-sync";
 import { goalLifeArea } from "@/lib/life-area";
 import { entityId, title as titleField, noteBody } from "@/lib/validation";
 
@@ -26,7 +30,9 @@ const omniSchema = z.object({
   due: z.string().nullable().optional(),
   priority: z.enum(["low", "med", "high"]).optional(),
   goalCategory: z.enum(["personal", "professional"]).optional(),
-  lifeArea: z.enum(["personal", "work"]).optional(),
+  // The view, not a collapsed area: capturing in Both must be able to attach
+  // both life tags, which "personal" | "work" can't express.
+  lifeView: z.enum(["personal", "work", "both"]).optional(),
   tagIds: z.array(z.string()).optional(),
 });
 
@@ -43,7 +49,7 @@ export async function createFromOmni(
     due: dueOverride,
     priority: priorityOverride,
     goalCategory,
-    lifeArea,
+    lifeView,
     tagIds: pickedTagIds,
   } = parsed.data;
   const userId = await requireUserId();
@@ -57,10 +63,17 @@ export async function createFromOmni(
   const validPickedTagIds = (pickedTagIds ?? []).filter((id) =>
     tags.some((t) => t.id === id)
   );
-  const tagIds = [...new Set([...validPickedTagIds, ...p.tagIds, ...newTagIds])];
+  const view = lifeView ?? "personal";
+  // Every item leaves here carrying a life tag — that's the only thing the
+  // personal/work split reads from.
+  const tagIds = withLifeTags(
+    [...new Set([...validPickedTagIds, ...p.tagIds, ...newTagIds])],
+    view,
+    tags
+  );
   const title = p.title || text.trim();
 
-  const area = lifeArea ?? "personal";
+  const area = deriveStrictLifeAreaFromTags(tagIds, tags);
 
   if (type === "task") {
     const due =
@@ -78,7 +91,7 @@ export async function createFromOmni(
       due,
       projectId: project ? projectId! : null,
       goalId: null,
-      lifeArea: deriveLifeAreaFromTags(tagIds, tags, area),
+      lifeArea: deriveLifeAreaFromTags(tagIds, tags),
       order: -Date.now(),
       createdAt: td,
       completedAt: null,
@@ -93,16 +106,18 @@ export async function createFromOmni(
 
   if (type === "note") {
     const noteParsed = parseNoteCapture(text, tags, undefined, timeZone);
-    const noteTagIds = [
-      ...new Set([...validPickedTagIds, ...noteParsed.tagIds, ...newTagIds]),
-    ];
+    const noteTagIds = withLifeTags(
+      [...new Set([...validPickedTagIds, ...noteParsed.tagIds, ...newTagIds])],
+      view,
+      tags
+    );
     const note = await insertNote({
       userId,
       title: noteParsed.title,
       body: noteParsed.body,
       tagIds: noteTagIds,
       pinned: false,
-      lifeArea: deriveLifeAreaFromTags(noteTagIds, tags, area),
+      lifeArea: deriveLifeAreaFromTags(noteTagIds, tags),
       createdAt: td,
       updatedAt: td,
     });
@@ -163,7 +178,7 @@ const addTaskSchema = z.object({
   due: z.string().nullable().optional(),
   priority: z.enum(["low", "med", "high"]).optional(),
   projectId: z.string().nullable().optional(),
-  lifeArea: z.enum(["personal", "work"]).optional(),
+  lifeView: z.enum(["personal", "work", "both"]).optional(),
 });
 
 export async function addTask(
@@ -178,7 +193,11 @@ export async function addTask(
   const { timeZone, today: td } = await userToday();
   const p = parseOmni(parsed.data.text, tags, undefined, undefined, timeZone);
   const newTagIds = await ensureTags(userId, p.newTagNames);
-  const tagIds = [...new Set([...p.tagIds, ...newTagIds])];
+  const tagIds = withLifeTags(
+    [...new Set([...p.tagIds, ...newTagIds])],
+    parsed.data.lifeView ?? "personal",
+    tags
+  );
   // Stale clients may still point at a just-deleted project — don't relink it.
   const project = parsed.data.projectId
     ? await getProject(userId, parsed.data.projectId)
@@ -199,7 +218,7 @@ export async function addTask(
       defaultDue(p.due, settings?.defaultDueToday ?? true, td),
     projectId: project ? parsed.data.projectId! : null,
     goalId: null,
-    lifeArea: deriveLifeAreaFromTags(tagIds, tags, parsed.data.lifeArea ?? "personal"),
+    lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     order: -Date.now(),
     createdAt: td,
     completedAt: null,
@@ -406,7 +425,7 @@ export async function updateTaskDetail(
     const tagIds = patch.tagIds.filter((tid) => tags.some((t) => t.id === tid));
     tagPatch = {
       tagIds,
-      lifeArea: deriveLifeAreaFromTags(tagIds, tags, existing.lifeArea),
+      lifeArea: deriveLifeAreaFromTags(tagIds, tags),
     };
   }
 

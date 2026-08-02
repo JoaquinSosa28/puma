@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  withLifeTags,
+  isLifeTag,
+} from "@/lib/life-area-sync";
 import { filterByLifeView, filterGoalsByLifeView, goalLifeArea } from "@/lib/life-area";
 
 const tags = [
@@ -10,24 +14,22 @@ const tags = [
 
 describe("deriveLifeAreaFromTags", () => {
   it("both special tags -> both", () => {
-    expect(
-      deriveLifeAreaFromTags(["t-work", "t-personal"], tags, "personal")
-    ).toBe("both");
+    expect(deriveLifeAreaFromTags(["t-work", "t-personal"], tags)).toBe("both");
   });
 
   it("work tag only -> work", () => {
-    expect(deriveLifeAreaFromTags(["t-work"], tags, "personal")).toBe("work");
+    expect(deriveLifeAreaFromTags(["t-work"], tags)).toBe("work");
   });
 
   it("personal tag only -> personal", () => {
-    expect(deriveLifeAreaFromTags(["t-personal"], tags, "work")).toBe(
-      "personal"
-    );
+    expect(deriveLifeAreaFromTags(["t-personal"], tags)).toBe("personal");
   });
 
-  it("neither special tag present -> returns current unchanged", () => {
-    expect(deriveLifeAreaFromTags(["t-other"], tags, "both")).toBe("both");
-    expect(deriveLifeAreaFromTags([], tags, "work")).toBe("work");
+  it("falls back to personal when no life tag is present", () => {
+    // Shouldn't happen — every create path attaches one — but showing up in
+    // the wrong view beats vanishing from all of them.
+    expect(deriveLifeAreaFromTags(["t-other"], tags)).toBe("personal");
+    expect(deriveLifeAreaFromTags([], tags)).toBe("personal");
   });
 
   it("matches tag names case-insensitively", () => {
@@ -35,12 +37,56 @@ describe("deriveLifeAreaFromTags", () => {
       { id: "t-work", name: "Work" },
       { id: "t-personal", name: "PERSONAL" },
     ];
-    expect(deriveLifeAreaFromTags(["t-work"], upperTags, "personal")).toBe(
-      "work"
+    expect(deriveLifeAreaFromTags(["t-work"], upperTags)).toBe("work");
+    expect(deriveLifeAreaFromTags(["t-work", "t-personal"], upperTags)).toBe(
+      "both"
     );
-    expect(
-      deriveLifeAreaFromTags(["t-work", "t-personal"], upperTags, "personal")
-    ).toBe("both");
+  });
+});
+
+describe("withLifeTags", () => {
+  it("attaches the view's tag when none is set", () => {
+    expect(withLifeTags([], "work", tags)).toEqual(["t-work"]);
+    expect(withLifeTags([], "personal", tags)).toEqual(["t-personal"]);
+  });
+
+  it("attaches both in the Both view", () => {
+    expect(withLifeTags([], "both", tags)).toEqual(["t-personal", "t-work"]);
+  });
+
+  it("leaves an explicit life tag alone", () => {
+    // "#work" typed while sitting in Personal means work.
+    expect(withLifeTags(["t-work"], "personal", tags)).toEqual(["t-work"]);
+    expect(withLifeTags(["t-personal"], "work", tags)).toEqual(["t-personal"]);
+  });
+
+  it("keeps ordinary tags and never duplicates", () => {
+    expect(withLifeTags(["t-other"], "work", tags)).toEqual([
+      "t-other",
+      "t-work",
+    ]);
+    expect(withLifeTags(["t-other", "t-work"], "work", tags)).toEqual([
+      "t-other",
+      "t-work",
+    ]);
+  });
+
+  it("guarantees a life tag for every view", () => {
+    for (const view of ["personal", "work", "both"] as const) {
+      const out = withLifeTags(["t-other"], view, tags);
+      expect(
+        out.includes("t-work") || out.includes("t-personal"),
+        `view ${view} produced no life tag`
+      ).toBe(true);
+    }
+  });
+});
+
+describe("isLifeTag", () => {
+  it("recognises the two protected names, whatever the casing", () => {
+    expect(isLifeTag("work")).toBe(true);
+    expect(isLifeTag(" Personal ")).toBe(true);
+    expect(isLifeTag("idea")).toBe(false);
   });
 });
 

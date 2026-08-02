@@ -20,7 +20,10 @@ import { getCaptureContext } from "@/lib/capture-context";
 import { createFromOmni, undoCreate } from "@/lib/actions/tasks";
 import { useLifeView } from "@/components/shell/LifeAreaToggle";
 import { lifeAreaForCreate } from "@/lib/life-area";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  withLifeTags,
+} from "@/lib/life-area-sync";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { sectionMetaFor } from "@/components/shell/MobileDock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -152,11 +155,16 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
   const parsed = parseOmni(text, tags, undefined, undefined, timeZone);
 
   const baseArea = lifeAreaForCreate(life);
+  // Preview exactly what will be stored: the view's life tags get attached
+  // on create unless one was typed or picked explicitly.
   const captureArea: EntityLifeArea = taggable
     ? deriveLifeAreaFromTags(
-        [...new Set([...selectedTagIds, ...parsed.tagIds])],
-        tags,
-        baseArea
+        withLifeTags(
+          [...new Set([...selectedTagIds, ...parsed.tagIds])],
+          life,
+          tags
+        ),
+        tags
       )
     : baseArea;
   const lifeTint = LIFE_META[captureArea];
@@ -197,7 +205,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
         due: type === "task" ? parsed.due ?? pickedDue ?? undefined : undefined,
         priority: type === "task" ? pickedPriority : undefined,
         goalCategory: type === "goal" ? capture.goalCategory : undefined,
-        lifeArea: lifeAreaForCreate(life),
+        lifeView: life,
         tagIds: taggable ? selectedTagIds : undefined,
       });
       if (!res.ok) {

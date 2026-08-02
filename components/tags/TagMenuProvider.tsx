@@ -171,7 +171,7 @@ export function TagMenuProvider({
       ? [...tagIds, tagId]
       : tagIds.filter((id) => id !== tagId);
     setTagIds(nextTagIds);
-    setMenuArea((prev) => deriveLifeAreaFromTags(nextTagIds, tags, prev));
+    setMenuArea(deriveLifeAreaFromTags(nextTagIds, tags));
     const res = await toggleEntityTag(menu.entity, menu.id, tagId);
     setPending(false);
     if (!res.ok) {
@@ -193,7 +193,7 @@ export function TagMenuProvider({
         await toggleEntityTag(menu.entity, menu.id, existing.id);
         const nextTagIds = [...tagIds, existing.id];
         setTagIds(nextTagIds);
-        setMenuArea((prev) => deriveLifeAreaFromTags(nextTagIds, tags, prev));
+        setMenuArea(deriveLifeAreaFromTags(nextTagIds, tags));
       }
       setPending(false);
       setAdding(false);
@@ -210,9 +210,7 @@ export function TagMenuProvider({
     await toggleEntityTag(menu.entity, menu.id, res.data!.id);
     const nextTagIds = [...tagIds, res.data!.id];
     setTagIds(nextTagIds);
-    setMenuArea((prev) =>
-      deriveLifeAreaFromTags(nextTagIds, [...tags, res.data!], prev)
-    );
+    setMenuArea(deriveLifeAreaFromTags(nextTagIds, [...tags, res.data!]));
     setMenuTags((prev) => [...prev, res.data!]);
     setPending(false);
     setAdding(false);

@@ -199,7 +199,7 @@ export async function applyPlan(
         due: t.due ?? td,
         projectId: resolveProject(t.projectRef),
         goalId: resolveGoal(t.goalRef),
-        lifeArea: deriveLifeAreaFromTags(tagIds, tagRefs, t.lifeArea),
+        lifeArea: deriveLifeAreaFromTags(tagIds, tagRefs),
         order: -Date.now(),
         createdAt: td,
         completedAt: null,
@@ -218,7 +218,7 @@ export async function applyPlan(
         body: n.body,
         tagIds,
         pinned: false,
-        lifeArea: deriveLifeAreaFromTags(tagIds, tagRefs, n.lifeArea),
+        lifeArea: deriveLifeAreaFromTags(tagIds, tagRefs),
         createdAt: td,
         updatedAt: td,
       });

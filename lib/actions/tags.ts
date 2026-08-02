@@ -14,7 +14,7 @@ import { listNotes } from "@/lib/db/notes";
 import { getSettings, updateSettings } from "@/lib/db/settings";
 import type { TagDoc } from "@/lib/schemas";
 import { cssColor, entityId, tagName } from "@/lib/validation";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { deriveLifeAreaFromTags, isLifeTag } from "@/lib/life-area-sync";
 
 export type TaggableEntity = "task" | "note";
 
@@ -46,7 +46,7 @@ export async function toggleEntityTag(
     const tagIds = applied
       ? [...task.tagIds, tag]
       : task.tagIds.filter((x) => x !== tag);
-    const lifeArea = deriveLifeAreaFromTags(tagIds, tags, task.lifeArea);
+    const lifeArea = deriveLifeAreaFromTags(tagIds, tags);
     await updateTask(userId, id, { tagIds, lifeArea });
     revalidatePath("/", "layout");
     return { ok: true, data: { applied } };
@@ -58,7 +58,7 @@ export async function toggleEntityTag(
   const tagIds = applied
     ? [...note.tagIds, tag]
     : note.tagIds.filter((x) => x !== tag);
-  const lifeArea = deriveLifeAreaFromTags(tagIds, tags, note.lifeArea);
+  const lifeArea = deriveLifeAreaFromTags(tagIds, tags);
   const { today: updatedAt } = await userToday();
   await updateNote(userId, id, { tagIds, lifeArea, updatedAt });
   revalidatePath("/", "layout");
@@ -87,6 +87,14 @@ export async function updateTagAction(input: {
   if (!Object.keys(patch).length) return { ok: false, error: "Nothing to update" };
 
   const userId = await requireUserId();
+  if (patch.name !== undefined) {
+    const existing = (await listTags(userId)).find((t) => t.id === id);
+    // The derivation matches life tags by name, so a rename would silently
+    // orphan every item carrying it. Recolouring is fine.
+    if (existing && isLifeTag(existing.name)) {
+      return { ok: false, error: `"${existing.name}" is a life tag and can't be renamed` };
+    }
+  }
   const updated = await updateTag(userId, id, patch);
   if (!updated) {
     return { ok: false, error: patch.name ? "Name already in use" : "Not found" };
@@ -103,6 +111,11 @@ export async function deleteTagAction(id: string): Promise<ActionResult> {
   const tags = await listTags(userId);
   const tag = tags.find((t) => t.id === parsed.data);
   if (!tag) return { ok: false, error: "Not found" };
+  // personal/work aren't labels, they're the life area itself — removing one
+  // would leave everything carrying it with nowhere to belong.
+  if (isLifeTag(tag.name)) {
+    return { ok: false, error: `"${tag.name}" is a life tag and can't be deleted` };
+  }
   if (tag.isDefault) {
     return { ok: false, error: "Default tags can't be deleted" };
   }
@@ -124,7 +137,9 @@ async function findUnusedTags(userId: string) {
   const used = new Set<string>();
   for (const t of tasks) for (const id of t.tagIds) used.add(id);
   for (const n of notes) for (const id of n.tagIds) used.add(id);
-  return tags.filter((t) => !t.isDefault && !used.has(t.id));
+  return tags.filter(
+    (t) => !t.isDefault && !isLifeTag(t.name) && !used.has(t.id)
+  );
 }
 
 /** Rebuild the storable doc from a DTO so an undo can restore it verbatim. */
