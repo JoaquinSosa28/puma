@@ -13,6 +13,7 @@ import { listAgenda } from "@/lib/db/agenda";
 import { getUser } from "@/lib/db/users";
 import { getSettings } from "@/lib/db/settings";
 import { iso, addDays } from "@/lib/date";
+import { buildAggregates } from "@/lib/ai/aggregates";
 import { pickTimezone, readTimezoneCookie } from "@/lib/timezone-server";
 
 // ~chars; roughly THRESHOLD/4 tokens. Above this we trim to the recent slice.
@@ -108,6 +109,17 @@ export async function buildUserSnapshot(userId: string): Promise<SnapshotResult>
   const tagName = new Map(tags.map((t) => [t.id, t.name]));
   const habitName = new Map(habits.map((h) => [h.id, h.name]));
 
+  const aggregates = buildAggregates({
+    tasks,
+    habits,
+    entries,
+    projects,
+    goals,
+    tags,
+    today,
+    timezone,
+  });
+
   const build = (full: boolean) => {
     const sinceEntry = iso(addDays(-ENTRY_DAYS, new Date(), timezone), timezone);
     const sinceDone = iso(addDays(-DONE_DAYS, new Date(), timezone), timezone);
@@ -122,6 +134,9 @@ export async function buildUserSnapshot(userId: string): Promise<SnapshotResult>
     return {
       today,
       timezone,
+      // Precomputed by our code — the model must use these for any statistic
+      // rather than re-counting the raw rows below.
+      aggregates,
       user: { name: user?.name ?? null },
       settings: {
         weekStart: settings?.weekStart ?? "mon",

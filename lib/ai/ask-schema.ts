@@ -80,6 +80,45 @@ const tableWidget = z.object({
   rows: z.array(z.array(z.string())),
 });
 
+const pieWidget = z.object({
+  type: z.literal("pie"),
+  title: z.string(),
+  span,
+  // Donut slices. Values are absolute (hours, counts) — the widget derives the
+  // percentages, so the legend can show both without the model doing division.
+  slices: z.array(
+    z.object({
+      label: z.string(),
+      value: z.number(),
+      ...focusFields,
+    })
+  ),
+  unit: z.string().nullable().optional(),
+  centerLabel: z.string().nullable().optional(),
+});
+
+const lineWidget = z.object({
+  type: z.literal("line"),
+  title: z.string(),
+  span,
+  points: z.array(z.object({ label: z.string(), value: z.number() })),
+  unit: z.string().nullable().optional(),
+});
+
+const progressWidget = z.object({
+  type: z.literal("progress"),
+  title: z.string(),
+  span,
+  rows: z.array(
+    z.object({
+      label: z.string(),
+      // 0..100
+      percent: z.number(),
+      ...focusFields,
+    })
+  ),
+});
+
 export const widgetSchema = z.discriminatedUnion("type", [
   textWidget,
   statWidget,
@@ -87,6 +126,9 @@ export const widgetSchema = z.discriminatedUnion("type", [
   listWidget,
   calendarWidget,
   tableWidget,
+  pieWidget,
+  lineWidget,
+  progressWidget,
 ]);
 
 export const askAnswerSchema = z.object({
