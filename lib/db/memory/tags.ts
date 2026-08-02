@@ -48,7 +48,6 @@ export async function insertTag(
   return toDto(tagSchema.parse(tag));
 }
 
-/** Signup bootstrap: the "note" default tag every account starts with. */
 /**
  * The two life tags every account has. They carry the personal/work split, so
  * they're created up front and can't be removed — see isLifeTag.

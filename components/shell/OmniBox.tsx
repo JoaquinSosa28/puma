@@ -22,7 +22,7 @@ import { PriorityQuickPick } from "@/components/shell/PriorityQuickPick";
 import type { TaskPriority } from "@/lib/types";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
-import { completeOmniToken } from "@/lib/omni-complete";
+import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import { RESERVED_WORDS } from "@/lib/omni-reserved";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -192,6 +192,12 @@ export function OmniBox({
   // hits the node on its way out — so the request is recorded here and honoured
   // in an effect, once the new input actually exists.
   const wantFocusRef = useRef(false);
+  /** Where the last Tab completion left the caret, and which option it showed. */
+  const rotateRef = useRef<{
+    from: string;
+    index: number;
+    base: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!wantFocusRef.current) return;
@@ -235,14 +241,32 @@ export function OmniBox({
       // intent, and there's nothing to complete the rest of the time.
       const el = inputRef.current;
       if (el && active === el && !e.shiftKey) {
+        const caretNow = el.selectionStart ?? el.value.length;
+        const before = el.value.slice(0, caretNow);
+        // Tab again on the same token steps to the next option; touching the
+        // text at all starts the cycle over from the narrowed set.
+        const again = rotateRef.current?.from === before;
         const done = completeOmniToken(
           el.value,
-          el.selectionStart ?? el.value.length,
-          [...tags.map((t) => t.name), ...RESERVED_WORDS]
+          caretNow,
+          [...tags.map((t) => t.name), ...RESERVED_WORDS],
+          again ? rotateRef.current!.index + 1 : undefined,
+          again ? rotateRef.current!.base : undefined
         );
         if (done) {
           e.preventDefault();
           setText(done.text);
+          rotateRef.current = done.exact
+            ? null
+            : {
+                from: done.text.slice(0, done.caret),
+                index: again ? rotateRef.current!.index + 1 : 0,
+                // The partial as first typed — the cycle is over that set, not
+                // over whatever the last press wrote in.
+                base: again
+                  ? rotateRef.current!.base
+                  : (tokenAtCaret(el.value, caretNow)?.word ?? ""),
+              };
           requestAnimationFrame(() => {
             el.setSelectionRange(done.caret, done.caret);
           });

@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   tokenAtCaret,
-  bestCompletion,
+  candidatesFor,
+  commonPrefix,
   completeOmniToken,
 } from "@/lib/omni-complete";
 
 const tags = [
-  "game-dev-ops",
-  "game-design",
+  "website-app",
+  "website-site",
+  "website-store",
   "art",
   "work",
   "personal",
@@ -17,8 +19,11 @@ const tags = [
 
 describe("tokenAtCaret", () => {
   it("finds the partial tag being typed", () => {
-    const t = tokenAtCaret("review #game", 12);
-    expect(t).toEqual({ prefix: "#", word: "game", start: 7 });
+    expect(tokenAtCaret("review #web", 11)).toEqual({
+      prefix: "#",
+      word: "web",
+      start: 7,
+    });
   });
 
   it("finds a partial priority", () => {
@@ -26,7 +31,6 @@ describe("tokenAtCaret", () => {
   });
 
   it("ignores tokens the caret has moved past", () => {
-    // Caret is after "and", not inside the tag.
     expect(tokenAtCaret("#art and", 8)).toBeNull();
   });
 
@@ -35,53 +39,100 @@ describe("tokenAtCaret", () => {
   });
 });
 
-describe("bestCompletion", () => {
-  it("prefers the longest prefix match", () => {
-    // Both start with "game"; the longer one wins.
-    expect(bestCompletion("game", tags)).toBe("game-dev-ops");
+describe("candidatesFor", () => {
+  it("returns everything still possible", () => {
+    expect(candidatesFor("website", tags)).toEqual([
+      "website-app",
+      "website-site",
+      "website-store",
+    ]);
   });
 
-  it("narrows as you type more", () => {
-    expect(bestCompletion("game-dev", tags)).toBe("game-dev-ops");
-    expect(bestCompletion("game-des", tags)).toBe("game-design");
+  it("narrows as more is typed", () => {
+    expect(candidatesFor("website-s", tags)).toEqual([
+      "website-site",
+      "website-store",
+    ]);
   });
 
-  it("prefers a prefix match over a mere substring", () => {
-    // "ai-tools" starts with it; "open-ai" only contains it.
-    expect(bestCompletion("ai", tags)).toBe("ai-tools");
+  it("prefers prefix matches over substrings", () => {
+    // "open-ai" contains "ai" but "ai-tools" starts with it.
+    expect(candidatesFor("ai", tags)).toEqual(["ai-tools"]);
   });
 
-  it("falls back to a substring when nothing starts with it", () => {
-    expect(bestCompletion("pen", tags)).toBe("open-ai");
+  it("falls back to substrings when nothing starts with it", () => {
+    expect(candidatesFor("pen", tags)).toEqual(["open-ai"]);
+  });
+});
+
+describe("commonPrefix", () => {
+  it("returns what every option agrees on", () => {
+    expect(commonPrefix(["website-app", "website-site"])).toBe("website-");
   });
 
-  it("returns null when already complete or unmatched", () => {
-    expect(bestCompletion("art", ["art"])).toBeNull();
-    expect(bestCompletion("zzz", tags)).toBeNull();
-    expect(bestCompletion("", tags)).toBeNull();
+  it("handles one option and none", () => {
+    expect(commonPrefix(["art"])).toBe("art");
+    expect(commonPrefix([])).toBe("");
+  });
+
+  it("is empty when nothing is shared", () => {
+    expect(commonPrefix(["art", "work"])).toBe("");
   });
 });
 
 describe("completeOmniToken", () => {
-  it("completes a tag in place", () => {
-    const out = completeOmniToken("review #game", 12, tags);
-    expect(out?.text).toBe("review #game-dev-ops");
-    expect(out?.caret).toBe(20);
+  it("fills in only as far as the options agree", () => {
+    const out = completeOmniToken("review #web", 11, tags);
+    expect(out?.text).toBe("review #website-");
+    expect(out?.exact).toBe(false);
+    // No trailing space: the tag isn't finished yet.
+    expect(out?.caret).toBe(16);
   });
 
-  it("completes priorities from the ! prefix", () => {
+  it("finishes and spaces out when one option is left", () => {
+    const out = completeOmniToken("review #ar", 10, tags);
+    expect(out?.text).toBe("review #art ");
+    expect(out?.exact).toBe(true);
+    // Caret sits after the space, ready for prose.
+    expect(out?.caret).toBe(12);
+  });
+
+  it("rotates through the options on repeat presses", () => {
+    const first = completeOmniToken("x #website-", 11, tags, 0);
+    const second = completeOmniToken("x #website-", 11, tags, 1);
+    const third = completeOmniToken("x #website-", 11, tags, 2);
+    expect([first?.completion, second?.completion, third?.completion]).toEqual([
+      "website-app",
+      "website-site",
+      "website-store",
+    ]);
+  });
+
+  it("wraps around when rotating past the end", () => {
+    expect(completeOmniToken("x #website-", 11, tags, 3)?.completion).toBe(
+      "website-app"
+    );
+  });
+
+  it("narrows again once more is typed", () => {
+    // "website-st" leaves only one, so it finishes outright.
+    const out = completeOmniToken("x #website-st", 13, tags);
+    expect(out?.text).toBe("x #website-store ");
+    expect(out?.exact).toBe(true);
+  });
+
+  it("completes priorities and spaces them out", () => {
     expect(completeOmniToken("pay rent !hi", 12, tags)?.text).toBe(
-      "pay rent !high"
+      "pay rent !high "
     );
     expect(completeOmniToken("pay rent !m", 11, tags)?.text).toBe(
-      "pay rent !mid"
+      "pay rent !mid "
     );
   });
 
-  it("keeps text after the caret", () => {
-    const out = completeOmniToken("review #game later", 12, tags);
-    expect(out?.text).toBe("review #game-dev-ops later");
-    expect(out?.caret).toBe(20);
+  it("keeps text after the caret and doesn't double a space", () => {
+    const out = completeOmniToken("review #ar later", 10, tags);
+    expect(out?.text).toBe("review #art later");
   });
 
   it("does nothing when there's nothing to complete", () => {
@@ -91,7 +142,32 @@ describe("completeOmniToken", () => {
   });
 
   it("never completes a priority to a tag name", () => {
-    // "!game" has no priority match, so it stays put.
-    expect(completeOmniToken("x !game", 7, tags)).toBeNull();
+    expect(completeOmniToken("x !website", 10, tags)).toBeNull();
+  });
+});
+
+describe("rotation over the originally typed prefix", () => {
+  it("keeps cycling the full set after the first press rewrote the token", () => {
+    // First press on "#web" fills the shared prefix.
+    const first = completeOmniToken("x #web", 6, tags);
+    expect(first?.text).toBe("x #website-");
+
+    // Second press must still see all three, not just what "website-" matches
+    // after the rewrite — that's why baseWord is threaded through.
+    const second = completeOmniToken(first!.text, first!.caret, tags, 1, "web");
+    const third = completeOmniToken(first!.text, first!.caret, tags, 2, "web");
+    expect([second?.completion, third?.completion]).toEqual([
+      "website-site",
+      "website-store",
+    ]);
+  });
+
+  it("rotates from a prefix that adds nothing", () => {
+    // "h" is already the shared prefix of health/home-*, so it cycles at once.
+    const pool = ["health", "home-office-setup"];
+    expect(completeOmniToken("x #h", 4, pool)?.completion).toBe("health");
+    expect(completeOmniToken("x #health", 9, pool, 1, "h")?.completion).toBe(
+      "home-office-setup"
+    );
   });
 });

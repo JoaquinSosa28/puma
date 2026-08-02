@@ -93,7 +93,11 @@ export const OmniHighlightInput = forwardRef<HTMLInputElement, Props>(
           >
             {tokens.map((token, i) => {
               if (token.kind === "text") {
-                return <span key={i}>{token.text}</span>;
+                return (
+                  <span key={i} className={token.bold ? "font-bold" : undefined}>
+                    {token.text}
+                  </span>
+                );
               }
               if (token.kind === "tag") {
                 return (

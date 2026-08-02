@@ -267,7 +267,7 @@ export function toggleTagInText(text: string, tagName: string): string {
 }
 
 export type OmniInputToken =
-  | { kind: "text"; text: string }
+  | { kind: "text"; text: string; bold?: boolean }
   | {
       kind: "tag";
       text: string;
@@ -340,5 +340,57 @@ export function tokenizeOmniInput(
     segments.push({ kind: "text", text: text.slice(cursor) });
   }
 
-  return segments.length ? segments : text ? [{ kind: "text", text }] : [];
+  const built: OmniInputToken[] = segments.length
+    ? segments
+    : text
+      ? [{ kind: "text", text }]
+      : [];
+  return boldTitleBeforeColon(built, text);
+}
+
+/**
+ * Where "title: description" splits, in raw-text coordinates.
+ *
+ * Same rule as splitDescription — a colon followed by whitespace — so what
+ * looks like the title while typing is exactly what gets stored as one.
+ */
+export function descriptionColonIndex(text: string): number | null {
+  const m = text.match(/^([^:]+?):\s/);
+  return m ? m[1].length : null;
+}
+
+/**
+ * Weight the title half of a "title: description" capture.
+ *
+ * Only plain text is split; a tag or priority straddling the colon keeps its
+ * own styling, which is fine — they aren't part of either half.
+ */
+function boldTitleBeforeColon(
+  segments: OmniInputToken[],
+  text: string
+): OmniInputToken[] {
+  const colon = descriptionColonIndex(text);
+  if (colon === null) return segments;
+
+  const out: OmniInputToken[] = [];
+  let offset = 0;
+  for (const token of segments) {
+    const start = offset;
+    const end = offset + token.text.length;
+    offset = end;
+
+    if (token.kind !== "text" || start >= colon) {
+      out.push(token);
+      continue;
+    }
+    if (end <= colon) {
+      out.push({ ...token, bold: true });
+      continue;
+    }
+    // The colon lands inside this run — split it so only the title bolds.
+    const cut = colon - start;
+    out.push({ kind: "text", text: token.text.slice(0, cut), bold: true });
+    out.push({ kind: "text", text: token.text.slice(cut) });
+  }
+  return out;
 }

@@ -37,7 +37,6 @@ export function createSeedData(userId: string): SeedData {
   const yd = iso(addDays(-1));
 
   const tagDefs: [string, string, boolean][] = [
-    ["note", "#8a8580", true],
     ["idea", "oklch(0.58 0.17 300)", false],
     ["work", "oklch(0.58 0.14 245)", false],
     ["health", "oklch(0.6 0.13 155)", false],
@@ -126,6 +125,21 @@ export function createSeedData(userId: string): SeedData {
       createdAt: td,
     });
   }
+
+  /** Everything carries the life tag its area implies — same rule as the app. */
+  const withLife = <T extends { lifeArea: string; tagIds: string[] }>(
+    rows: T[]
+  ): T[] =>
+    rows.map((row) => {
+      const wanted =
+        row.lifeArea === "both"
+          ? ["personal", "work"]
+          : row.lifeArea === "work"
+            ? ["work"]
+            : ["personal"];
+      const add = wanted.map(T).filter((id) => !row.tagIds.includes(id));
+      return add.length ? { ...row, tagIds: [...row.tagIds, ...add] } : row;
+    });
 
   const tasks = [
     {
@@ -497,7 +511,7 @@ export function createSeedData(userId: string): SeedData {
       userId,
       title: "Gift ideas for Sam's birthday",
       body: "Books, that lamp she liked, a weekend trip.",
-      tagIds: [T("note")],
+      tagIds: [T("personal"), T("idea")],
       pinned: false,
       lifeArea: "personal",
       createdAt: yd,
@@ -597,10 +611,10 @@ export function createSeedData(userId: string): SeedData {
     users: [user],
     settings: [settings],
     tags,
-    tasks: tasks.map((t) => taskSchema.parse(t)),
+    tasks: withLife(tasks).map((t) => taskSchema.parse(t)),
     habits,
     habitEntries,
-    notes,
+    notes: withLife(notes),
     goals,
     projects,
     agenda,
