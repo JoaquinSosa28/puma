@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
 import { Check } from "lucide-react";
 import type { Habit, HabitEntry } from "@/lib/schemas";
-import { iso, weekDates, streakOf, dowLetters, type WeekStart } from "@/lib/date";
+import { iso, weekDates, dowLetters, type WeekStart } from "@/lib/date";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { toggleHabitPeriod } from "@/lib/actions/habits";
 import {
   currentHabitPeriod,
+  habitStreak,
   normalizeHabitFrequency,
 } from "@/lib/habit-visibility";
 import { cn } from "@/lib/utils";
@@ -114,7 +115,7 @@ export function HomeHabitsGoals({
             const doneToday = [...set].some(
               (d) => d >= period.start && d <= period.end
             );
-            const streak = streakOf(set, td, timeZone);
+            const streak = habitStreak(freq, set, weekStart, td);
             return (
               <div key={h.id} className={habitWeekRowClass}>
                 <button

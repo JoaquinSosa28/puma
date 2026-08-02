@@ -72,7 +72,7 @@ export function habitsDoneToday(
 export function topStreak(
   habits: Habit[],
   habitEntries: HabitEntry[],
-  streakFn: (dates: Set<string>) => number
+  streakFn: (dates: Set<string>, habit: Habit) => number
 ): number {
   return Math.max(
     0,
@@ -80,7 +80,7 @@ export function topStreak(
       const set = new Set(
         habitEntries.filter((e) => e.habitId === h.id).map((e) => e.date)
       );
-      return streakFn(set);
+      return streakFn(set, h);
     })
   );
 }

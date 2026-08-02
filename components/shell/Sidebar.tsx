@@ -25,6 +25,7 @@ import {
 } from "./LifeAreaToggle";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { PumaWordmark } from "@/components/shell/PumaWordmark";
+import { AboutPumaButton } from "@/components/shell/AboutPumaButton";
 import { DemoBanner } from "@/components/shell/DemoBanner";
 import type { Tag, Task, Note } from "@/lib/schemas";
 
@@ -79,6 +80,7 @@ export function Sidebar({
           P
         </div>
         <PumaWordmark className="text-[15px] font-bold tracking-tight" />
+        <AboutPumaButton />
         <div className="ml-auto">
           <ThemeToggle />
         </div>

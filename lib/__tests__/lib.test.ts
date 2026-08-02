@@ -13,7 +13,9 @@ import { quarterOf, formatTopbarDateLine } from "@/lib/date-context";
 import {
   DEFAULT_HABIT_VISIBILITY,
   currentHabitPeriod,
+  habitBestStreak,
   habitHeatCells,
+  habitStreak,
 } from "@/lib/habit-visibility";
 import type { Tag } from "@/lib/schemas";
 
@@ -312,5 +314,48 @@ describe("habit periods", () => {
       start: "2026-07-01",
       end: "2026-07-31",
     });
+  });
+});
+
+describe("habit streaks count the habit's own units", () => {
+  it("two consecutive weeks is a streak of 2, not 1", () => {
+    // One entry in each of the last two weeks (Tue, then Tue before).
+    const entries = new Set(["2026-07-21", "2026-07-14"]);
+    expect(habitStreak("weekly", entries, "mon", "2026-07-25")).toBe(2);
+    // The old day-based count saw two non-adjacent days.
+    expect(streakOf(entries, "2026-07-25")).toBe(0);
+  });
+
+  it("two months clicked is a streak of 2, not 3", () => {
+    const entries = new Set(["2026-07-04", "2026-06-19"]);
+    expect(habitStreak("monthly", entries, "mon", "2026-07-25")).toBe(2);
+  });
+
+  it("an unfinished current period does not break the streak", () => {
+    // Nothing this week yet, but the two prior weeks are done.
+    const entries = new Set(["2026-07-14", "2026-07-07"]);
+    expect(habitStreak("weekly", entries, "mon", "2026-07-25")).toBe(2);
+  });
+
+  it("a missed period ends the streak", () => {
+    // Week of Jul 20 done, week of Jul 13 skipped, week of Jul 6 done.
+    const entries = new Set(["2026-07-21", "2026-07-07"]);
+    expect(habitStreak("weekly", entries, "mon", "2026-07-25")).toBe(1);
+  });
+
+  it("daily behaves like before", () => {
+    const entries = new Set(["2026-07-25", "2026-07-24", "2026-07-23"]);
+    expect(habitStreak("daily", entries, "mon", "2026-07-25")).toBe(3);
+  });
+
+  it("best streak is the longest run of periods", () => {
+    // Jun 1, Jul 1, Aug 1 done, then a gap, then Nov 1.
+    const entries = new Set([
+      "2026-06-02",
+      "2026-07-02",
+      "2026-08-02",
+      "2026-11-02",
+    ]);
+    expect(habitBestStreak("monthly", entries, "mon")).toBe(3);
   });
 });

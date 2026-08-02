@@ -5,7 +5,7 @@ import { useQueryState } from "nuqs";
 import { Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Goal, Habit, HabitEntry } from "@/lib/schemas";
-import { iso, streakOf, bestStreak, type WeekStart } from "@/lib/date";
+import { iso, type WeekStart } from "@/lib/date";
 import {
   toggleHabitPeriod,
   archiveHabit,
@@ -21,6 +21,8 @@ import { HabitHeatStrip } from "@/components/habits/HabitHeatStrip";
 import {
   habitFrequencyLabel,
   currentHabitPeriod,
+  habitBestStreak,
+  habitStreak,
   normalizeHabitFrequency,
   type HabitFrequencyType,
   type HabitVisibilitySettings,
@@ -270,12 +272,14 @@ export function HabitsView({
                 <div className="flex items-center gap-5 border-t border-border2 pt-2.5">
                   <div className="text-center">
                     <div className="text-lg font-extrabold text-habits">
-                      {streakOf(set, td, timeZone)}
+                      {habitStreak(frequency, set, weekStart, td)}
                     </div>
                     <div className="font-mono text-[9px] text-faint">STREAK</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-lg font-extrabold">{bestStreak(set)}</div>
+                    <div className="text-lg font-extrabold">
+                      {habitBestStreak(frequency, set, weekStart)}
+                    </div>
                     <div className="font-mono text-[9px] text-faint">BEST</div>
                   </div>
                   <span className="ml-auto font-mono text-[9px] uppercase tracking-wide text-faint">

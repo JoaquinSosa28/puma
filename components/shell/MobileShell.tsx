@@ -1,6 +1,7 @@
 "use client";
 
 import { DemoBanner } from "@/components/shell/DemoBanner";
+import { AboutPumaButton } from "@/components/shell/AboutPumaButton";
 
 /**
  * Phone header: just the brand row. Navigation lives in the floating dock
@@ -23,6 +24,7 @@ export function MobileShell({
           P
         </span>
         <span className="text-[15px] font-extrabold tracking-tight">P.U.M.A</span>
+        <AboutPumaButton />
         {demo && <DemoBanner expiresAt={demo.expiresAt} className="ml-auto" />}
       </div>
     </div>

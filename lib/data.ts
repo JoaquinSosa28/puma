@@ -15,7 +15,11 @@ import {
   habitsDoneToday,
   topStreak,
 } from "@/lib/metrics";
-import { streakOf, iso } from "@/lib/date";
+import { iso } from "@/lib/date";
+import {
+  habitStreak,
+  normalizeHabitFrequency,
+} from "@/lib/habit-visibility";
 import { resolveTimezoneFromSettings } from "@/lib/timezone-server";
 import { computeGoalProgress } from "@/lib/goal-sync";
 import {
@@ -183,7 +187,15 @@ const loadAppDataForView = cache(async (lifeView: LifeView) => {
     stats: {
       dayPct: dayDonePercent(tasks, habits, habitEntries, td),
       habitsLabel: habitsDoneToday(habits, habitEntries, td).label,
-      topStreak: topStreak(habits, habitEntries, (set) => streakOf(set, td)),
+      topStreak: topStreak(habits, habitEntries, (set, h) =>
+        // Compare like with like: a weekly habit's streak counts weeks.
+        habitStreak(
+          normalizeHabitFrequency(h.frequency.type),
+          set,
+          core.settings?.weekStart ?? "mon",
+          td
+        )
+      ),
     },
   };
 });

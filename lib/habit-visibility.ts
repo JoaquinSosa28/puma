@@ -236,3 +236,81 @@ export function currentHabitPeriod(
   const last = cells[cells.length - 1];
   return { start: last.periodStart, end: last.periodEnd };
 }
+
+/** Canonical start date of the period that contains `date`. */
+export function habitPeriodKey(
+  frequency: HabitFrequencyType,
+  date: string,
+  weekStart: WeekStart
+): string {
+  const d = new Date(date.slice(0, 10) + "T00:00");
+  if (frequency === "monthly") return `${date.slice(0, 7)}-01`;
+  if (frequency === "weekly") return iso(weekStartDate(d, weekStart));
+  return date.slice(0, 10);
+}
+
+/** Move a period key forward/back by `delta` periods. */
+export function stepHabitPeriod(
+  frequency: HabitFrequencyType,
+  key: string,
+  delta: number
+): string {
+  const d = new Date(key + "T00:00");
+  if (frequency === "monthly") {
+    return iso(new Date(d.getFullYear(), d.getMonth() + delta, 1));
+  }
+  return iso(addDays(frequency === "weekly" ? delta * 7 : delta, d));
+}
+
+function donePeriodKeys(
+  frequency: HabitFrequencyType,
+  entries: Set<string>,
+  weekStart: WeekStart
+): Set<string> {
+  const keys = new Set<string>();
+  for (const date of entries) keys.add(habitPeriodKey(frequency, date, weekStart));
+  return keys;
+}
+
+/**
+ * Current streak in the habit's OWN units — consecutive weeks for a weekly
+ * habit, months for a monthly one, days for a daily one. Counting raw days
+ * made a weekly habit kept up for months read as a streak of 1.
+ *
+ * The period in progress doesn't break the streak: if this week isn't done
+ * yet, counting starts from last week.
+ */
+export function habitStreak(
+  frequency: HabitFrequencyType,
+  entries: Set<string>,
+  weekStart: WeekStart = "mon",
+  today: string = iso()
+): number {
+  const done = donePeriodKeys(frequency, entries, weekStart);
+  let cur = habitPeriodKey(frequency, today, weekStart);
+  if (!done.has(cur)) cur = stepHabitPeriod(frequency, cur, -1);
+  let count = 0;
+  while (done.has(cur)) {
+    count += 1;
+    cur = stepHabitPeriod(frequency, cur, -1);
+  }
+  return count;
+}
+
+/** Longest run of consecutive completed periods, in the habit's own units. */
+export function habitBestStreak(
+  frequency: HabitFrequencyType,
+  entries: Set<string>,
+  weekStart: WeekStart = "mon"
+): number {
+  const keys = [...donePeriodKeys(frequency, entries, weekStart)].sort();
+  let best = 0;
+  let run = 0;
+  let prev: string | null = null;
+  for (const key of keys) {
+    run = prev && stepHabitPeriod(frequency, prev, 1) === key ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = key;
+  }
+  return best;
+}
