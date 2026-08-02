@@ -3,6 +3,7 @@ import {
   deriveLifeAreaFromTags,
   withLifeTags,
   isLifeTag,
+  withProjectLifeTags,
 } from "@/lib/life-area-sync";
 import { filterByLifeView, filterGoalsByLifeView, goalLifeArea } from "@/lib/life-area";
 
@@ -143,5 +144,33 @@ describe("filterGoalsByLifeView", () => {
       "p",
     ]);
     expect(filterGoalsByLifeView(goals, "work").map((g) => g.id)).toEqual(["w"]);
+  });
+});
+
+describe("withProjectLifeTags", () => {
+  it("switches the life tag rather than adding one", () => {
+    // A personal task dragged into a work project is work, not both.
+    expect(withProjectLifeTags(["t-personal", "t-other"], "work", tags)).toEqual(
+      ["t-other", "t-work"]
+    );
+  });
+
+  it("collapses both down to the project's side", () => {
+    expect(
+      withProjectLifeTags(["t-personal", "t-work"], "personal", tags)
+    ).toEqual(["t-personal"]);
+  });
+
+  it("leaves tags alone when there's no project", () => {
+    expect(withProjectLifeTags(["t-personal"], null, tags)).toEqual([
+      "t-personal",
+    ]);
+  });
+
+  it("keeps ordinary tags", () => {
+    expect(withProjectLifeTags(["t-other"], "work", tags)).toEqual([
+      "t-other",
+      "t-work",
+    ]);
   });
 });

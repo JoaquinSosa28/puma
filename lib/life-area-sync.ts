@@ -103,3 +103,27 @@ export function hasLifeTag(
     return name === "work" || name === "personal";
   });
 }
+
+/**
+ * Replace an item's life tags with the one its project belongs to.
+ *
+ * Moving a personal task into a work project makes it work — adding "work"
+ * while leaving "personal" on would land it in both, which is not what moving
+ * means. A move replaces; only capturing in the Both view adds two.
+ */
+export function withProjectLifeTags(
+  tagIds: string[],
+  projectLifeArea: LifeArea | null | undefined,
+  tags: { id: string; name: string }[]
+): string[] {
+  if (!projectLifeArea) return tagIds;
+  const nameById = new Map(tags.map((t) => [t.id, t.name.toLowerCase()]));
+  const idsByName = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
+  const wanted = idsByName.get(projectLifeArea);
+  if (!wanted) return tagIds;
+  const withoutLife = tagIds.filter((id) => {
+    const name = nameById.get(id);
+    return name !== "work" && name !== "personal";
+  });
+  return [...withoutLife, wanted];
+}

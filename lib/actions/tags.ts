@@ -18,7 +18,9 @@ import {
   deriveLifeAreaFromTags,
   isLifeTag,
   hasLifeTag,
+  withProjectLifeTags,
 } from "@/lib/life-area-sync";
+import { getProject } from "@/lib/db/projects";
 import {
   projectIdFromTags,
   withSingleProjectTag,
@@ -71,6 +73,13 @@ export async function toggleEntityTag(
     // second project's tag replaces the first rather than stacking.
     const nextProjectId = projectIdFromTags(tagIds, tags);
     tagIds = withSingleProjectTag(tagIds, nextProjectId, tags);
+
+    // Moving to a project adopts that project's side of life, replacing
+    // whatever was there — a task in a work project is work, not both.
+    if (nextProjectId && nextProjectId !== task.projectId) {
+      const target = await getProject(userId, nextProjectId);
+      tagIds = withProjectLifeTags(tagIds, target?.lifeArea, tags);
+    }
 
     const lifeArea = deriveLifeAreaFromTags(tagIds, tags);
     const previousProjectId = task.projectId;

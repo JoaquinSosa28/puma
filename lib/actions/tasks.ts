@@ -19,6 +19,7 @@ import {
   deriveLifeAreaFromTags,
   deriveStrictLifeAreaFromTags,
   withLifeTags,
+  withProjectLifeTags,
 } from "@/lib/life-area-sync";
 import {
   withSingleProjectTag,
@@ -96,9 +97,13 @@ export async function createFromOmni(
       const target = bucket.projectId
         ? await getProject(userId, bucket.projectId)
         : scoped;
-      const bucketTags = bucket.projectId
-        ? bucket.tagIds
-        : withSingleProjectTag(bucket.tagIds, target?.id ?? null, tags);
+      const bucketTags = withProjectLifeTags(
+        bucket.projectId
+          ? bucket.tagIds
+          : withSingleProjectTag(bucket.tagIds, target?.id ?? null, tags),
+        target?.lifeArea,
+        tags
+      );
       created.push(
         await insertTask({
           userId,
@@ -430,6 +435,8 @@ export async function setTaskProject(
     : null;
   let tagIds = withSingleProjectTag(existing.tagIds, nextProjectId, tags);
   if (flagship && !tagIds.includes(flagship.id)) tagIds = [...tagIds, flagship.id];
+  // The project decides the side of life now, replacing whatever the task had.
+  tagIds = withProjectLifeTags(tagIds, project?.lifeArea, tags);
 
   const updated = await updateTask(userId, parsed.data.id, {
     projectId: nextProjectId,

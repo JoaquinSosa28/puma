@@ -153,6 +153,13 @@ export function TagMenuProvider({
       return;
     }
     dirtyRef.current = true;
+
+    // Picking another project's tag moves the task: its project, its life tags
+    // and its other project tags all change at once. The menu was opened
+    // against the old version, so keeping it up would show stale ticks against
+    // a row that has already moved.
+    const moved = tags.find((t) => t.id === tagId)?.projectId;
+    if (moved) close();
   };
 
   const handleAddTag = async () => {
