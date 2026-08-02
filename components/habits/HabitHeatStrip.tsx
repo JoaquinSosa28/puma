@@ -24,13 +24,6 @@ type Props = {
 
 const DONE_BG = "oklch(0.6 0.13 155)";
 
-/** Weekday initials in display order for the chosen week start. */
-function weekdayInitials(weekStart: WeekStart): string[] {
-  return weekStart === "mon"
-    ? ["M", "T", "W", "T", "F", "S", "S"]
-    : ["S", "M", "T", "W", "T", "F", "S"];
-}
-
 function monthShort(isoDate: string): string {
   return new Date(isoDate + "T00:00").toLocaleDateString("en-US", {
     month: "short",
@@ -38,15 +31,13 @@ function monthShort(isoDate: string): string {
 }
 
 /**
- * History for one habit, laid out so you can always tell WHICH box you're
- * about to click — it used to be an unlabelled run of identical squares.
+ * History for one habit: a single run of boxes, oldest → newest.
  *
- *  • daily   → a month-calendar grid: weekdays across the top (all seven),
- *              one row per week, month name in the left gutter where the
- *              month turns over. Rows stretch to the full card width.
- *  • weekly  → one box per week showing its starting day, with the month
- *              printed above wherever it changes.
- *  • monthly → one box per month, showing the month.
+ * Every cadence reads the same way — each box carries the number it stands for
+ * (day of month / week's starting day / month), and the month is captioned
+ * above the box that starts it, with a little air before it. That's what makes
+ * it possible to tell which box you're about to click; it used to be an
+ * unlabelled run of identical squares with only a hover tooltip.
  */
 export function HabitHeatStrip({
   habit,
@@ -63,219 +54,115 @@ export function HabitHeatStrip({
   const frequency = normalizeHabitFrequency(habit.frequency.type);
   const cells = habitHeatCells(frequency, visibility, entries, weekStart, td, timeZone);
 
-  const cellStyle = (cell: HabitHeatCell) => ({
-    background: cell.done ? DONE_BG : "var(--border2)",
-    border: cell.done ? "none" : "1px solid var(--border)",
-    outline: cell.isCurrent ? "2px solid var(--faint2)" : undefined,
-    outlineOffset: cell.isCurrent ? "1px" : undefined,
-  });
+  // Only slightly bigger than the original bare squares — just enough for a
+  // number to sit legibly inside.
+  const size =
+    frequency === "monthly"
+      ? compact
+        ? "h-5 min-w-[38px] px-1"
+        : "h-6 min-w-[44px] px-1.5"
+      : frequency === "weekly"
+        ? compact
+          ? "h-5 min-w-[26px] px-1"
+          : "h-6 min-w-[30px] px-1"
+        : compact
+          ? "h-[17px] min-w-[17px]"
+          : "h-5 min-w-[20px]";
 
-  const interactive =
-    onToggleDate &&
-    "cursor-pointer hover:outline hover:outline-2 hover:outline-faint2 hover:outline-offset-1";
-
-  const labelClass = cn(
-    "font-mono uppercase tracking-wide text-faint2",
-    compact ? "text-[7.5px]" : "text-[9px]"
-  );
-
-  // ---- monthly: one wide box per month, labelled with the month ----
-  if (frequency === "monthly") {
-    return (
-      <div className={cn("flex flex-wrap items-center justify-center gap-2", className)}>
-        {cells.map((cell) => {
-          const cls = cn(
-            compact ? "h-5 min-w-[38px] px-1" : "h-6 min-w-[44px] px-1.5",
-            "flex shrink-0 items-center justify-center rounded-[4px]",
-            interactive
-          );
-          const content = (
-            <span
-              className={cn(
-                "font-mono tabular-nums",
-                compact ? "text-[8.5px]" : "text-[9.5px]",
-                cell.done ? "font-bold text-white" : "text-faint"
-              )}
-            >
-              {cell.label.split(" ")[0]}
-            </span>
-          );
-          return onToggleDate ? (
-            <button
-              key={cell.id}
-              type="button"
-              title={cell.label}
-              onClick={() => onToggleDate(cell.toggleDate)}
-              className={cls}
-              style={cellStyle(cell)}
-            >
-              {content}
-            </button>
-          ) : (
-            <span key={cell.id} title={cell.label} className={cls} style={cellStyle(cell)}>
-              {content}
-            </span>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // ---- weekly: a month caption sits above the box that starts a new month ----
-  if (frequency === "weekly") {
-    return (
-      <div className={cn("flex flex-wrap items-end justify-center gap-1.5", className)}>
-        {cells.map((cell, index) => {
-          const prev = cells[index - 1];
-          const showMonth =
-            index === 0 || !prev || monthShort(prev.id) !== monthShort(cell.id);
-          const cls = cn(
-            compact ? "h-5 min-w-[26px] px-1" : "h-6 min-w-[30px] px-1",
-            "flex w-full items-center justify-center rounded-[4px]",
-            interactive
-          );
-          const content = (
-            <span
-              className={cn(
-                "font-mono tabular-nums",
-                compact ? "text-[8.5px]" : "text-[9.5px]",
-                cell.done ? "font-bold text-white" : "text-faint"
-              )}
-            >
-              {Number(cell.id.slice(8, 10))}
-            </span>
-          );
-
-          return (
-            <div
-              key={cell.id}
-              className={cn(
-                "flex shrink-0 flex-col gap-0.5",
-                // A little air where the month turns over, so the run of weeks
-                // reads in month-sized chunks.
-                showMonth && index > 0 && "ml-2.5"
-              )}
-            >
-              <span className={cn(labelClass, "h-3 leading-3")}>
-                {showMonth ? monthShort(cell.id) : ""}
-              </span>
-              {onToggleDate ? (
-                <button
-                  type="button"
-                  title={cell.label}
-                  onClick={() => onToggleDate(cell.toggleDate)}
-                  className={cls}
-                  style={cellStyle(cell)}
-                >
-                  {content}
-                </button>
-              ) : (
-                <span title={cell.label} className={cls} style={cellStyle(cell)}>
-                  {content}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // ---- daily: a month calendar — weekdays across, one row per week ----
-  const initials = weekdayInitials(weekStart);
-  // Pad the front so the first row starts on the week's first day.
-  const firstDow = (() => {
-    const d = new Date(cells[0]!.id + "T00:00").getDay();
-    return weekStart === "mon" ? (d + 6) % 7 : d;
-  })();
-  const slots: (HabitHeatCell | null)[] = [
-    ...Array.from({ length: firstDow }, () => null),
-    ...cells,
-  ];
-  const rows: (HabitHeatCell | null)[][] = [];
-  for (let i = 0; i < slots.length; i += 7) rows.push(slots.slice(i, i + 7));
-
-  const gutter = compact ? "w-6" : "w-7";
-  const gap = compact ? "gap-[3px]" : "gap-1";
-  const cellBox = compact ? "h-[15px] w-full" : "h-[22px] w-full";
-  // Cap the grid so a cell lands about the size of a weekly/monthly box.
-  // Left to fill the card, seven columns turn into slabs.
-  const gridMax = compact ? "max-w-[228px]" : "max-w-[304px]";
+  const labelFor = (cell: HabitHeatCell) =>
+    frequency === "monthly"
+      ? cell.label.split(" ")[0]
+      : // daily + weekly both key off the cell's own date
+        String(Number(cell.id.slice(8, 10)));
 
   return (
-    <div className={cn("mx-auto w-full", gridMax, className)}>
-      {/* Weekday header — all seven, aligned with the columns below. */}
-      <div className={cn("flex items-center", gap)}>
-        <span className={cn(gutter, "shrink-0")} aria-hidden />
-        <div className={cn("grid flex-1 grid-cols-7", gap)}>
-          {initials.map((letter, i) => (
-            <span
-              key={`h-${i}`}
-              className={cn(labelClass, "text-center leading-4")}
-            >
-              {letter}
-            </span>
-          ))}
-        </div>
-      </div>
+    <div
+      className={cn(
+        "flex flex-wrap items-end",
+        frequency === "daily" ? "gap-x-1 gap-y-1.5" : "gap-1.5",
+        className
+      )}
+    >
+      {cells.map((cell, index) => {
+        const prev = cells[index - 1];
+        // Monthly boxes already say the month — no caption needed.
+        const showMonth =
+          frequency !== "monthly" &&
+          (index === 0 || !prev || monthShort(prev.id) !== monthShort(cell.id));
 
-      <div className={cn("flex flex-col", gap)}>
-        {rows.map((row, ri) => {
-          // Month caption on the row where the month turns over (and row 0).
-          const filled = row.filter(Boolean) as HabitHeatCell[];
-          const starter = filled.find((c) => c.id.slice(8, 10) === "01");
-          const captionCell = ri === 0 ? filled[0] : starter;
+        const box = cn(
+          size,
+          "flex w-full items-center justify-center rounded-[4px]",
+          onToggleDate &&
+            "cursor-pointer hover:outline hover:outline-2 hover:outline-faint2 hover:outline-offset-1"
+        );
+        const style = {
+          background: cell.done ? DONE_BG : "var(--border2)",
+          border: cell.done ? "none" : "1px solid var(--border)",
+          outline: cell.isCurrent ? "2px solid var(--faint2)" : undefined,
+          outlineOffset: cell.isCurrent ? "1px" : undefined,
+        };
+        const content = (
+          <span
+            className={cn(
+              "font-mono tabular-nums leading-none",
+              frequency === "daily"
+                ? compact
+                  ? "text-[7px]"
+                  : "text-[8.5px]"
+                : compact
+                  ? "text-[8.5px]"
+                  : "text-[9.5px]",
+              cell.done ? "font-bold text-white" : "text-faint"
+            )}
+          >
+            {labelFor(cell)}
+          </span>
+        );
+        const title =
+          frequency === "daily"
+            ? `${cell.id}${cell.isCurrent ? " · today" : ""}`
+            : cell.label;
 
-          return (
-            <div key={`r-${ri}`} className={cn("flex items-center", gap)}>
+        return (
+          <div
+            key={cell.id}
+            className={cn(
+              "flex shrink-0 flex-col gap-0.5",
+              // A little air where the month turns over, so the run reads in
+              // month-sized chunks.
+              showMonth && index > 0 && (frequency === "daily" ? "ml-2" : "ml-2.5")
+            )}
+          >
+            {frequency !== "monthly" && (
               <span
                 className={cn(
-                  gutter,
-                  "shrink-0 text-right",
-                  labelClass,
-                  "leading-none"
+                  "font-mono uppercase tracking-wide text-faint2",
+                  compact ? "text-[7px] leading-[10px]" : "text-[8px] leading-3"
                 )}
               >
-                {captionCell ? monthShort(captionCell.id) : ""}
+                {showMonth ? monthShort(cell.id) : ""}
               </span>
-              <div className={cn("grid flex-1 grid-cols-7", gap)}>
-                {Array.from({ length: 7 }, (_, col) => {
-                  const cell = row[col];
-                  if (!cell) {
-                    return (
-                      <span
-                        key={col}
-                        className={cn(cellBox, "rounded-[3px]")}
-                        aria-hidden
-                      />
-                    );
-                  }
-                  const cls = cn(cellBox, "rounded-[4px]", interactive);
-                  const title = `${cell.id}${cell.isCurrent ? " · today" : ""}`;
-                  return onToggleDate ? (
-                    <button
-                      key={col}
-                      type="button"
-                      title={title}
-                      aria-label={title}
-                      onClick={() => onToggleDate(cell.toggleDate)}
-                      className={cls}
-                      style={cellStyle(cell)}
-                    />
-                  ) : (
-                    <span
-                      key={col}
-                      title={title}
-                      className={cls}
-                      style={cellStyle(cell)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            )}
+            {onToggleDate ? (
+              <button
+                type="button"
+                title={title}
+                aria-label={title}
+                onClick={() => onToggleDate(cell.toggleDate)}
+                className={box}
+                style={style}
+              >
+                {content}
+              </button>
+            ) : (
+              <span title={title} className={box} style={style}>
+                {content}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
