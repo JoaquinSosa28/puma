@@ -14,7 +14,11 @@ import { listNotes } from "@/lib/db/notes";
 import { getSettings, updateSettings } from "@/lib/db/settings";
 import type { TagDoc } from "@/lib/schemas";
 import { cssColor, entityId, tagName } from "@/lib/validation";
-import { deriveLifeAreaFromTags, isLifeTag } from "@/lib/life-area-sync";
+import {
+  deriveLifeAreaFromTags,
+  isLifeTag,
+  hasLifeTag,
+} from "@/lib/life-area-sync";
 import {
   projectIdFromTags,
   withSingleProjectTag,
@@ -44,6 +48,8 @@ export async function toggleEntityTag(
     return { ok: false, error: "Tag no longer exists" };
   }
 
+  const tagRecord = tags.find((t) => t.id === tag)!;
+
   if (parsed.data.entity === "task") {
     const task = await getTask(userId, id);
     if (!task) return { ok: false, error: "Not found" };
@@ -51,6 +57,15 @@ export async function toggleEntityTag(
     let tagIds = applied
       ? [...task.tagIds, tag]
       : task.tagIds.filter((x) => x !== tag);
+
+    // Everything belongs to a life area, so the last one can't come off —
+    // switch to the other instead.
+    if (!applied && isLifeTag(tagRecord.name) && !hasLifeTag(tagIds, tags)) {
+      return {
+        ok: false,
+        error: `Pick ${tagRecord.name === "work" ? "personal" : "work"} first — everything belongs to one side or both`,
+      };
+    }
 
     // Project tags file the task. A task belongs to one project, so adding a
     // second project's tag replaces the first rather than stacking.
@@ -83,6 +98,13 @@ export async function toggleEntityTag(
   const tagIds = applied
     ? [...note.tagIds, tag]
     : note.tagIds.filter((x) => x !== tag);
+
+  if (!applied && isLifeTag(tagRecord.name) && !hasLifeTag(tagIds, tags)) {
+    return {
+      ok: false,
+      error: `Pick ${tagRecord.name === "work" ? "personal" : "work"} first — everything belongs to one side or both`,
+    };
+  }
   const lifeArea = deriveLifeAreaFromTags(tagIds, tags);
   const { today: updatedAt } = await userToday();
   await updateNote(userId, id, { tagIds, lifeArea, updatedAt });

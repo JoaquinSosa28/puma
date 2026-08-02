@@ -91,3 +91,15 @@ export function withLifeTags(
   }
   return next;
 }
+
+/** Whether a tag list carries at least one life tag. */
+export function hasLifeTag(
+  tagIds: string[],
+  tags: { id: string; name: string }[]
+): boolean {
+  const nameById = new Map(tags.map((t) => [t.id, t.name.toLowerCase()]));
+  return tagIds.some((id) => {
+    const name = nameById.get(id);
+    return name === "work" || name === "personal";
+  });
+}

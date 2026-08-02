@@ -15,12 +15,15 @@ import { Check, Plus } from "lucide-react";
 import type { Tag, Task, Note } from "@/lib/schemas";
 import type { EntityLifeArea } from "@/lib/types";
 import { toggleEntityTag, type TaggableEntity } from "@/lib/actions/tags";
-import { setEntityLifeArea } from "@/lib/actions/life-area";
 import { addTagAction } from "@/lib/actions/settings";
 import { tagsByUsage } from "@/lib/metrics";
-import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { isLifeTag, SPECIAL_LIFE_TAGS } from "@/lib/life-area-sync";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  withSingleProjectTag,
+  projectIdFromTags,
+} from "@/lib/project-tags";
 
 type TagTarget = {
   entity: TaggableEntity;
@@ -31,40 +34,6 @@ type TagTarget = {
   y: number;
 };
 
-const MOVE_OPTIONS: { value: EntityLifeArea; label: string; color: string }[] = [
-  { value: "personal", label: "Personal", color: "oklch(0.58 0.17 300)" },
-  { value: "work", label: "Work", color: "oklch(0.58 0.14 245)" },
-  { value: "both", label: "Both", color: "var(--ink)" },
-];
-
-/** Client mirror of setEntityLifeArea's tag sync — optimistic only, only
- *  touches special tags that already exist for this user. */
-function syncSpecialTagIds(
-  tagIds: string[],
-  tags: Tag[],
-  area: EntityLifeArea
-): string[] {
-  const workTag = tags.find((t) => t.name.toLowerCase() === "work");
-  const personalTag = tags.find((t) => t.name.toLowerCase() === "personal");
-  const wantWork = area === "work" || area === "both";
-  const wantPersonal = area === "personal" || area === "both";
-  let next = tagIds;
-  if (workTag) {
-    next = wantWork
-      ? next.includes(workTag.id)
-        ? next
-        : [...next, workTag.id]
-      : next.filter((id) => id !== workTag.id);
-  }
-  if (personalTag) {
-    next = wantPersonal
-      ? next.includes(personalTag.id)
-        ? next
-        : [...next, personalTag.id]
-      : next.filter((id) => id !== personalTag.id);
-  }
-  return next;
-}
 
 type TagMenuContextValue = {
   open: (target: Omit<TagTarget, "x" | "y"> & { x: number; y: number }) => void;
@@ -105,7 +74,6 @@ export function TagMenuProvider({
   const [menu, setMenu] = useState<TagTarget | null>(null);
   const [menuTags, setMenuTags] = useState<Tag[]>([]);
   const [tagIds, setTagIds] = useState<string[]>([]);
-  const [menuArea, setMenuArea] = useState<EntityLifeArea>("personal");
   const [adding, setAdding] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [pending, setPending] = useState(false);
@@ -113,7 +81,6 @@ export function TagMenuProvider({
   useEffect(() => {
     if (menu) {
       setTagIds(menu.tagIds);
-      setMenuArea(menu.lifeArea);
     }
   }, [menu]);
 
@@ -155,7 +122,6 @@ export function TagMenuProvider({
       dirtyRef.current = false;
       setMenu(target);
       setTagIds(target.tagIds);
-      setMenuArea(target.lifeArea);
       setMenuTags(tagsByUsage(tags, tasks, notes));
       setAdding(false);
       setNewTag("");
@@ -167,16 +133,22 @@ export function TagMenuProvider({
     if (!menu || pending) return;
     setPending(true);
     const applied = !tagIds.includes(tagId);
-    const nextTagIds = applied
+    let nextTagIds = applied
       ? [...tagIds, tagId]
       : tagIds.filter((id) => id !== tagId);
+    // The server files the task under the project this tag belongs to and
+    // drops any other project's tags. Mirror it, or the ticks would show a
+    // state that lasts only until the next render.
+    nextTagIds = withSingleProjectTag(
+      nextTagIds,
+      projectIdFromTags(nextTagIds, tags),
+      tags
+    );
     setTagIds(nextTagIds);
-    setMenuArea(deriveLifeAreaFromTags(nextTagIds, tags));
     const res = await toggleEntityTag(menu.entity, menu.id, tagId);
     setPending(false);
     if (!res.ok) {
       setTagIds(menu.tagIds);
-      setMenuArea(menu.lifeArea);
       toast.error(res.error);
       return;
     }
@@ -193,7 +165,6 @@ export function TagMenuProvider({
         await toggleEntityTag(menu.entity, menu.id, existing.id);
         const nextTagIds = [...tagIds, existing.id];
         setTagIds(nextTagIds);
-        setMenuArea(deriveLifeAreaFromTags(nextTagIds, tags));
       }
       setPending(false);
       setAdding(false);
@@ -210,7 +181,6 @@ export function TagMenuProvider({
     await toggleEntityTag(menu.entity, menu.id, res.data!.id);
     const nextTagIds = [...tagIds, res.data!.id];
     setTagIds(nextTagIds);
-    setMenuArea(deriveLifeAreaFromTags(nextTagIds, [...tags, res.data!]));
     setMenuTags((prev) => [...prev, res.data!]);
     setPending(false);
     setAdding(false);
@@ -219,32 +189,22 @@ export function TagMenuProvider({
     dirtyRef.current = true;
   };
 
-  const moveTo = async (area: EntityLifeArea) => {
-    if (!menu || pending || area === menuArea) return;
-    setPending(true);
-    const prevArea = menuArea;
-    const prevTagIds = tagIds;
-    setMenuArea(area);
-    setTagIds((prev) => syncSpecialTagIds(prev, tags, area));
-    const res = await setEntityLifeArea(menu.entity, menu.id, area);
-    setPending(false);
-    if (!res.ok) {
-      setMenuArea(prevArea);
-      setTagIds(prevTagIds);
-      toast.error(res.error);
-      return;
-    }
-    dirtyRef.current = true;
-  };
-
-  const ranked = menu ? menuTags : [];
+  // Life tags are the personal/work split, not labels — they get their own
+  // outlined box so they read as a different kind of thing, while still being
+  // tags you toggle rather than a separate control.
+  const lifeTags = menu
+    ? SPECIAL_LIFE_TAGS.map((name) =>
+        menuTags.find((t) => t.name.toLowerCase() === name)
+      ).filter((t): t is NonNullable<typeof t> => Boolean(t))
+    : [];
+  const ranked = menu ? menuTags.filter((t) => !isLifeTag(t.name)) : [];
 
   const pos = menu
     ? (() => {
         const w = 200;
         const h = Math.min(
-          360,
-          56 + ranked.length * 32 + (adding ? 44 : 28) + 40
+          400,
+          56 + ranked.length * 32 + lifeTags.length * 30 + (adding ? 44 : 28) + 72
         );
         const x = Math.min(menu.x, window.innerWidth - w - 8);
         const y = Math.min(menu.y, window.innerHeight - h - 8);
@@ -276,6 +236,40 @@ export function TagMenuProvider({
             style={{ left: pos.left, top: pos.top }}
             onContextMenu={(e) => e.preventDefault()}
           >
+            {lifeTags.length > 0 && (
+              <div className="mb-1 rounded-md border border-dashed border-border2 bg-surface2/50 p-1">
+                <div className="px-1 pb-0.5 pt-0.5 font-mono text-[9px] font-medium tracking-widest text-faint2">
+                  LIFE AREA
+                </div>
+                {lifeTags.map((tag) => {
+                  const active = tagIds.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => toggle(tag.id)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12px] transition-colors hover:bg-hover disabled:opacity-50",
+                        active ? "font-semibold text-ink" : "text-muted"
+                      )}
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ background: tag.color }}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                      {active && (
+                        <Check
+                          className="h-3.5 w-3.5 shrink-0 text-habits"
+                          strokeWidth={2.5}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="px-2 py-1.5 font-mono text-[9px] font-medium tracking-widest text-faint2">
               TAG
             </div>
@@ -341,33 +335,6 @@ export function TagMenuProvider({
                   New tag
                 </button>
               )}
-            </div>
-            <div className="mt-1 border-t border-border2 pt-1">
-              <div className="px-2 py-1 font-mono text-[9px] font-medium tracking-widest text-faint2">
-                MOVE TO
-              </div>
-              <div className="flex gap-1 px-1 pb-0.5">
-                {MOVE_OPTIONS.map(({ value, label, color }) => {
-                  const active = menuArea === value;
-                  return (
-                    <button
-                      key={value}
-                      type="button"
-                      disabled={pending}
-                      onClick={() => void moveTo(value)}
-                      className={cn(
-                        "flex-1 rounded-md border px-1.5 py-1 font-mono text-[10px] font-semibold transition-colors disabled:opacity-50",
-                        active
-                          ? "border-transparent text-background"
-                          : "border-border text-muted hover:bg-hover"
-                      )}
-                      style={active ? { background: color } : undefined}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </div>
         </>
