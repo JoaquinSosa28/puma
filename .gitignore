@@ -48,3 +48,4 @@ next-env.d.ts
 
 # Local planning docs — never committed
 *.local.md
+.migration-backups/

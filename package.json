@@ -17,7 +17,8 @@
     "db:migrate-wave2": "tsx scripts/migrate-wave2.ts",
     "db:claim": "tsx scripts/claim-user-data.ts",
     "db:repair-refs": "tsx scripts/repair-refs.ts",
-    "db:cleanup-routines": "tsx scripts/cleanup-routines.ts"
+    "db:cleanup-routines": "tsx scripts/cleanup-routines.ts",
+    "db:migrate-tags": "tsx scripts/migrate-tags-projects.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
