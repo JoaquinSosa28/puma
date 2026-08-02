@@ -13,11 +13,11 @@ const responseUnion = z.discriminatedUnion("kind", [
  * Wrapped in an object because a tool's input_schema must be type: "object"
  * at the root — a bare anyOf is rejected by the API.
  *
- * The refinement is load-bearing, not decoration: an update op with no fields
- * changes nothing, and in a merge it reads as "the work moved" when it didn't.
- * JSON Schema can't express "at least one key", so this is enforced at parse
- * time — which puts the model's own mistake into the retry prompt, where it
- * gets corrected. Saying it in prose alone did not hold.
+ * There is deliberately no refinement rejecting empty update ops here. An
+ * earlier version had one, and it turned a recoverable situation into a failed
+ * generation: normalizeOps already drops updates that change nothing, so the
+ * right response to "this op is useless" is to remove it, not to throw away
+ * the whole changeset around it.
  */
 export const assistantResponseSchema = z
   .preprocess((raw) => {
@@ -28,18 +28,7 @@ export const assistantResponseSchema = z
       return { response: r.response.response };
     }
     return raw;
-  }, z.object({ response: responseUnion }))
-  .refine(
-    (r) =>
-      r.response.kind !== "changeset" ||
-      r.response.ops.every(
-        (op) => op.op !== "update" || Object.keys(op.fields).length > 0
-      ),
-    {
-      message:
-        "Every update op must set at least one field. To move a task into a project, set fields.parentRef to that project's id.",
-    }
-  );
+  }, z.object({ response: responseUnion }));
 
 export type AssistantResponse = z.infer<typeof responseUnion>;
 
