@@ -7,6 +7,7 @@ import type { Habit, HabitEntry } from "@/lib/schemas";
 import { iso, weekDates, streakOf, dowLetters, type WeekStart } from "@/lib/date";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { toggleHabitToday } from "@/lib/actions/habits";
+import { normalizeHabitFrequency } from "@/lib/habit-visibility";
 import { cn } from "@/lib/utils";
 import type { Goal } from "@/lib/schemas";
 import { WidgetHeaderLink, WidgetRowLink } from "@/components/home/WidgetLink";
@@ -106,6 +107,7 @@ export function HomeHabitsGoals({
         <div className="flex flex-col gap-2 max-xl:overflow-visible xl:overflow-y-auto">
           {habits.map((h) => {
             const set = entriesFor(h.id);
+            const freq = normalizeHabitFrequency(h.frequency.type);
             const doneToday = set.has(td);
             const streak = streakOf(set, td, timeZone);
             return (
@@ -131,30 +133,42 @@ export function HomeHabitsGoals({
                 >
                   {h.name}
                 </Link>
-                <HabitWeekStrip>
-                  {week.map((d) => {
-                    const ds = iso(d);
-                    const on = set.has(ds);
-                    const isToday = ds === td;
-                    return (
-                      <span
-                        key={ds}
-                        className={habitWeekCellClass}
-                        style={{
-                          background: on ? "oklch(0.6 0.13 155)" : "transparent",
-                          border: on ? "none" : "1.5px solid var(--border)",
-                          borderRadius: "3px",
-                          outline: isToday
-                            ? on
-                              ? "2px solid oklch(0.6 0.13 155)"
-                              : "2px solid var(--border)"
-                            : "none",
-                          outlineOffset: "1.5px",
-                        }}
-                      />
-                    );
-                  })}
-                </HabitWeekStrip>
+                {freq === "daily" ? (
+                  <HabitWeekStrip>
+                    {week.map((d) => {
+                      const ds = iso(d);
+                      const on = set.has(ds);
+                      const isToday = ds === td;
+                      return (
+                        <span
+                          key={ds}
+                          className={habitWeekCellClass}
+                          style={{
+                            background: on ? "oklch(0.6 0.13 155)" : "transparent",
+                            border: on ? "none" : "1.5px solid var(--border)",
+                            borderRadius: "3px",
+                            outline: isToday
+                              ? on
+                                ? "2px solid oklch(0.6 0.13 155)"
+                                : "2px solid var(--border)"
+                              : "none",
+                            outlineOffset: "1.5px",
+                          }}
+                        />
+                      );
+                    })}
+                  </HabitWeekStrip>
+                ) : (
+                  <CadencePill
+                    frequency={freq}
+                    done={
+                      freq === "weekly"
+                        ? week.some((d) => set.has(iso(d)))
+                        : [...set].some((date) => date.startsWith(td.slice(0, 7)))
+                    }
+                    today={td}
+                  />
+                )}
                 <span
                   className={cn(
                     "text-right font-mono text-[10px] font-semibold",
@@ -240,5 +254,44 @@ export function HomeHabitsGoals({
         </div>
       </Link>
     </div>
+  );
+}
+
+/**
+ * Weekly/monthly habits don't have a per-weekday answer, so the 7-box strip
+ * (which silently implied "did you do it Tuesday?") is replaced by a pill that
+ * names its own period. Same width as the strip, so rows stay aligned.
+ */
+function CadencePill({
+  frequency,
+  done,
+  today,
+}: {
+  frequency: "weekly" | "monthly";
+  done: boolean;
+  today: string;
+}) {
+  const label =
+    frequency === "weekly"
+      ? "this week"
+      : new Date(today + "T00:00").toLocaleDateString("en-US", { month: "long" });
+
+  return (
+    <span
+      title={
+        done
+          ? `Done ${frequency === "weekly" ? "this week" : "this month"}`
+          : `Not done yet ${frequency === "weekly" ? "this week" : "this month"}`
+      }
+      className={cn(
+        "flex h-[15px] min-w-[102px] items-center justify-center gap-1 rounded-full border px-2 font-mono text-[8.5px] uppercase tracking-wider",
+        done
+          ? "border-transparent bg-habits/15 font-bold text-habits"
+          : "border-border text-faint2"
+      )}
+    >
+      {done && <Check className="h-2 w-2" strokeWidth={4} />}
+      {label}
+    </span>
   );
 }

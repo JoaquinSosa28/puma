@@ -276,52 +276,6 @@ export function SettingsView({
           </SettingsSection>
 
           <SettingsSection
-            title="Tags"
-            description="Housekeeping for tags nothing is using any more."
-          >
-            <SettingRow
-              label="Auto-clean unused tags"
-              description="Once a day, remove tags that nothing references and that are older than the window below. Off by default."
-            >
-              <Switch
-                checked={settings?.tagAutoClean ?? false}
-                onCheckedChange={(v) => update({ tagAutoClean: v })}
-              />
-            </SettingRow>
-            {settings?.tagAutoClean && (
-              <div className="border-t border-border/60 py-3">
-                <label className="mb-1.5 block text-sm text-ink">
-                  Only clean tags unused for
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
-                    className="w-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-                    value={settings?.tagAutoCleanDays ?? 30}
-                    onChange={(e) =>
-                      update({
-                        tagAutoCleanDays: Math.min(
-                          365,
-                          Math.max(1, Number(e.target.value) || 30)
-                        ),
-                      })
-                    }
-                  />
-                  <span className="text-sm text-muted">days</span>
-                </div>
-              </div>
-            )}
-            <div className="border-t border-border/60 pt-3">
-              <p className="mb-2 text-[12px] leading-relaxed text-faint">
-                Or clean once, right now — you can undo it straight after.
-              </p>
-              <CleanTagsButton />
-            </div>
-          </SettingsSection>
-
-          <SettingsSection
             title="Life calendar"
             description="Birth date, span, and how the life grid is displayed."
           >
@@ -495,6 +449,52 @@ export function SettingsView({
               >
                 Add
               </Button>
+            </div>
+
+            <div className="mt-5 border-t border-border/60 pt-4">
+              <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+                Housekeeping
+              </p>
+              <SettingRow
+                label="Auto-clean unused tags"
+                description="Once a day, remove tags that nothing references and that are older than the window below. Off by default."
+              >
+                <Switch
+                  checked={settings?.tagAutoClean ?? false}
+                  onCheckedChange={(v) => update({ tagAutoClean: v })}
+                />
+              </SettingRow>
+              {settings?.tagAutoClean && (
+                <div className="border-t border-border/60 py-3">
+                  <label className="mb-1.5 block text-sm text-ink">
+                    Only clean tags unused for
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      className="w-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                      value={settings?.tagAutoCleanDays ?? 30}
+                      onChange={(e) =>
+                        update({
+                          tagAutoCleanDays: Math.min(
+                            365,
+                            Math.max(1, Number(e.target.value) || 30)
+                          ),
+                        })
+                      }
+                    />
+                    <span className="text-sm text-muted">days</span>
+                  </div>
+                </div>
+              )}
+              <div className="border-t border-border/60 pt-3">
+                <p className="mb-2 text-[12px] leading-relaxed text-faint">
+                  Or clean once, right now — you can undo it straight after.
+                </p>
+                <CleanTagsButton />
+              </div>
             </div>
           </SettingsSection>
         </div>
