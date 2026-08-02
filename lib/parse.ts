@@ -16,6 +16,8 @@ export type ParseResult = {
   dateLabel: string | null;
   priority: "low" | "med" | "high";
   hasPriorityToken: boolean;
+  /** Everything after "title: ", the way note capture splits title from body. */
+  description: string;
 };
 
 export type NoteParseResult = {
@@ -106,6 +108,20 @@ export function parseOmni(
 
   const hasPriorityToken = /!(high|med|low|h|m|l)\b/i.test(text);
 
+  // "Pay rent: the landlord wants a transfer" — title before the colon, the
+  // rest becomes the description, same idea as note capture. Runs last, on the
+  // text left over once #tags, !priority and the date have been lifted out, so
+  // "standup friday 9:00" splits on nothing (chrono already took the time) and
+  // the tokens can sit on either side of the colon.
+  // Note capture does its own splitting on the cleaned title, so don't consume
+  // the colon out from under it.
+  let description = "";
+  if (!options?.forNote) {
+    const split = splitDescription(title);
+    title = split.title;
+    description = split.description;
+  }
+
   return {
     title: title || text.trim(),
     tagIds,
@@ -116,7 +132,27 @@ export function parseOmni(
     dateLabel,
     priority,
     hasPriorityToken,
+    description,
   };
+}
+
+/**
+ * Split "title: description" on the first colon that is followed by
+ * whitespace.
+ *
+ * The whitespace matters: it keeps "https://example.com" and a stray "14:30"
+ * in one piece, which a bare indexOf(":") would tear in half.
+ */
+export function splitDescription(text: string): {
+  title: string;
+  description: string;
+} {
+  const match = text.match(/^([^:]+?):\s+([\s\S]+)$/);
+  if (!match) return { title: text, description: "" };
+  const title = match[1].trim();
+  const description = match[2].trim();
+  if (!title || !description) return { title: text, description: "" };
+  return { title, description };
 }
 
 /**

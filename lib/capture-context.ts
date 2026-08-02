@@ -105,7 +105,7 @@ export function getCaptureContext(
       hint: day ? formatDay(day) : undefined,
       placeholder: day
         ? `Add for ${formatDay(day)}… try "call dentist #health"`
-        : 'Capture a task… try "pay rent friday #finance !high"',
+        : 'Capture a task… try "pay rent friday #finance !high: transfer to the landlord"',
     };
     return withActiveProject(base, projectFromParams(searchParams, projects));
   }

@@ -28,6 +28,14 @@ import {
   sortCalendarDayTasks,
 } from "@/lib/calendar-tasks";
 
+// Widget rows keep the bar as hover garnish — the HIGH/MID/LOW chip states the
+// priority outright now, so a permanent stripe on every row was just noise.
+const PRIO_BORDER_HOVER = {
+  high: "hover:border-l-[oklch(0.64_0.18_25)]",
+  med: "hover:border-l-[oklch(0.7_0.12_70)]",
+  low: "hover:border-l-[oklch(0.58_0.14_245)]",
+} as const;
+
 const PRIO_BORDER = {
   high: "border-l-[oklch(0.64_0.18_25)]",
   med: "border-l-[oklch(0.7_0.12_70)]",
@@ -340,8 +348,8 @@ export function TaskList({
                 isPage
                   ? "border-b border-border2 px-4 py-2.5 last:border-b-0 hover:bg-surface2/70"
                   : cn(
-                      "rounded-lg border-l-[3px] px-1 py-1 transition-all duration-150 hover:bg-surface2 hover:pl-1.5",
-                      PRIO_BORDER[t.priority]
+                      "rounded-lg border-l-[3px] border-l-transparent px-1 py-1 transition-all duration-150 hover:bg-surface2 hover:pl-1.5",
+                      PRIO_BORDER_HOVER[t.priority]
                     ),
                 showDelete
                   ? "grid-cols-[18px_34px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_16px_minmax(0,1fr)_40px_44px_16px]"

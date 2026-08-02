@@ -68,6 +68,7 @@ export async function createFromOmni(
     const task = await insertTask({
       userId,
       title,
+      description: p.description,
       tagIds,
       // A "!high" in the text is the more specific instruction, so it wins over
       // whatever the picker is showing — the picker hides itself in that case.
@@ -182,6 +183,7 @@ export async function addTask(
   const task = await insertTask({
     userId,
     title: p.title,
+    description: p.description,
     tagIds,
     // A "!high" in the text is the more specific instruction, so it wins over
     // whatever the picker is showing — the picker hides itself in that case.

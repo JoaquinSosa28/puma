@@ -90,6 +90,49 @@ describe("parseOmni", () => {
     expect(r.dateLabel).toBeTruthy();
   });
 
+  it("splits title from description on a colon", () => {
+    const r = parseOmni("Pay rent: transfer to the landlord", tags);
+    expect(r.title).toBe("Pay rent");
+    expect(r.description).toBe("transfer to the landlord");
+  });
+
+  it("keeps tags and priority out of both halves", () => {
+    const r = parseOmni("Pay rent #work: transfer today !high", tags);
+    expect(r.title).toBe("Pay rent");
+    expect(r.description).toBe("transfer");
+    expect(r.tagIds).toContain("1");
+    expect(r.priority).toBe("high");
+  });
+
+  it("leaves a task with no colon alone", () => {
+    const r = parseOmni("buy milk", tags);
+    expect(r.title).toBe("buy milk");
+    expect(r.description).toBe("");
+  });
+
+  it("does not split a URL", () => {
+    const r = parseOmni("read https://example.com/docs", tags);
+    expect(r.title).toBe("read https://example.com/docs");
+    expect(r.description).toBe("");
+  });
+
+  it("does not split a bare clock time", () => {
+    // chrono lifts the time out first; either way nothing should land in the
+    // description just because a colon was present.
+    const r = parseOmni("standup 9:30", tags, new Date("2026-06-21T12:00:00Z"), undefined, TZ);
+    expect(r.description).toBe("");
+  });
+
+  it("splits on the first colon only", () => {
+    const r = parseOmni("Ratio: 3:1 mix", tags);
+    expect(r.title).toBe("Ratio");
+    expect(r.description).toBe("3:1 mix");
+  });
+
+  it("needs something on both sides", () => {
+    expect(parseOmni("trailing colon:", tags).description).toBe("");
+  });
+
   it("toggleTagInText adds and removes tags", () => {
     expect(toggleTagInText("buy milk", "work")).toBe("buy milk #work");
     expect(toggleTagInText("buy milk #work", "work")).toBe("buy milk");
