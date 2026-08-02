@@ -1,9 +1,10 @@
 "use client";
+import { DeleteButton } from "@/components/ui/delete-button";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState, parseAsInteger } from "nuqs";
-import { Repeat, X } from "lucide-react";
+import { Repeat } from "lucide-react";
 import { toast } from "sonner";
 import type { AgendaItem, Task, HabitEntry } from "@/lib/schemas";
 import { iso, parseTimeToMinutes } from "@/lib/date";
@@ -387,14 +388,12 @@ export function CalendarView({
                         </div>
                       </div>
                     </button>
-                    <button
-                      type="button"
+                    <DeleteButton
                       onClick={() => deleteMeeting(m.id, selected)}
-                      aria-label={`Remove meeting ${m.title}`}
-                      className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                      label={`Delete meeting ${m.title}`}
+                      revealOnHover
+                      className="absolute right-0 top-1/2 -translate-y-1/2"
+                    />
                   </div>
                 ))}
               </div>

@@ -1,10 +1,11 @@
 "use client";
+import { DeleteButton } from "@/components/ui/delete-button";
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryState } from "nuqs";
-import { Repeat, X } from "lucide-react";
+import { Repeat } from "lucide-react";
 import { toast } from "sonner";
 import {
   iso,
@@ -296,14 +297,12 @@ function DayMeetings({
               </div>
             </div>
           </button>
-          <button
-            type="button"
+          <DeleteButton
             onClick={() => onDelete(m.id)}
-            aria-label={`Remove meeting ${m.title}`}
-            className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
-          >
-            <X className="h-3 w-3" />
-          </button>
+            label={`Delete meeting ${m.title}`}
+            revealOnHover
+            className="absolute right-0 top-1/2 -translate-y-1/2"
+          />
         </div>
       ))}
     </div>

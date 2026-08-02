@@ -1,4 +1,5 @@
 "use client";
+import { DeleteButton } from "@/components/ui/delete-button";
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
@@ -17,7 +18,7 @@ import { CleanTagsButton } from "@/components/tags/CleanTagsButton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { toast } from "sonner";
-import { Trash2, KeyRound, Check } from "lucide-react";
+import { KeyRound, Check } from "lucide-react";
 import { TAG_PALETTE } from "@/lib/types";
 import { Topbar } from "@/components/shell/Topbar";
 import { Switch } from "@/components/ui/switch";
@@ -616,14 +617,7 @@ function ApiKeyField({ last4 }: { last4: string | null }) {
           <Button variant="outline" onClick={() => setEditing(true)}>
             Replace
           </Button>
-          <button
-            type="button"
-            onClick={remove}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-faint2 transition-colors hover:bg-tasks/10 hover:text-tasks"
-            aria-label="Remove API key"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <DeleteButton onClick={remove} label="Remove API key" size="md" />
         </div>
         <p className="text-[12px] text-faint">
           Get a key from the{" "}
@@ -766,14 +760,12 @@ function TagRow({ tag }: { tag: Tag }) {
           default
         </span>
       ) : (
-        <button
-          type="button"
+        <DeleteButton
           onClick={handleDelete}
-          className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
-          aria-label={`Delete tag ${tag.name}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+          label={`Delete tag ${tag.name}`}
+          revealOnHover
+          className="ml-auto"
+        />
       )}
     </div>
   );

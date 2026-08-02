@@ -1,7 +1,7 @@
 "use client";
+import { DeleteButton } from "@/components/ui/delete-button";
 
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
 import type { AgendaItem } from "@/lib/schemas";
 import { formatTimeHM, parseTimeToMinutes } from "@/lib/date";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -123,18 +123,12 @@ function AgendaEventRow({
         </div>
       </WidgetRowLink>
       {deletable && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete(ev.id);
-          }}
-          aria-label={`Remove meeting ${ev.title}`}
-          className="absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-md text-faint2 opacity-0 transition-all hover:bg-tasks/10 hover:text-tasks group-hover:opacity-100 focus-visible:opacity-100"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <DeleteButton
+          onClick={() => onDelete(ev.id)}
+          label={`Delete meeting ${ev.title}`}
+          revealOnHover
+          className="absolute right-0 top-1/2 -translate-y-1/2"
+        />
       )}
       {showNowLine && (
         <div

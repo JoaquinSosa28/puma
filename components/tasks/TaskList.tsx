@@ -10,6 +10,7 @@ import { dueDatePart } from "@/lib/date";
 import { toggleTask, cycleTaskPriority, deleteTaskAction } from "@/lib/actions/tasks";
 import { Taggable } from "@/components/tags/TagMenuProvider";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { PriorityChip } from "@/components/tasks/PriorityChip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -490,22 +491,11 @@ export function TaskList({
             )}
 
             {showDelete && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(t.id);
-                }}
-                className={cn(
-                  "leading-none text-faint2 transition-colors hover:bg-surface2 hover:text-ink",
-                  isPage
-                    ? "flex h-6 w-6 items-center justify-center rounded-md text-lg max-lg:h-8 max-lg:w-8"
-                    : "px-0.5 text-[15px]"
-                )}
-                title="delete"
-              >
-                ×
-              </button>
+              <DeleteButton
+                onClick={() => handleDelete(t.id)}
+                label={`Delete task ${t.title}`}
+                size={isPage ? "md" : "sm"}
+              />
             )}
           </Taggable>
         );

@@ -15,6 +15,7 @@ import {
 } from "@/lib/actions/notes";
 import { Topbar } from "@/components/shell/Topbar";
 import { toast } from "sonner";
+import { DeleteButton } from "@/components/ui/delete-button";
 import { cn } from "@/lib/utils";
 import { hrefWithLife, type LifeView } from "@/lib/life-area";
 import { Taggable } from "@/components/tags/TagMenuProvider";
@@ -260,9 +261,8 @@ function NoteEditor({
         >
           → Task
         </button>
-        <button
-          type="button"
-          className="text-[17px] leading-none text-faint2 hover:text-ink"
+        <DeleteButton
+          label="Delete note"
           onClick={() =>
             startTransition(async () => {
               await deleteNoteAction(note.id);
@@ -270,9 +270,7 @@ function NoteEditor({
               onRefresh();
             })
           }
-        >
-          ×
-        </button>
+        />
       </div>
       <textarea
         className="flex-1 resize-none border-none bg-transparent px-5 py-4 text-[14.5px] leading-relaxed text-ink outline-none"

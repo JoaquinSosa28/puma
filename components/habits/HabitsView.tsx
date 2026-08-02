@@ -1,8 +1,9 @@
 "use client";
+import { DeleteButton } from "@/components/ui/delete-button";
 
 import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { useQueryState } from "nuqs";
-import { Check, Trash2 } from "lucide-react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
 import type { Goal, Habit, HabitEntry } from "@/lib/schemas";
 import { iso, type WeekStart } from "@/lib/date";
@@ -243,14 +244,11 @@ export function HabitsView({
                     <span className="font-mono text-[9px] text-faint">
                       {h.archived ? "off" : "on"}
                     </span>
-                    <button
-                      type="button"
+                    <DeleteButton
                       onClick={() => handleDelete(h, set.size)}
-                      className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md text-faint2 transition-colors hover:bg-tasks/10 hover:text-tasks"
-                      aria-label={`Delete ${h.name}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      label={`Delete habit ${h.name}`}
+                      className="mt-0.5"
+                    />
                   </div>
                 </div>
 
