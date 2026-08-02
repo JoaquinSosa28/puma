@@ -438,12 +438,14 @@ export function OmniBox({
 
   // One entry point: the assistant works out whether this is a question or a
   // request. Plan and Ask were only ever a guess the user had to make first.
+  // Navigate BEFORE firing the run — the user should be watching the
+  // assistant think, not staring at whatever page they typed from.
   const onAiSubmit = () => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setText("");
-    assistant.run(trimmed);
     router.push("/assistant");
+    assistant.run(trimmed);
   };
 
   return (

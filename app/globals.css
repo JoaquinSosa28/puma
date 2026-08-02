@@ -538,3 +538,138 @@ html {
   transform-origin: bottom center;
   animation: pumaBloom 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* ---------------------------------------------------------------------------
+   Assistant: thinking state + answer-dashboard animations.
+   Everything respects prefers-reduced-motion at the bottom. */
+
+@keyframes askShimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.ask-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--surface2) 40%,
+    var(--hover) 50%,
+    var(--surface2) 60%
+  );
+  background-size: 200% 100%;
+  animation: askShimmer 1.6s linear infinite;
+}
+
+@keyframes askSpin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.ask-spinner {
+  background: conic-gradient(from 0turn, var(--primary), transparent 75%);
+  -webkit-mask: radial-gradient(farthest-side, transparent 58%, #000 62%);
+  mask: radial-gradient(farthest-side, transparent 58%, #000 62%);
+  animation: askSpin 1.1s linear infinite;
+}
+
+/* Cards float in one after another; delay is set inline per index. */
+.ask-card-in {
+  animation: pumaRise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Bars grow from the left. --ask-delay staggers rows inside a card. */
+@keyframes askBarGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ask-bar-fill {
+  transform-origin: left center;
+  animation: askBarGrow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ask-delay, 0s);
+}
+
+/* Donut slices sweep open. Circumference is normalised to 100, so the arc
+   is just "--ask-arc <pct>" of it. */
+@keyframes askArcSweep {
+  from {
+    stroke-dasharray: 0 100;
+  }
+  to {
+    stroke-dasharray: var(--ask-arc);
+  }
+}
+
+.ask-arc {
+  animation: askArcSweep 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--ask-delay, 0s);
+}
+
+/* Lines draw themselves: pathLength=1, so dash math is unit-free. */
+@keyframes askLineDraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ask-line-draw {
+  stroke-dasharray: 1;
+  animation: askLineDraw 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both;
+}
+
+@keyframes askFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ask-fade-in {
+  animation: askFadeIn 0.5s ease-out both;
+  animation-delay: var(--ask-delay, 0s);
+}
+
+@keyframes askPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ask-pop-in {
+  animation: askPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: var(--ask-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-shimmer,
+  .ask-spinner,
+  .ask-card-in,
+  .ask-bar-fill,
+  .ask-arc,
+  .ask-line-draw,
+  .ask-fade-in,
+  .ask-pop-in {
+    animation: none;
+  }
+  .ask-arc {
+    stroke-dasharray: var(--ask-arc);
+  }
+}

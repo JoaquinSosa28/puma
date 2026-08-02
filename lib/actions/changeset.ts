@@ -37,31 +37,6 @@ import { syncGoalsForProject } from "@/lib/goal-sync-server";
 const HABIT_COLOR = "oklch(0.6 0.13 155)";
 
 // ---------------------------------------------------------------------------
-// Run
-
-export async function runAssistant(
-  text: string,
-  mode: "auto" | "answer" | "changeset" = "auto"
-): Promise<ActionResult<AssistOutcome>> {
-  const parsed = aiInput.safeParse(text);
-  if (!parsed.success) {
-    return { ok: false, error: "Say what you want to know or build (3–2000 characters)." };
-  }
-  const userId = await requireUserId();
-  if (!(await reserveAiCall(userId))) {
-    return { ok: false, error: AI_QUOTA_MESSAGE };
-  }
-  try {
-    return { ok: true, data: await assist(userId, parsed.data, mode) };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "The assistant call failed.",
-    };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Node-scoped reprompt: regenerate one subtree, leave the rest untouched.
 
 export async function repromptNodeAction(input: {

@@ -182,8 +182,9 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
     if (mode === "assistant") {
       setText("");
       close();
-      assistant.run(trimmed);
+      // Land on /assistant first so the thinking state is what you see.
       router.push("/assistant");
+      assistant.run(trimmed);
       return;
     }
     startTransition(async () => {

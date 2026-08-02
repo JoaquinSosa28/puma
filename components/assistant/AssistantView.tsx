@@ -3,6 +3,7 @@
 // The unified assistant workspace: one input, and the result is either an
 // answer (widgets) or a changeset (an editable canvas). See ChangesetCanvas
 // for the editing half.
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Topbar } from "@/components/shell/Topbar";
@@ -181,44 +182,110 @@ function ExampleColumn({
 }
 
 /** Honest checkpoints instead of a spinner; the mode resolves with the result. */
+// What the wait looks like. The phases are theatre — the call is one round
+// trip — but honest theatre: they name what the model is actually doing, and
+// the ghost dashboard previews the shape of what's coming instead of leaving
+// a blank page hanging.
+const THINK_PHASES = [
+  "Reading your PUMA",
+  "Crunching the numbers",
+  "Choosing how to show it",
+  "Polishing",
+];
+
 function Thinking({ intent }: { intent: string | null }) {
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    const t = setInterval(
+      () => setPhase((n) => Math.min(n + 1, THINK_PHASES.length - 1)),
+      3200
+    );
+    return () => clearInterval(t);
+  }, []);
+
   return (
-    <div className="flex flex-1 flex-col gap-5 px-4 pt-8">
-      {intent && (
-        <p className="m-0 text-[13px] text-muted">
-          You asked: <span className="text-ink">“{intent}”</span>
-        </p>
-      )}
-      <div className="flex flex-col gap-3">
-        <span className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-wider text-muted">
-          <Tick /> Reading your data
-        </span>
-        <span className="flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-wider text-muted">
-          <span className="mx-0.5 block h-2 w-2 animate-pulse bg-primary" />
-          Deciding: answer or changeset…
-        </span>
-      </div>
-      <div className="flex max-w-xl flex-col gap-2 rounded-[13px] border border-border bg-surface p-4">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-faint2">
-          Forming
-        </span>
-        {[0.9, 0.7, 0.5, 0.35].map((opacity, i) => (
-          <div
-            key={i}
-            className={cn(
-              "overflow-hidden rounded-[10px] border border-border bg-surface px-3 py-2.5",
-              i > 0 && i < 3 && "ml-5"
-            )}
-            style={{ opacity }}
-          >
-            <span
-              className="block h-2.5 rounded bg-hover"
-              style={{ width: `${52 - i * 6}%` }}
-            />
+    <div className="flex flex-1 flex-col gap-6 px-4 pt-8">
+      <div className="flex items-start gap-4">
+        <span className="ask-spinner h-11 w-11 shrink-0 rounded-full" aria-hidden />
+        <div className="min-w-0">
+          {intent && (
+            <p className="m-0 text-[15px] font-semibold leading-snug text-ink">
+              “{intent}”
+            </p>
+          )}
+          <div className="mt-2 flex flex-col gap-1" aria-live="polite">
+            {THINK_PHASES.map((label, i) => (
+              <span
+                key={label}
+                className={cn(
+                  "flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider transition-all duration-500",
+                  i < phase && "text-faint",
+                  i === phase && "text-ink",
+                  i > phase && "h-0 overflow-hidden opacity-0"
+                )}
+              >
+                {i < phase ? (
+                  <Tick />
+                ) : (
+                  <span className="mx-0.5 block h-2 w-2 animate-pulse rounded-[2px] bg-primary" />
+                )}
+                {label}
+                {i === phase && "…"}
+              </span>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
-      <p className="m-0 font-mono text-[10px] text-faint">usually 3–15s</p>
+
+      {/* Ghost dashboard: the answer will land as cards like these. */}
+      <div className="grid max-w-3xl grid-cols-1 gap-3 md:grid-cols-3" aria-hidden>
+        <GhostCard delay={0}>
+          <span className="ask-shimmer block h-8 w-20 rounded-md" />
+          <span className="ask-shimmer mt-2 block h-2.5 w-24 rounded" />
+        </GhostCard>
+        <GhostCard delay={90} className="md:col-span-2">
+          {[72, 55, 38].map((w, i) => (
+            <span
+              key={i}
+              className="ask-shimmer mt-2 block h-3.5 rounded first:mt-0"
+              style={{ width: `${w}%`, animationDelay: `${i * 0.18}s` }}
+            />
+          ))}
+        </GhostCard>
+        <GhostCard delay={180} className="md:col-span-2">
+          <span className="ask-shimmer block h-20 w-full rounded-md" />
+        </GhostCard>
+        <GhostCard delay={270}>
+          <span className="ask-spinner mx-auto block h-16 w-16 rounded-full opacity-40" />
+        </GhostCard>
+      </div>
+
+      <p className="m-0 font-mono text-[10px] text-faint">
+        usually 3–15s — feel free to keep working, I&apos;ll be here
+      </p>
+    </div>
+  );
+}
+
+function GhostCard({
+  delay,
+  className,
+  children,
+}: {
+  delay: number;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "ask-card-in rounded-[12px] border border-border bg-surface p-3.5",
+        className
+      )}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <span className="ask-shimmer mb-2.5 block h-2 w-16 rounded" />
+      {children}
     </div>
   );
 }

@@ -1,7 +1,13 @@
 "use client";
 
+// The answer half of the assistant, rendered as a small dashboard. The model
+// picks the widgets; this file makes them feel placed rather than dumped:
+// cards float in one after another, bars grow, donuts sweep open, lines draw
+// themselves, headline numbers count up. All CSS/SVG — no chart library.
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { AskResult, Widget } from "@/lib/ai/ask-schema";
+import { diversifyWidgets } from "@/lib/ai/widget-variety";
 import { normalizeInAppHref } from "@/lib/ask-links";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +20,18 @@ const SPAN: Record<number, string> = {
 const ROW_LINK =
   "flex w-full items-center gap-2 rounded-md px-1 py-1.5 -mx-1 text-primary transition-colors hover:bg-hover hover:underline";
 
+/** Entity accents, in the order series pick them up — never a generated palette. */
+const SERIES_COLORS = [
+  "oklch(0.58 0.14 245)", // projects blue
+  "oklch(0.58 0.17 300)", // goals purple
+  "oklch(0.6 0.13 155)",  // habits green
+  "oklch(0.7 0.12 70)",   // notes amber
+  "oklch(0.64 0.18 25)",  // tasks red
+  "oklch(0.55 0.16 274)", // primary indigo
+];
+
+const seriesColor = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length];
+
 export function AskDashboard({
   result,
   hideAnswer = false,
@@ -22,15 +40,20 @@ export function AskDashboard({
   /** The workspace header already shows the sentence; don't repeat it. */
   hideAnswer?: boolean;
 }) {
+  const widgets = diversifyWidgets(result.widgets);
   return (
     <div>
       {!hideAnswer && (
         <p className="mb-4 text-[14px] leading-relaxed text-ink">{result.answer}</p>
       )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {result.widgets.map((w, i) => (
-          <div key={i} className={cn(SPAN[Number(w.span)] ?? "md:col-span-1")}>
-            <WidgetCard widget={w} />
+        {widgets.map((w, i) => (
+          <div
+            key={i}
+            className={cn("ask-card-in", SPAN[Number(w.span)] ?? "md:col-span-1")}
+            style={{ animationDelay: `${i * 90}ms` }}
+          >
+            <WidgetCard widget={w} index={i} />
           </div>
         ))}
       </div>
@@ -41,9 +64,21 @@ export function AskDashboard({
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  accent,
+  children,
+}: {
+  title: string;
+  /** Optional top-edge tint so each card reads as its own thing. */
+  accent?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex h-full flex-col rounded-[12px] border border-border bg-surface p-3.5 shadow-sm">
+    <div
+      className="flex h-full flex-col rounded-[12px] border border-border bg-surface p-3.5 shadow-sm"
+      style={accent ? { borderTop: `3px solid ${accent}` } : undefined}
+    >
       <div className="mb-2 font-mono text-[10px] uppercase tracking-wide text-faint">
         {title}
       </div>
@@ -90,54 +125,95 @@ function FocusRow({
   );
 }
 
-function WidgetCard({ widget }: { widget: Widget }) {
+/**
+ * Counts a stat up from zero. Works on the first number inside the string
+ * ("17", "78%", "3 / 8" → the 3) and leaves pure-text values alone.
+ */
+function useCountUp(value: string): string {
+  const match = value.match(/-?\d+(?:\.\d+)?/);
+  const [display, setDisplay] = useState(() =>
+    match ? value.replace(match[0], "0") : value
+  );
+  useEffect(() => {
+    const m = value.match(/-?\d+(?:\.\d+)?/);
+    if (!m) {
+      setDisplay(value);
+      return;
+    }
+    const target = parseFloat(m[0]);
+    const decimals = (m[0].split(".")[1] ?? "").length;
+    const t0 = performance.now();
+    const duration = 700;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(value.replace(m[0], (target * eased).toFixed(decimals)));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return display;
+}
+
+function StatCard({ widget, index }: { widget: Extract<Widget, { type: "stat" }>; index: number }) {
+  const display = useCountUp(widget.value);
+  const color = seriesColor(index);
+  return (
+    <Card title={widget.title} accent={color}>
+      <div className="flex flex-1 flex-col justify-center">
+        <div
+          className="text-[34px] font-extrabold leading-none tracking-tight"
+          style={{ color }}
+        >
+          {display}
+        </div>
+        {widget.label && (
+          <div className="mt-1.5 text-[12px] text-muted">{widget.label}</div>
+        )}
+        {widget.hint && (
+          <div className="mt-0.5 font-mono text-[10px] text-faint">{widget.hint}</div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function WidgetCard({ widget, index }: { widget: Widget; index: number }) {
   switch (widget.type) {
     case "stat":
-      return (
-        <Card title={widget.title}>
-          <div className="flex flex-1 flex-col justify-center">
-            <div className="text-[28px] font-extrabold leading-none text-primary">
-              {widget.value}
-            </div>
-            {widget.label && (
-              <div className="mt-1 text-[12px] text-muted">{widget.label}</div>
-            )}
-            {widget.hint && (
-              <div className="mt-0.5 font-mono text-[10px] text-faint">
-                {widget.hint}
-              </div>
-            )}
-          </div>
-        </Card>
-      );
+      return <StatCard widget={widget} index={index} />;
 
     case "bar": {
       const max = Math.max(1, ...widget.series.map((s) => s.value));
       return (
         <Card title={widget.title}>
           <div className="flex flex-col divide-y divide-border2">
-            {widget.series.map((s, i) => (
-              <FocusRow
-                key={i}
-                href={s.href}
-                label={s.label}
-                className="gap-2"
-              >
-                <div className="w-24 shrink-0 truncate text-[11.5px] text-muted">
-                  {s.label}
-                </div>
-                <div className="h-3.5 flex-1 overflow-hidden rounded bg-surface2">
-                  <div
-                    className="h-full rounded bg-primary"
-                    style={{ width: `${(s.value / max) * 100}%` }}
-                  />
-                </div>
-                <div className="w-12 shrink-0 text-right font-mono text-[11px] text-ink">
-                  {s.value}
-                  {widget.unit ? <span className="text-faint">{widget.unit}</span> : null}
-                </div>
-              </FocusRow>
-            ))}
+            {widget.series.map((s, i) => {
+              const color = seriesColor(i);
+              return (
+                <FocusRow key={i} href={s.href} label={s.label} className="gap-2">
+                  <div className="w-24 shrink-0 truncate text-[11.5px] text-muted">
+                    {s.label}
+                  </div>
+                  <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-surface2">
+                    <div
+                      className="ask-bar-fill h-full rounded-full"
+                      style={{
+                        width: `${(s.value / max) * 100}%`,
+                        background: `linear-gradient(90deg, color-mix(in oklch, ${color} 62%, var(--surface2)), ${color})`,
+                        ["--ask-delay" as string]: `${i * 0.12}s`,
+                      }}
+                    />
+                  </div>
+                  <div className="w-12 shrink-0 text-right font-mono text-[11px] text-ink">
+                    {s.value}
+                    {widget.unit ? <span className="text-faint">{widget.unit}</span> : null}
+                  </div>
+                </FocusRow>
+              );
+            })}
           </div>
         </Card>
       );
@@ -148,7 +224,11 @@ function WidgetCard({ widget }: { widget: Widget }) {
         <Card title={widget.title}>
           <ul className="flex flex-col divide-y divide-border2">
             {widget.items.map((item, i) => (
-              <li key={i}>
+              <li
+                key={i}
+                className="ask-fade-in"
+                style={{ ["--ask-delay" as string]: `${i * 0.07}s` }}
+              >
                 <FocusRow href={item.href} label={item.label} sublabel={item.sublabel} />
               </li>
             ))}
@@ -182,12 +262,13 @@ function WidgetCard({ widget }: { widget: Widget }) {
               </thead>
               <tbody>
                 {widget.rows.map((row, ri) => (
-                  <tr key={ri}>
+                  <tr
+                    key={ri}
+                    className="ask-fade-in"
+                    style={{ ["--ask-delay" as string]: `${ri * 0.06}s` }}
+                  >
                     {row.map((cell, ci) => (
-                      <td
-                        key={ci}
-                        className="border-b border-border2 px-2 py-1 text-ink"
-                      >
+                      <td key={ci} className="border-b border-border2 px-2 py-1 text-ink">
                         {cell}
                       </td>
                     ))}
@@ -204,23 +285,24 @@ function WidgetCard({ widget }: { widget: Widget }) {
         1,
         widget.slices.reduce((sum, s) => sum + s.value, 0)
       );
-      // stroke-dasharray donut, per the design: 15.9 radius → circumference 100,
-      // so dash lengths are simply percentages.
+      // stroke-dasharray donut: 15.9 radius → circumference 100, so dash
+      // lengths are simply percentages. Slices sweep open in turn (.ask-arc).
       let offset = 25;
       const arcs = widget.slices.slice(0, 6).map((s, i) => {
         const pct = (s.value / total) * 100;
-        const arc = { pct, offset, color: SERIES_COLORS[i % SERIES_COLORS.length], slice: s };
+        const arc = { pct, offset, color: seriesColor(i), slice: s };
         offset -= pct;
         return arc;
       });
       return (
         <Card title={widget.title}>
           <div className="flex flex-wrap items-center gap-4">
-            <svg width="96" height="96" viewBox="0 0 42 42" role="img" aria-label={widget.title}>
+            <svg width="108" height="108" viewBox="0 0 42 42" role="img" aria-label={widget.title}>
               <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--border)" strokeWidth="5.5" />
               {arcs.map((a, i) => (
                 <circle
                   key={i}
+                  className="ask-arc"
                   cx="21"
                   cy="21"
                   r="15.9"
@@ -229,6 +311,11 @@ function WidgetCard({ widget }: { widget: Widget }) {
                   strokeWidth="5.5"
                   strokeDasharray={`${a.pct} ${100 - a.pct}`}
                   strokeDashoffset={a.offset}
+                  strokeLinecap={a.pct < 99 ? "butt" : "round"}
+                  style={{
+                    ["--ask-arc" as string]: `${a.pct} ${100 - a.pct}`,
+                    ["--ask-delay" as string]: `${i * 0.1}s`,
+                  }}
                 />
               ))}
               {widget.centerLabel && (
@@ -247,7 +334,7 @@ function WidgetCard({ widget }: { widget: Widget }) {
               {arcs.map((a, i) => (
                 <FocusRow key={i} href={a.slice.href} label={a.slice.label} className="gap-2">
                   <i
-                    className="h-2 w-2 shrink-0"
+                    className="h-2 w-2 shrink-0 rounded-[2px]"
                     style={{ background: a.color }}
                     aria-hidden
                   />
@@ -257,6 +344,9 @@ function WidgetCard({ widget }: { widget: Widget }) {
                   <span className="shrink-0 font-mono text-[11px] text-ink">
                     {a.slice.value}
                     {widget.unit ?? ""}
+                  </span>
+                  <span className="w-9 shrink-0 text-right font-mono text-[10px] text-faint">
+                    {Math.round(a.pct)}%
                   </span>
                 </FocusRow>
               ))}
@@ -274,12 +364,19 @@ function WidgetCard({ widget }: { widget: Widget }) {
       const max = Math.max(...points.map((p) => p.value), 1);
       const min = Math.min(...points.map((p) => p.value), 0);
       const range = max - min || 1;
-      const coords = points.map((p, i) => {
+      const color = seriesColor(index);
+      const gradId = `ask-line-${index}`;
+      const xy = points.map((p, i) => {
         const x = points.length === 1 ? w / 2 : 4 + (i * (w - 8)) / (points.length - 1);
         const y = 10 + (1 - (p.value - min) / range) * (h - 30);
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
+        return [x, y] as const;
       });
-      const last = coords.at(-1)!.split(",");
+      const coords = xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`);
+      const area = [
+        `${xy[0][0].toFixed(1)},${h - 10}`,
+        ...coords,
+        `${xy.at(-1)![0].toFixed(1)},${h - 10}`,
+      ].join(" ");
       return (
         <Card title={widget.title}>
           <svg
@@ -290,16 +387,43 @@ function WidgetCard({ widget }: { widget: Widget }) {
             aria-label={widget.title}
             className="block"
           >
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+            </defs>
             <line x1="0" y1={h - 10} x2={w} y2={h - 10} stroke="var(--border)" strokeWidth="1" />
+            <polygon
+              points={area}
+              fill={`url(#${gradId})`}
+              className="ask-fade-in"
+              style={{ ["--ask-delay" as string]: "0.4s" }}
+            />
             <polyline
+              className="ask-line-draw"
+              pathLength={1}
               fill="none"
-              stroke="var(--tasks)"
-              strokeWidth="1.8"
+              stroke={color}
+              strokeWidth="2"
               strokeLinejoin="round"
               strokeLinecap="round"
               points={coords.join(" ")}
             />
-            <circle cx={last[0]} cy={last[1]} r="3" fill="var(--tasks)" />
+            {xy.map(([x, y], i) => (
+              <circle
+                key={i}
+                className="ask-pop-in"
+                cx={x}
+                cy={y}
+                r={i === xy.length - 1 ? 3 : 1.8}
+                fill={color}
+                style={{
+                  ["--ask-delay" as string]: `${0.15 + (i / xy.length) * 0.8}s`,
+                  transformOrigin: `${x}px ${y}px`,
+                }}
+              />
+            ))}
           </svg>
           <div className="mt-1 flex justify-between font-mono text-[9px] text-faint">
             <span>{points[0].label}</span>
@@ -316,24 +440,30 @@ function WidgetCard({ widget }: { widget: Widget }) {
       return (
         <Card title={widget.title}>
           <div className="flex flex-col gap-3">
-            {widget.rows.map((row, i) => (
-              <FocusRow key={i} href={row.href} label={row.label} className="block">
-                <div className="w-full">
-                  <div className="mb-1.5 flex justify-between text-[12px]">
-                    <span className="truncate text-ink">{row.label}</span>
-                    <span className="font-mono text-muted">
-                      {Math.round(row.percent)}%
-                    </span>
+            {widget.rows.map((row, i) => {
+              const pct = Math.min(100, Math.max(0, row.percent));
+              const color = seriesColor(i);
+              return (
+                <FocusRow key={i} href={row.href} label={row.label} className="block">
+                  <div className="w-full">
+                    <div className="mb-1.5 flex justify-between text-[12px]">
+                      <span className="truncate text-ink">{row.label}</span>
+                      <span className="font-mono text-muted">{Math.round(row.percent)}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-border">
+                      <span
+                        className="ask-bar-fill block h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: `linear-gradient(90deg, color-mix(in oklch, ${color} 62%, var(--surface2)), ${color})`,
+                          ["--ask-delay" as string]: `${i * 0.12}s`,
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded bg-border">
-                    <span
-                      className="block h-full bg-goals"
-                      style={{ width: `${Math.min(100, Math.max(0, row.percent))}%` }}
-                    />
-                  </div>
-                </div>
-              </FocusRow>
-            ))}
+                </FocusRow>
+              );
+            })}
           </div>
         </Card>
       );
@@ -349,16 +479,6 @@ function WidgetCard({ widget }: { widget: Widget }) {
       );
   }
 }
-
-/** Entity accents, in the order series pick them up — never a generated palette. */
-const SERIES_COLORS = [
-  "oklch(0.58 0.14 245)", // projects blue
-  "oklch(0.58 0.17 300)", // goals purple
-  "oklch(0.6 0.13 155)",  // habits green
-  "oklch(0.7 0.12 70)",   // notes amber
-  "oklch(0.64 0.18 25)",  // tasks red
-  "oklch(0.55 0.16 274)", // primary indigo
-];
 
 const DOW = ["M", "T", "W", "T", "F", "S", "S"];
 
@@ -380,9 +500,13 @@ function MonthCalendar({
 
   const cells: ({ day: number; mark?: (typeof marks)[number] } | null)[] = [];
   for (let i = 0; i < offset; i++) cells.push(null);
+  let markSeen = 0;
+  const marked: number[] = [];
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${y}-${pad(m)}-${pad(d)}`;
-    cells.push({ day: d, mark: byDate.get(key) });
+    const mark = byDate.get(key);
+    cells.push({ day: d, mark });
+    marked.push(mark ? markSeen++ : -1);
   }
 
   return (
@@ -405,7 +529,7 @@ function MonthCalendar({
               title={c.mark?.label ?? undefined}
               className={cn(
                 "flex aspect-square items-center justify-center rounded-[4px] text-[10px]",
-                c.mark ? "text-white" : "bg-surface2 text-faint"
+                c.mark ? "ask-pop-in text-white" : "bg-surface2 text-faint"
               )}
               style={
                 c.mark
@@ -413,6 +537,7 @@ function MonthCalendar({
                       background: `color-mix(in oklch, var(--habits) ${Math.round(
                         Math.max(0.15, Math.min(1, c.mark.intensity ?? 1)) * 100
                       )}%, var(--surface2))`,
+                      ["--ask-delay" as string]: `${marked[c.day - 1] * 0.04}s`,
                     }
                   : undefined
               }

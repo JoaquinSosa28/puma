@@ -42,6 +42,18 @@ const barWidget = z.object({
   title: z.string(),
   span,
   unit: z.string(),
+  /**
+   * True when the same series would read equally well as a donut. The app
+   * uses it to vary the dashboard: a second consecutive bar chart becomes a
+   * pie when you say the data supports it. (Sent via jsonTool, so nullish is
+   * safe here despite the file-top note about grammar caps.)
+   */
+  altPie: z
+    .boolean()
+    .nullish()
+    .describe(
+      "True if this exact series would also read well as a donut (parts of a whole). The app may then render it as one for variety."
+    ),
   series: z.array(
     z.object({
       label: z.string(),
@@ -101,6 +113,13 @@ const pieWidget = z.object({
   ),
   unit: z.string(),
   centerLabel: z.string(),
+  /** Mirror of barWidget.altPie: this donut could also be a bar ranking. */
+  altBar: z
+    .boolean()
+    .nullish()
+    .describe(
+      "True if these slices would also read well as a ranked bar chart. The app may then render it as one for variety."
+    ),
 });
 
 const lineWidget = z.object({
