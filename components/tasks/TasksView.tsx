@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
-import { ListTodo, X } from "lucide-react";
+import { ListTodo, Search, X } from "lucide-react";
+import { searchTasks } from "@/lib/task-search";
 import type { Task, Tag, Project } from "@/lib/schemas";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
@@ -52,6 +53,7 @@ export function TasksView({
   );
   const [taskId, setTaskId] = useQueryState("task");
   const [projectFilter, setProjectFilter] = useQueryState("project", parseAsString);
+  const [query, setQuery] = useQueryState("q", parseAsString.withDefault(""));
   const listRef = useRef<HTMLDivElement>(null);
   const timeZone = useTimezone();
   const isDesktop = useIsDesktop();
@@ -66,18 +68,41 @@ export function TasksView({
     if (taskId && !selectedTask) setTaskId(null);
   }, [taskId, selectedTask, setTaskId]);
 
+  const trimmedQuery = query.trim();
+  const searching = trimmedQuery.length > 0;
+
   const filtered = useMemo(() => {
-    let items = tasks.filter((t) => {
-      const d = (t.due ?? "").slice(0, 10);
-      if (tab === "today") return d === td;
-      if (tab === "upcoming") return d > td;
-      return true;
-    });
+    let items: Task[];
+    if (searching) {
+      // Searching looks past the tab on purpose: hunting for a task you can't
+      // find is the whole point, and "no results" because it's due next week
+      // would be a lie. Overdue carryover joins the pool for the same reason.
+      const byId = new Set(tasks.map((t) => t.id));
+      const pool = [...tasks, ...carryover.filter((t) => !byId.has(t.id))];
+      items = searchTasks(pool, trimmedQuery, { tags, projects });
+    } else {
+      items = tasks.filter((t) => {
+        const d = (t.due ?? "").slice(0, 10);
+        if (tab === "today") return d === td;
+        if (tab === "upcoming") return d > td;
+        return true;
+      });
+    }
     if (projectFilter) {
       items = items.filter((t) => t.projectId === projectFilter);
     }
     return items;
-  }, [tasks, tab, td, projectFilter]);
+  }, [
+    tasks,
+    carryover,
+    tab,
+    td,
+    projectFilter,
+    searching,
+    trimmedQuery,
+    tags,
+    projects,
+  ]);
 
   const filteredCarryover = useMemo(() => {
     if (!projectFilter) return carryover;
@@ -103,14 +128,15 @@ export function TasksView({
     ? projects.find((p) => p.id === projectFilter)
     : null;
 
-  const showCarryover = tab === "today";
+  const showCarryover = tab === "today" && !searching;
 
 
   const taskGroups = useMemo((): Group[] => {
     if (group === "none") {
-      const label =
-        filteredProject?.title ??
-        (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
+      const label = searching
+        ? "Results"
+        : filteredProject?.title ??
+          (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
       return [
         {
           label,
@@ -166,7 +192,7 @@ export function TasksView({
       });
     }
     return result;
-  }, [group, tags, projects, filtered, tab, filteredProject]);
+  }, [group, tags, projects, filtered, tab, filteredProject, searching]);
 
   useEffect(() => {
     if (projectFilter && !filteredProject) setProjectFilter(null);
@@ -182,8 +208,9 @@ export function TasksView({
     return () => window.clearTimeout(timer);
   }, [taskId, taskGroups, tab, group, projectFilter]);
 
-  const emptyCopy =
-    tab === "today"
+  const emptyCopy = searching
+    ? `Nothing matches "${trimmedQuery}". Search covers titles, descriptions, subtasks, tags and projects.`
+    : tab === "today"
       ? showCarryover && filteredCarryover.length
         ? "Nothing new due today — finish carryover below or check Upcoming."
         : "Nothing due today — capture something above or check Upcoming."
@@ -250,7 +277,13 @@ export function TasksView({
               />
             )}
           </div>
-          <div className="ml-auto flex items-center gap-0.5 max-lg:hidden">
+          <SearchField
+            value={query}
+            onChange={setQuery}
+            resultCount={searching ? filtered.length : null}
+          />
+
+          <div className="flex items-center gap-0.5 max-lg:hidden">
             <TaskStat
               value={
                 summary.todayTotal
@@ -290,9 +323,15 @@ export function TasksView({
                     className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface"
                     style={{ color: TASK_ACCENT }}
                   >
-                    <ListTodo className="h-5 w-5" />
+                    {searching ? (
+                      <Search className="h-5 w-5" />
+                    ) : (
+                      <ListTodo className="h-5 w-5" />
+                    )}
                   </div>
-                  <p className="m-0 text-sm font-semibold text-ink">All clear</p>
+                  <p className="m-0 text-sm font-semibold text-ink">
+                    {searching ? "No matches" : "All clear"}
+                  </p>
                   <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-faint">
                     {emptyCopy}
                   </p>
@@ -367,6 +406,58 @@ export function TasksView({
         </div>
       </div>
     </>
+  );
+}
+
+function SearchField({
+  value,
+  onChange,
+  resultCount,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  resultCount: number | null;
+}) {
+  return (
+    <div className="ml-auto flex min-w-[190px] max-w-[280px] items-center gap-2 rounded-lg border border-border bg-surface2 px-2.5 py-1.5 transition-colors focus-within:border-faint max-lg:ml-0 max-lg:w-full max-lg:max-w-none">
+      <Search className="h-3.5 w-3.5 shrink-0 text-faint2" strokeWidth={2.2} />
+      {/* Deliberately not type="search": WebKit adds its own clear button and
+          we'd render two. */}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && value) {
+            // Stop here so the global Esc handler doesn't also clear the
+            // capture bar on the same press.
+            e.preventDefault();
+            e.stopPropagation();
+            onChange("");
+          }
+        }}
+        placeholder="Search tasks…"
+        aria-label="Search tasks"
+        autoComplete="off"
+        spellCheck={false}
+        className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-faint2"
+      />
+      {resultCount !== null && (
+        <span className="shrink-0 font-mono text-[10px] font-semibold text-faint">
+          {resultCount}
+        </span>
+      )}
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="flex shrink-0 items-center justify-center rounded text-faint transition-colors hover:text-ink"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
   );
 }
 
