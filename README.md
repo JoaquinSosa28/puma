@@ -11,7 +11,9 @@ in-memory with zero setup for local use, or against MongoDB Atlas with real
 accounts for hosting.
 
 - **Live:** [puma.joaquinsosa.dev](https://puma.joaquinsosa.dev)
-- **License:** [MIT](LICENSE) — self-host it for free, forever.
+- **License:** [PolyForm Noncommercial 1.0.0](LICENSE) — read it, run it, fork
+  it, self-host it for free, forever, for anything that isn't commercial.
+  See [License](#license).
 
 ## Features
 
@@ -96,7 +98,35 @@ typecheck/lint/test/build gate before publishing to GHCR. Any reverse proxy
 (Traefik, Caddy, nginx) can sit in front — set `BETTER_AUTH_URL` to your public
 URL and `SERVER_ACTIONS_ALLOWED_ORIGINS` to your domain.
 
+## License
+
+PUMA is **source-available** under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). The source is public and the
+license is permissive about everything except making money with it.
+
+**Free, no permission needed** — personal use, self-hosting for yourself, your
+family or your friends, study, research, hobby and amateur projects, forking and
+modifying, and use by charities, schools, public research bodies and government.
+
+**Needs a separate license** — anything commercial: using it inside a for-profit
+company, selling it or a modified version, running it as a paid or ad-supported
+hosted service, or bundling it into a product you charge for.
+
+That line is the license's, not a summary you should rely on — the
+[LICENSE](LICENSE) text governs. If you want to use PUMA commercially, that's
+genuinely fine and usually cheap: email
+[joaquinsosa2810@gmail.com](mailto:joaquinsosa2810@gmail.com) and ask.
+
+To be precise about a word people care about: this is *not* an OSI-approved
+open-source license, because the noncommercial restriction fails the
+[Open Source Definition](https://opensource.org/osd). Calling it
+"source-available" is the honest label. Releases before 2026-08-01 were
+published under the MIT license and stay MIT — this change applies going
+forward.
+
 ## Contributing
 
 Issues and PRs welcome. Run `npm run typecheck && npm run lint && npm run test`
-before opening a PR.
+before opening a PR. By opening a PR you agree your contribution is licensed to
+the project under the same terms as [LICENSE](LICENSE), and that it may be
+offered under the commercial license described above.
