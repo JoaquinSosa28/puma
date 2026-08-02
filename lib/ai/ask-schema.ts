@@ -3,7 +3,7 @@
 // client dashboard can import these types. Authored against zod/v4 for zodOutputFormat.
 import * as z from "zod/v4";
 
-// No .nullable()/.optional() anywhere: Anthropic's structured-output grammar
+// No .nullable()/.nullish() anywhere: Anthropic's structured-output grammar
 // caps optional parameters (24) and union-typed parameters, nullable included
 // (16). "" means "none" for every string field; "none" is an enum member.
 

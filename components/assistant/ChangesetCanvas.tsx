@@ -748,7 +748,22 @@ function NodeRow({
   );
 }
 
-/** old → new, per field, straight from the op's before block. */
+/** What each op field is called in the interface, per entity. */
+function fieldLabel(field: string, entity: ChangeEntity): string {
+  if (field === "title") return entity === "habit" ? "Name" : "Title";
+  if (field === "description") return entity === "note" ? "Body" : "Details";
+  if (field === "date") return entity === "goal" ? "Target date" : "Due";
+  if (field === "projectId") return "Project";
+  if (field === "goalId" || field === "goalIds") return "Goal";
+  if (field === "tagNames") return "Tags";
+  if (field === "lifeArea") return "Life area";
+  if (field === "archived") return "Archived";
+  if (field === "priority") return "Priority";
+  if (field === "frequency") return "Repeats";
+  return field;
+}
+
+/** old → new for the fields that genuinely differ. */
 function DiffGrid({
   op,
   names,
@@ -756,53 +771,57 @@ function DiffGrid({
   op: Extract<ChangeOp, { op: "update" }>;
   names: Record<string, string>;
 }) {
-  const rows = Object.entries(op.fields).filter(
-    ([, v]) => v != null && v !== "" && !(Array.isArray(v) && !v.length)
-  );
+  const before = op.before as Record<string, unknown>;
+  const rows = Object.entries(op.fields).filter(([field, next]) => {
+    if (next == null) return false;
+    if (Array.isArray(next) && !next.length) return false;
+    // The server strips echoed fields, but a draft edited by hand can
+    // reintroduce one — never show "personal → personal".
+    return !sameValue(next, before[field]);
+  });
   if (!rows.length) return null;
+
   return (
-    <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2.5 gap-y-1 font-mono text-[11px]">
+    <div className="mt-2 flex flex-col gap-1">
       {rows.map(([field, next]) => (
-        <FieldDiff
-          key={field}
-          field={field === "projectId" || field === "goalId" ? "moves to" : field}
-          before={(op.before as Record<string, unknown>)[field]}
-          next={next}
-          names={names}
-        />
+        <div key={field} className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-faint2">
+            {fieldLabel(field, op.entity)}
+          </span>
+          <span className="text-faint line-through">
+            {display(before[field], names)}
+          </span>
+          <span aria-hidden className="text-faint">
+            →
+          </span>
+          <span className="font-medium text-ink">{display(next, names)}</span>
+        </div>
       ))}
     </div>
   );
 }
 
-function FieldDiff({
-  field,
-  before,
-  next,
-  names,
-}: {
-  field: string;
-  before: unknown;
-  next: unknown;
-  names: Record<string, string>;
-}) {
-  // Ids are noise in a diff — show what they point at.
-  const show = (v: unknown) => {
-    if (v == null || v === "") return "none";
-    if (typeof v === "object") return JSON.stringify(v);
-    const str = String(v);
-    return names[str] ?? str;
-  };
-  return (
-    <>
-      <span className="uppercase tracking-wider text-faint2">{field}</span>
-      <span>
-        <span className="text-faint line-through">{show(before)}</span>{" "}
-        <span aria-hidden className="text-faint">→</span>{" "}
-        <span className="text-ink">{show(next)}</span>
-      </span>
-    </>
-  );
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  }
+  return a === b;
+}
+
+/** A field value as a person would write it — never raw JSON, never a hex id. */
+function display(value: unknown, names: Record<string, string>): string {
+  if (value == null || value === "") return "not set";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (Array.isArray(value)) {
+    if (!value.length) return "none";
+    return value.map((v) => names[String(v)] ?? String(v)).join(", ");
+  }
+  const str = String(value);
+  // Ids mean nothing to a reader; show what they point at.
+  if (names[str]) return names[str];
+  // Timestamps: the day is the part anyone cares about.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return str.slice(0, 10);
+  return str;
 }
 
 // ---------------------------------------------------------------------------

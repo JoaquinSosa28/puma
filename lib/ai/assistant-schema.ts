@@ -45,3 +45,23 @@ export type AssistantResponse = z.infer<typeof responseUnion>;
 
 /** The caller can pin a branch when the router guessed wrong ("I meant to…"). */
 export type AssistantMode = "auto" | "answer" | "changeset";
+
+/**
+ * When the user pins a mode ("I meant to build this"), the other branch is
+ * removed from the schema rather than argued against in the prompt. A model
+ * that has already decided once will decide the same way again given the same
+ * choice — so take the choice away.
+ */
+export const answerOnlySchema = z.object({
+  response: askAnswerSchema.extend({ kind: z.literal("answer") }),
+});
+
+export const changesetOnlySchema = z.object({
+  response: changesetSchema.extend({ kind: z.literal("changeset") }),
+});
+
+export function schemaForMode(mode: AssistantMode) {
+  if (mode === "answer") return answerOnlySchema;
+  if (mode === "changeset") return changesetOnlySchema;
+  return assistantResponseSchema;
+}

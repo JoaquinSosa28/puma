@@ -320,8 +320,8 @@ type Ctx = {
   touchedProjects: Set<string>;
 };
 
-/** An absent or blank field means "not set / unchanged". */
-const val = (v: string | undefined): string | null => (v ? v : null);
+/** Absent, null or blank all mean "not set / unchanged". */
+const val = (v: string | null | undefined): string | null => (v ? v : null);
 
 async function applyCreate(
   userId: string,
