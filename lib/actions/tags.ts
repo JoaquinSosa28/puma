@@ -21,7 +21,7 @@ import {
   withProjectLifeTags,
   goalCategoryForLifeArea,
 } from "@/lib/life-area-sync";
-import { getProject, updateProject } from "@/lib/db/projects";
+import { getProject, listProjects, updateProject } from "@/lib/db/projects";
 import { listHabits, updateHabit } from "@/lib/db/habits";
 import { listGoals, nextGoalOrder, updateGoal } from "@/lib/db/goals";
 import { setProjectLifeArea } from "@/lib/project-life-server";
@@ -257,6 +257,148 @@ export async function updateTagAction(input: {
   }
   revalidatePath("/", "layout");
   return { ok: true, data: updated };
+}
+
+const renameProjectTagSchema = z.object({
+  id: entityId,
+  name: tagName,
+  confirmMerge: z.boolean().optional(),
+});
+
+export type ProjectTagRename =
+  | { status: "renamed"; filed: number }
+  | {
+      status: "needs-confirm";
+      tagName: string;
+      /** Unfiled tasks that the merge would pull into this project. */
+      willFile: number;
+      /** Tasks staying in another project, which just lose the label. */
+      willUnlabel: number;
+    };
+
+/**
+ * Rename a project's flagship tag, merging into an existing tag if the new
+ * name is taken.
+ *
+ * An ordinary rename onto a used name is refused — two tags with one name make
+ * "#ai" ambiguous. For a flagship there's a meaning worth honouring: renaming
+ * "game-dev" to "art" says this project *is* the art work, so the existing
+ * "art" tag is absorbed and what it holds comes along. That moves tasks, so it
+ * only happens with `confirmMerge` after the caller has said how many.
+ */
+export async function renameProjectTagAction(
+  input: z.infer<typeof renameProjectTagSchema>
+): Promise<ActionResult<ProjectTagRename>> {
+  const parsed = renameProjectTagSchema.safeParse({
+    ...input,
+    name: input.name.toLowerCase(),
+  });
+  if (!parsed.success) return { ok: false, error: "Invalid name" };
+  const { id, name, confirmMerge } = parsed.data;
+
+  const userId = await requireUserId();
+  const tags = await listTags(userId);
+  const tag = tags.find((t) => t.id === id);
+  if (!tag) return { ok: false, error: "Tag not found" };
+  if (!tag.isProjectPrimary || !tag.projectId) {
+    return { ok: false, error: "That isn't a project's own tag" };
+  }
+  if (isLifeTag(name)) {
+    return { ok: false, error: `"${name}" is a life tag` };
+  }
+  if (name === tag.name.toLowerCase()) {
+    return { ok: true, data: { status: "renamed", filed: 0 } };
+  }
+
+  const clash = tags.find((t) => t.id !== id && t.name.toLowerCase() === name);
+  if (!clash) {
+    const updated = await updateTag(userId, id, { name });
+    if (!updated) return { ok: false, error: "Name already in use" };
+    revalidatePath("/", "layout");
+    return { ok: true, data: { status: "renamed", filed: 0 } };
+  }
+
+  // Two projects can't collapse into one by a rename — that would silently
+  // move a whole project's worth of work.
+  if (clash.projectId) {
+    return { ok: false, error: `"${name}" belongs to another project` };
+  }
+
+  const project = await getProject(userId, tag.projectId);
+  if (!project) return { ok: false, error: "Project not found" };
+
+  const tasks = await listTasks(userId);
+  const holders = tasks.filter((t) => t.tagIds.includes(clash.id));
+  const toFile = holders.filter((t) => !t.projectId);
+  const elsewhere = holders.filter(
+    (t) => t.projectId && t.projectId !== project.id
+  );
+
+  if (!confirmMerge) {
+    return {
+      ok: true,
+      data: {
+        status: "needs-confirm",
+        tagName: clash.name,
+        willFile: toFile.length,
+        willUnlabel: elsewhere.length,
+      },
+    };
+  }
+
+  const swap = (tagIds: string[]) => [
+    ...new Set(tagIds.map((x) => (x === clash.id ? id : x))),
+  ];
+
+  for (const task of holders) {
+    if (!task.projectId) {
+      const tagIds = withProjectLifeTags(swap(task.tagIds), project.lifeArea, tags);
+      await updateTask(userId, task.id, {
+        projectId: project.id,
+        tagIds,
+        lifeArea: deriveLifeAreaFromTags(tagIds, tags),
+      });
+    } else if (task.projectId === project.id) {
+      await updateTask(userId, task.id, { tagIds: swap(task.tagIds) });
+    } else {
+      // Filed elsewhere: it keeps its project and simply drops the label,
+      // since that label now means "belongs to this other project".
+      await updateTask(userId, task.id, {
+        tagIds: task.tagIds.filter((x) => x !== clash.id),
+      });
+    }
+  }
+
+  // Everything else carrying the tag is projectless by nature, so it just
+  // follows the rename.
+  for (const note of await listNotes(userId)) {
+    if (note.tagIds.includes(clash.id)) {
+      await updateNote(userId, note.id, { tagIds: swap(note.tagIds) });
+    }
+  }
+  for (const habit of await listHabits(userId)) {
+    if (habit.tagIds.includes(clash.id)) {
+      await updateHabit(userId, habit.id, { tagIds: swap(habit.tagIds) });
+    }
+  }
+  for (const goal of await listGoals(userId)) {
+    if (goal.tagIds.includes(clash.id)) {
+      await updateGoal(userId, goal.id, { tagIds: swap(goal.tagIds) });
+    }
+  }
+  for (const other of await listProjects(userId)) {
+    if (other.tagIds.includes(clash.id)) {
+      await updateProject(userId, other.id, { tagIds: swap(other.tagIds) });
+    }
+  }
+
+  await deleteTag(userId, clash.id);
+  const renamed = await updateTag(userId, id, { name });
+  if (!renamed) return { ok: false, error: "Could not rename" };
+
+  if (toFile.length) await syncGoalsForProject(userId, project.id);
+  revalidatePath("/", "layout");
+  return { ok: true, data: { status: "renamed", filed: toFile.length } };
 }
 
 export async function deleteTagAction(id: string): Promise<ActionResult> {

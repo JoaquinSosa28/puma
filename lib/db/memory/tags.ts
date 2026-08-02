@@ -152,10 +152,12 @@ export async function detachTagFromProject(
 export async function setTagProject(
   userId: string,
   id: string,
-  projectId: string
+  projectId: string,
+  opts: { primary?: boolean } = {}
 ): Promise<void> {
   const store = getStore();
   const tag = store.tags.find((t) => t._id === id && t.userId === userId);
   if (!tag) return;
   tag.projectId = projectId;
+  if (opts.primary !== undefined) tag.isProjectPrimary = opts.primary;
 }

@@ -9,10 +9,11 @@ import {
   attachTagToProjectAction,
   detachTagFromProjectAction,
 } from "@/lib/actions/projects";
-import { updateTagAction } from "@/lib/actions/tags";
+import { renameProjectTagAction } from "@/lib/actions/tags";
 import { tagsForProject } from "@/lib/project-tags";
 import { isLifeTag } from "@/lib/life-area-sync";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /**
  * The tags that file things into this project.
@@ -29,6 +30,7 @@ export function ProjectTagsField({
   tags: Tag[];
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [pending, startTransition] = useTransition();
   const [renaming, setRenaming] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -52,7 +54,56 @@ export function ProjectTagsField({
     const next = draft.trim().toLowerCase();
     setRenaming(null);
     if (!next || next === tag.name) return;
-    run(async () => updateTagAction({ id: tag.id, name: next }));
+
+    startTransition(async () => {
+      const res = await renameProjectTagAction({ id: tag.id, name: next });
+      if (!res.ok) {
+        toast.error(res.error ?? "Could not rename");
+        return;
+      }
+      if (!res.data) return;
+      if (res.data.status === "renamed") {
+        router.refresh();
+        return;
+      }
+
+      // The name is taken by an ordinary tag, so this rename absorbs it and
+      // moves work around. Say exactly how much before doing it.
+      const { tagName, willFile, willUnlabel } = res.data;
+      const parts = [
+        willFile
+          ? `${willFile} unfiled task${willFile === 1 ? "" : "s"} tagged #${tagName} will move into ${project.title}.`
+          : `Nothing is unfiled under #${tagName}, so no task moves.`,
+      ];
+      if (willUnlabel) {
+        parts.push(
+          `${willUnlabel} task${willUnlabel === 1 ? "" : "s"} already in other projects will stay put and lose the #${tagName} label.`
+        );
+      }
+
+      const ok = await confirm({
+        title: `Rename to #${tagName}?`,
+        description: parts.join(" "),
+        confirmLabel: "Rename and merge",
+      });
+      if (!ok) return;
+
+      const merged = await renameProjectTagAction({
+        id: tag.id,
+        name: next,
+        confirmMerge: true,
+      });
+      if (!merged.ok) {
+        toast.error(merged.error ?? "Could not rename");
+        return;
+      }
+      if (merged.data?.status === "renamed" && merged.data.filed) {
+        toast.success(
+          `#${next} files here now — ${merged.data.filed} task${merged.data.filed === 1 ? "" : "s"} moved in`
+        );
+      }
+      router.refresh();
+    });
   };
 
   return (
@@ -124,9 +175,23 @@ export function ProjectTagsField({
               const tagId = e.target.value;
               setAdding(false);
               if (!tagId) return;
-              run(() =>
-                attachTagToProjectAction({ projectId: project.id, tagId })
-              );
+              startTransition(async () => {
+                const res = await attachTagToProjectAction({
+                  projectId: project.id,
+                  tagId,
+                });
+                if (!res.ok) {
+                  toast.error(res.error ?? "Could not add tag");
+                  return;
+                }
+                const filed = res.data?.filed ?? 0;
+                if (filed) {
+                  toast.success(
+                    `${filed} unfiled task${filed === 1 ? "" : "s"} moved into ${project.title}`
+                  );
+                }
+                router.refresh();
+              });
             }}
             className="rounded-lg border border-border bg-surface px-2 py-1 font-mono text-[11px] text-ink outline-none focus:border-faint"
           >

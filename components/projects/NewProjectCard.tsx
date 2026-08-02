@@ -33,10 +33,20 @@ export function NewProjectCard({ lifeArea, onCreated, className }: Props) {
         toast.error("Could not create project");
         return;
       }
-      toast.success(`Created "${res.data.title}"`);
+      const { project, adopted } = res.data;
+      // Say when the project took over an existing tag — it moves tasks, and
+      // silently reassigning someone's work is not a nice surprise.
+      toast.success(
+        adopted
+          ? `Created "${project.title}" — #${adopted.tagName} files here now` +
+              (adopted.filed
+                ? `, ${adopted.filed} unfiled task${adopted.filed === 1 ? "" : "s"} moved in`
+                : "")
+          : `Created "${project.title}"`
+      );
       setTitle("");
       setOpen(false);
-      onCreated(res.data.id);
+      onCreated(project.id);
       router.refresh();
     });
   };

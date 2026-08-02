@@ -163,8 +163,17 @@ export async function detachTagFromProject(
 export async function setTagProject(
   userId: string,
   id: string,
-  projectId: string
+  projectId: string,
+  opts: { primary?: boolean } = {}
 ): Promise<void> {
   const c = await col();
-  await c.updateOne({ _id: id, userId }, { $set: { projectId } });
+  await c.updateOne(
+    { _id: id, userId },
+    {
+      $set: {
+        projectId,
+        ...(opts.primary === undefined ? {} : { isProjectPrimary: opts.primary }),
+      },
+    }
+  );
 }

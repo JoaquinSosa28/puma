@@ -26,6 +26,7 @@ import {
 } from "@/lib/db/projects";
 import { syncGoalProgress, syncGoalsForProject } from "@/lib/goal-sync-server";
 import { setProjectLifeArea } from "@/lib/project-life-server";
+import { fileTaggedTasksIntoProject } from "@/lib/project-filing-server";
 import { requireUserId } from "@/lib/auth/session";
 import { userToday } from "@/lib/timezone-server";
 import { pickProjectColor } from "@/lib/project-colors";
@@ -36,9 +37,15 @@ const createProjectSchema = z.object({
   color: z.string().optional(),
 });
 
+export type CreatedProject = {
+  project: Project;
+  /** Set when the flagship was an existing tag rather than a new one. */
+  adopted: { tagName: string; filed: number } | null;
+};
+
 export async function createProjectAction(
   input: z.infer<typeof createProjectSchema>
-): Promise<ActionResult<Project>> {
+): Promise<ActionResult<CreatedProject>> {
   const parsed = createProjectSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
 
@@ -68,17 +75,38 @@ export async function createProjectAction(
 
   // Every project gets a flagship tag named after it, so "#wr" on a task is
   // enough to file it here. It's the hint that this works at all.
-  await insertTag(
-    userId,
-    uniqueTagName(
-      projectTagSlug(parsed.data.title),
-      allTags.map((t) => t.name)
-    ),
-    { projectId: project.id, isProjectPrimary: true, color: project.color }
-  );
+  const slug = projectTagSlug(parsed.data.title);
+  const match = allTags.find((t) => t.name.toLowerCase() === slug);
+  // A tag by that name already meaning this work is the whole point — adopt it
+  // rather than making a near-identical twin, and bring what it holds along.
+  // A tag another project owns can't be taken, so that one gets a number.
+  const adoptable = match && !match.projectId && !isLifeTag(match.name);
+
+  let adopted: { tagName: string; filed: number } | null = null;
+  if (adoptable) {
+    await setTagProject(userId, match.id, project.id, { primary: true });
+    const filed = await fileTaggedTasksIntoProject(
+      userId,
+      project,
+      match.id,
+      allTags.map((t) =>
+        t.id === match.id ? { ...t, projectId: project.id } : t
+      )
+    );
+    adopted = { tagName: match.name, filed };
+  } else {
+    await insertTag(
+      userId,
+      uniqueTagName(
+        slug,
+        allTags.map((t) => t.name)
+      ),
+      { projectId: project.id, isProjectPrimary: true, color: project.color }
+    );
+  }
 
   revalidatePath("/", "layout");
-  return { ok: true, data: project };
+  return { ok: true, data: { project, adopted } };
 }
 
 const projectTagSchema = z.object({
@@ -96,7 +124,7 @@ const projectTagSchema = z.object({
  */
 export async function attachTagToProjectAction(
   input: z.infer<typeof projectTagSchema>
-): Promise<ActionResult> {
+): Promise<ActionResult<{ filed: number }>> {
   const parsed = projectTagSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input" };
 
@@ -119,8 +147,15 @@ export async function attachTagToProjectAction(
   }
 
   await setTagProject(userId, tag.id, project.id);
+  const filed = await fileTaggedTasksIntoProject(
+    userId,
+    project,
+    tag.id,
+    tags.map((t) => (t.id === tag.id ? { ...t, projectId: project.id } : t))
+  );
+
   revalidatePath("/", "layout");
-  return { ok: true };
+  return { ok: true, data: { filed } };
 }
 
 /** Release a tag back to being an ordinary label. The flagship can't go. */
