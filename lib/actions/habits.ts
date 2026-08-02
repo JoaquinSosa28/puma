@@ -7,7 +7,12 @@ import { requireUserId } from "@/lib/auth/session";
 import { userToday } from "@/lib/timezone-server";
 import { entityId, isoDate, title } from "@/lib/validation";
 import { deleteHabit, insertHabit, listHabits, updateHabit } from "@/lib/db/habits";
-import { toggleHabitEntry } from "@/lib/db/habitEntries";
+import {
+  toggleHabitEntry,
+  habitEntriesInRange,
+  clearHabitEntriesInRange,
+  markHabitEntry,
+} from "@/lib/db/habitEntries";
 
 /** Confirm the habit belongs to the caller before writing an entry for it, so a
  *  crafted call can't seed entry rows against a non-owned/nonexistent habitId. */
@@ -29,6 +34,49 @@ export async function toggleHabitToday(habitId: string): Promise<ActionResult> {
 }
 
 const toggleDateSchema = z.object({ habitId: entityId, date: isoDate });
+
+const togglePeriodSchema = z.object({
+  habitId: entityId,
+  start: isoDate,
+  end: isoDate,
+  markDate: isoDate,
+});
+
+/**
+ * Toggle a whole period (the week or month a box stands for), not one date.
+ *
+ * A weekly box reads as done when ANY entry falls inside its week, so undoing
+ * it has to clear the whole week — otherwise leftover entries (e.g. from when
+ * the habit was still daily) keep it green no matter how often you uncheck.
+ */
+export async function toggleHabitPeriod(input: {
+  habitId: string;
+  start: string;
+  end: string;
+  markDate: string;
+}): Promise<ActionResult<{ done: boolean }>> {
+  const parsed = togglePeriodSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+  const { habitId, start, end, markDate } = parsed.data;
+  if (end < start) return { ok: false, error: "Invalid range" };
+
+  const userId = await requireUserId();
+  if (!(await ownsHabit(userId, habitId)))
+    return { ok: false, error: "Not found" };
+
+  const existing = await habitEntriesInRange(userId, habitId, start, end);
+  if (existing.length) {
+    await clearHabitEntriesInRange(userId, habitId, start, end);
+    revalidatePath("/", "layout");
+    return { ok: true, data: { done: false } };
+  }
+
+  // Only mark inside the period the box represents.
+  const date = markDate >= start && markDate <= end ? markDate : end;
+  await markHabitEntry(userId, habitId, date);
+  revalidatePath("/", "layout");
+  return { ok: true, data: { done: true } };
+}
 
 export async function toggleHabitDate(
   habitId: string,

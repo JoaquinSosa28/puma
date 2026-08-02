@@ -6,8 +6,11 @@ import { Check } from "lucide-react";
 import type { Habit, HabitEntry } from "@/lib/schemas";
 import { iso, weekDates, streakOf, dowLetters, type WeekStart } from "@/lib/date";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
-import { toggleHabitToday } from "@/lib/actions/habits";
-import { normalizeHabitFrequency } from "@/lib/habit-visibility";
+import { toggleHabitPeriod } from "@/lib/actions/habits";
+import {
+  currentHabitPeriod,
+  normalizeHabitFrequency,
+} from "@/lib/habit-visibility";
 import { cn } from "@/lib/utils";
 import type { Goal } from "@/lib/schemas";
 import { WidgetHeaderLink, WidgetRowLink } from "@/components/home/WidgetLink";
@@ -51,24 +54,23 @@ export function HomeHabitsGoals({
     optimisticEntries.some((e) => e.habitId === h.id && e.date === td)
   ).length;
 
-  const toggle = (habitId: string) => {
+  // Toggles the habit's own period: for a weekly habit "undone" has to clear
+  // the whole week, or leftover entries keep it green.
+  const toggle = (habitId: string, start: string, end: string) => {
     startTransition(async () => {
-      const has = optimisticEntries.some(
-        (e) => e.habitId === habitId && e.date === td
-      );
+      const inRange = (e: { habitId: string; date: string }) =>
+        e.habitId === habitId && e.date >= start && e.date <= end;
       setOptimisticEntries(
-        has
-          ? optimisticEntries.filter(
-              (e) => !(e.habitId === habitId && e.date === td)
-            )
+        optimisticEntries.some(inRange)
+          ? optimisticEntries.filter((e) => !inRange(e))
           : [
               ...optimisticEntries,
               { id: "tmp", userId: "optimistic", habitId, date: td, done: true },
             ]
       );
-      // toggleHabitToday revalidates the route; the optimistic entry above
-      // holds until that lands — no extra refresh round-trip.
-      await toggleHabitToday(habitId);
+      // The action revalidates the route; the optimistic entry above holds
+      // until that lands — no extra refresh round-trip.
+      await toggleHabitPeriod({ habitId, start, end, markDate: td });
     });
   };
 
@@ -108,13 +110,16 @@ export function HomeHabitsGoals({
           {habits.map((h) => {
             const set = entriesFor(h.id);
             const freq = normalizeHabitFrequency(h.frequency.type);
-            const doneToday = set.has(td);
+            const period = currentHabitPeriod(freq, weekStart, td, timeZone);
+            const doneToday = [...set].some(
+              (d) => d >= period.start && d <= period.end
+            );
             const streak = streakOf(set, td, timeZone);
             return (
               <div key={h.id} className={habitWeekRowClass}>
                 <button
                   type="button"
-                  onClick={() => toggle(h.id)}
+                  onClick={() => toggle(h.id, period.start, period.end)}
                   className={cn(
                     "flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-md border-[1.8px]",
                     doneToday ? "border-none bg-habits" : "border-border bg-transparent"
@@ -161,11 +166,7 @@ export function HomeHabitsGoals({
                 ) : (
                   <CadencePill
                     frequency={freq}
-                    done={
-                      freq === "weekly"
-                        ? week.some((d) => set.has(iso(d)))
-                        : [...set].some((date) => date.startsWith(td.slice(0, 7)))
-                    }
+                    done={doneToday}
                     today={td}
                   />
                 )}

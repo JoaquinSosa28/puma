@@ -12,6 +12,7 @@ import { dayDonePercent, tagsByUsage } from "@/lib/metrics";
 import { quarterOf, formatTopbarDateLine } from "@/lib/date-context";
 import {
   DEFAULT_HABIT_VISIBILITY,
+  currentHabitPeriod,
   habitHeatCells,
 } from "@/lib/habit-visibility";
 import type { Tag } from "@/lib/schemas";
@@ -274,5 +275,42 @@ describe("quarter", () => {
       timeZone: "UTC",
     });
     expect(line.endsWith("· Q3")).toBe(true);
+  });
+});
+
+describe("habit periods", () => {
+  const vis = { dailyDays: 7, weeklyWeeks: 2, monthlyMonths: 2 };
+
+  it("a weekly box is done when ANY day that week has an entry", () => {
+    // Entries left over from when the habit was still daily.
+    const entries = new Set(["2026-07-21", "2026-07-22"]); // Tue + Wed
+    const cells = habitHeatCells("weekly", vis, entries, "mon", "2026-07-25");
+    const current = cells[cells.length - 1];
+    expect(current.done).toBe(true);
+    // …and the box owns the whole week, so undoing it can clear all of them.
+    expect(current.periodStart).toBe("2026-07-20");
+    expect(current.periodEnd).toBe("2026-07-26");
+  });
+
+  it("exposes the period a daily box stands for (itself)", () => {
+    const cells = habitHeatCells("daily", vis, new Set(), "mon", "2026-07-25");
+    const last = cells[cells.length - 1];
+    expect(last.periodStart).toBe("2026-07-25");
+    expect(last.periodEnd).toBe("2026-07-25");
+  });
+
+  it("currentHabitPeriod matches the cadence", () => {
+    expect(currentHabitPeriod("daily", "mon", "2026-07-25")).toEqual({
+      start: "2026-07-25",
+      end: "2026-07-25",
+    });
+    expect(currentHabitPeriod("weekly", "mon", "2026-07-25")).toEqual({
+      start: "2026-07-20",
+      end: "2026-07-26",
+    });
+    expect(currentHabitPeriod("monthly", "mon", "2026-07-25")).toEqual({
+      start: "2026-07-01",
+      end: "2026-07-31",
+    });
   });
 });

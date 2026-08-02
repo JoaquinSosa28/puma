@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import type { Goal, Habit, HabitEntry } from "@/lib/schemas";
 import { iso, streakOf, bestStreak, type WeekStart } from "@/lib/date";
 import {
-  toggleHabitDate,
+  toggleHabitPeriod,
   archiveHabit,
   deleteHabitAction,
   renameHabit,
@@ -20,6 +20,7 @@ import { GoalMultiLinkField } from "@/components/links/GoalLinkField";
 import { HabitHeatStrip } from "@/components/habits/HabitHeatStrip";
 import {
   habitFrequencyLabel,
+  currentHabitPeriod,
   normalizeHabitFrequency,
   type HabitFrequencyType,
   type HabitVisibilitySettings,
@@ -75,23 +76,25 @@ export function HabitsView({
 
   // Optimistic entries: the checkbox / heat cell / streaks update instantly,
   // then reconcile when the server action + revalidation returns.
+  // Mirrors the server rule: a period reads as done when ANY entry falls in it,
+  // so undoing clears the whole range rather than a single date.
   const [optimisticEntries, applyToggle] = useOptimistic(
     habitEntries,
-    (state: HabitEntry[], toggle: { habitId: string; date: string }) => {
-      const exists = state.some(
-        (e) => e.habitId === toggle.habitId && e.date === toggle.date
-      );
-      return exists
-        ? state.filter(
-            (e) => !(e.habitId === toggle.habitId && e.date === toggle.date)
-          )
+    (
+      state: HabitEntry[],
+      t: { habitId: string; start: string; end: string; markDate: string }
+    ) => {
+      const inRange = (e: HabitEntry) =>
+        e.habitId === t.habitId && e.date >= t.start && e.date <= t.end;
+      return state.some(inRange)
+        ? state.filter((e) => !inRange(e))
         : [
             ...state,
             {
-              id: `optimistic:${toggle.habitId}:${toggle.date}`,
+              id: `optimistic:${t.habitId}:${t.markDate}`,
               userId: "optimistic",
-              habitId: toggle.habitId,
-              date: toggle.date,
+              habitId: t.habitId,
+              date: t.markDate,
               done: true,
             },
           ];
@@ -103,10 +106,13 @@ export function HabitsView({
       optimisticEntries.filter((e) => e.habitId === id).map((e) => e.date)
     );
 
-  const toggleEntry = (id: string, date: string) =>
+  const togglePeriod = (
+    id: string,
+    period: { start: string; end: string; markDate: string }
+  ) =>
     startTransition(async () => {
-      applyToggle({ habitId: id, date });
-      await toggleHabitDate(id, date);
+      applyToggle({ habitId: id, ...period });
+      await toggleHabitPeriod({ habitId: id, ...period });
     });
 
   useEffect(() => {
@@ -135,8 +141,13 @@ export function HabitsView({
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {habits.map((h) => {
             const set = entriesFor(h.id);
-            const doneToday = set.has(td);
             const frequency = normalizeHabitFrequency(h.frequency.type);
+            // The checkbox reflects the habit's OWN period, not just today —
+            // for a weekly habit, "done" means done somewhere this week.
+            const period = currentHabitPeriod(frequency, weekStart, td, timeZone);
+            const doneToday = [...set].some(
+              (d) => d >= period.start && d <= period.end
+            );
             const linkedGoals = goals.filter((g) => h.goalIds.includes(g.id));
             const availableGoals = goals.filter((g) => !h.goalIds.includes(g.id));
             return (
@@ -152,7 +163,9 @@ export function HabitsView({
                 <div className="flex items-start gap-2.5">
                   <button
                     type="button"
-                    onClick={() => toggleEntry(h.id, td)}
+                    onClick={() =>
+                      togglePeriod(h.id, { ...period, markDate: td })
+                    }
                     className={cn(
                       "mt-0.5 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border-2",
                       doneToday ? "border-none bg-habits" : "border-border"
@@ -244,7 +257,13 @@ export function HabitsView({
                   entries={set}
                   visibility={habitVisibility}
                   weekStart={weekStart}
-                  onToggleDate={(ds) => toggleEntry(h.id, ds)}
+                  onToggleCell={(cell) =>
+                    togglePeriod(h.id, {
+                      start: cell.periodStart,
+                      end: cell.periodEnd,
+                      markDate: cell.toggleDate,
+                    })
+                  }
                   className="min-h-[52px] flex-1 content-start"
                 />
 

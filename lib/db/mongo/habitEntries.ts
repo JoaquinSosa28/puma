@@ -28,3 +28,47 @@ export async function toggleHabitEntry(
   await c.insertOne({ _id: newId(), userId, habitId, date, done: true });
   return true;
 }
+
+/** Entries for one habit inside an inclusive date range. */
+export async function habitEntriesInRange(
+  userId: string,
+  habitId: string,
+  start: string,
+  end: string
+): Promise<HabitEntry[]> {
+  const c = await col();
+  const docs = await c
+    .find({ userId, habitId, date: { $gte: start, $lte: end } })
+    .toArray();
+  return docs.map((e) => toDto(habitEntrySchema.parse(e)));
+}
+
+/** Remove every entry for one habit inside an inclusive date range. */
+export async function clearHabitEntriesInRange(
+  userId: string,
+  habitId: string,
+  start: string,
+  end: string
+): Promise<number> {
+  const c = await col();
+  const res = await c.deleteMany({
+    userId,
+    habitId,
+    date: { $gte: start, $lte: end },
+  });
+  return res.deletedCount ?? 0;
+}
+
+/** Record a single completion (idempotent). */
+export async function markHabitEntry(
+  userId: string,
+  habitId: string,
+  date: string
+): Promise<void> {
+  const c = await col();
+  await c.updateOne(
+    { userId, habitId, date },
+    { $setOnInsert: { _id: newId(), userId, habitId, date, done: true } },
+    { upsert: true }
+  );
+}

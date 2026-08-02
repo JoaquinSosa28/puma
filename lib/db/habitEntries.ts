@@ -6,3 +6,6 @@ const impl = process.env.DATA_SOURCE === "mongodb" ? mongo : memory;
 
 export const listHabitEntries = cache(impl.listHabitEntries);
 export const toggleHabitEntry = impl.toggleHabitEntry;
+export const habitEntriesInRange = impl.habitEntriesInRange;
+export const clearHabitEntriesInRange = impl.clearHabitEntriesInRange;
+export const markHabitEntry = impl.markHabitEntry;

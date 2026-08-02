@@ -26,6 +26,9 @@ export type HabitHeatCell = {
   done: boolean;
   isCurrent: boolean;
   toggleDate: string;
+  /** Inclusive bounds of what this box stands for (a day, week, or month). */
+  periodStart: string;
+  periodEnd: string;
 };
 
 export function normalizeHabitFrequency(type: string): HabitFrequencyType {
@@ -121,6 +124,8 @@ export function habitHeatCells(
         done: hasEntryInRange(entries, start, end),
         isCurrent,
         toggleDate: isCurrent ? today : end,
+        periodStart: start,
+        periodEnd: end,
       });
     }
     return cells;
@@ -144,6 +149,8 @@ export function habitHeatCells(
         done: hasEntryInRange(entries, startIso, endIso),
         isCurrent,
         toggleDate: isCurrent ? today : endIso,
+        periodStart: startIso,
+        periodEnd: endIso,
       });
     }
     return cells;
@@ -159,6 +166,8 @@ export function habitHeatCells(
       done: entries.has(date),
       isCurrent: k === 0,
       toggleDate: date,
+      periodStart: date,
+      periodEnd: date,
     });
   }
   return cells;
@@ -203,4 +212,27 @@ export function habitVisibilityFromSettings(
       HABIT_VISIBILITY_DEFAULTS.monthlyMonths.min
     ),
   };
+}
+
+/**
+ * Inclusive bounds of the period a habit is "currently" in (today, this week,
+ * or this month). Derived from habitHeatCells so it can never drift from what
+ * the boxes actually represent.
+ */
+export function currentHabitPeriod(
+  frequency: HabitFrequencyType,
+  weekStart: WeekStart,
+  today: string = iso(),
+  timeZone?: string
+): { start: string; end: string } {
+  const cells = habitHeatCells(
+    frequency,
+    { dailyDays: 1, weeklyWeeks: 1, monthlyMonths: 1 },
+    new Set<string>(),
+    weekStart,
+    today,
+    timeZone
+  );
+  const last = cells[cells.length - 1];
+  return { start: last.periodStart, end: last.periodEnd };
 }

@@ -17,7 +17,7 @@ type Props = {
   visibility: HabitVisibilitySettings;
   weekStart?: WeekStart;
   today?: string;
-  onToggleDate?: (date: string) => void;
+  onToggleCell?: (cell: HabitHeatCell) => void;
   compact?: boolean;
   className?: string;
 };
@@ -56,7 +56,7 @@ export function HabitHeatStrip({
   visibility,
   weekStart = "mon",
   today,
-  onToggleDate,
+  onToggleCell,
   compact = false,
   className,
 }: Props) {
@@ -104,7 +104,7 @@ export function HabitHeatStrip({
         const box = cn(
           size,
           "flex w-full items-center justify-center rounded-[4px]",
-          onToggleDate &&
+          onToggleCell &&
             "cursor-pointer hover:outline hover:outline-2 hover:outline-faint2 hover:outline-offset-1"
         );
         const style = {
@@ -155,12 +155,12 @@ export function HabitHeatStrip({
                 {showMonth ? monthShort(cell.id) : ""}
               </span>
             )}
-            {onToggleDate ? (
+            {onToggleCell ? (
               <button
                 type="button"
                 title={title}
                 aria-label={title}
-                onClick={() => onToggleDate(cell.toggleDate)}
+                onClick={() => onToggleCell(cell)}
                 className={box}
                 style={style}
               >
