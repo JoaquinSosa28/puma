@@ -85,6 +85,26 @@ export async function updateTag(
   return doc ? toDto(tagSchema.parse(doc)) : null;
 }
 
+/** Re-insert whole tag docs — used to undo a cleanup, so ids/colors survive. */
+export async function restoreTags(
+  userId: string,
+  docs: TagDoc[]
+): Promise<number> {
+  if (!docs.length) return 0;
+  const c = await col();
+  let restored = 0;
+  for (const doc of docs) {
+    // Scoped + idempotent: never let a stale undo write into another account.
+    const res = await c.updateOne(
+      { _id: doc._id, userId },
+      { $setOnInsert: { ...doc, userId } },
+      { upsert: true }
+    );
+    if (res.upsertedCount) restored += 1;
+  }
+  return restored;
+}
+
 export async function deleteTag(userId: string, id: string): Promise<boolean> {
   const db = await getDb();
   // Detach from everything that references it, then remove the tag itself.

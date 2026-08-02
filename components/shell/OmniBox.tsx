@@ -96,9 +96,17 @@ type Props = {
   notes: Note[];
   projects: Project[];
   defaultType?: OmniType;
+  defaultDueToday?: boolean;
 };
 
-export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: Props) {
+export function OmniBox({
+  tags,
+  tasks,
+  notes,
+  projects,
+  defaultType = "task",
+  defaultDueToday = true,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -228,7 +236,13 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
   const showLifeSignal =
     mode === "capture" && (life !== "both" || captureArea !== baseArea);
 
-  const defaultTaskDue = capture.due?.slice(0, 10) ?? agendaDay ?? iso(new Date(), timeZone);
+  // Only fall back to today when the setting says so — this used to hardcode
+  // today, which silently overrode "default due today: off" (the capture bar
+  // sent an explicit date, so the server never got to apply the setting).
+  const defaultTaskDue =
+    capture.due?.slice(0, 10) ??
+    agendaDay ??
+    (defaultDueToday ? iso(new Date(), timeZone) : null);
 
   useEffect(() => {
     if (!isTask) {
@@ -244,6 +258,7 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
     const trimmed = text.trim();
     if (!trimmed) return;
     const taskDue = parsed.due ?? pickedDue ?? defaultTaskDue;
+
     startTransition(async () => {
       const res = await createFromOmni({
         text: trimmed,
@@ -510,6 +525,11 @@ export function OmniBox({ tags, tasks, notes, projects, defaultType = "task" }: 
               value={pickedDue}
               onChange={setPickedDue}
               disabled={pending}
+              // With the setting off, nothing is due by default — so the picker
+              // must be able to render "no date" instead of highlighting Today.
+              nullable={!defaultDueToday}
+              clearable={!defaultDueToday}
+              clearLabel="No date"
             />
           </>
         )}

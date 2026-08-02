@@ -8,7 +8,11 @@ import { userToday } from "@/lib/timezone-server";
 import { requireUserId } from "@/lib/auth/session";
 import { getTask, updateTask } from "@/lib/db/tasks";
 import { getNote, updateNote } from "@/lib/db/notes";
-import { deleteTag, listTags, updateTag } from "@/lib/db/tags";
+import { deleteTag, listTags, restoreTags, updateTag } from "@/lib/db/tags";
+import { listTasks } from "@/lib/db/tasks";
+import { listNotes } from "@/lib/db/notes";
+import { getSettings, updateSettings } from "@/lib/db/settings";
+import type { TagDoc } from "@/lib/schemas";
 import { cssColor, entityId, tagName } from "@/lib/validation";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
 
@@ -107,4 +111,101 @@ export async function deleteTagAction(id: string): Promise<ActionResult> {
   await deleteTag(userId, parsed.data);
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+
+/** A tag is unused when nothing references it. Default tags are never swept. */
+async function findUnusedTags(userId: string) {
+  const [tags, tasks, notes] = await Promise.all([
+    listTags(userId),
+    listTasks(userId),
+    listNotes(userId),
+  ]);
+  const used = new Set<string>();
+  for (const t of tasks) for (const id of t.tagIds) used.add(id);
+  for (const n of notes) for (const id of n.tagIds) used.add(id);
+  return tags.filter((t) => !t.isDefault && !used.has(t.id));
+}
+
+/** Rebuild the storable doc from a DTO so an undo can restore it verbatim. */
+function toTagDoc(tag: Tag, userId: string): TagDoc {
+  return {
+    _id: tag.id,
+    userId,
+    name: tag.name,
+    color: tag.color,
+    isDefault: tag.isDefault,
+    order: tag.order,
+    createdAt: tag.createdAt,
+  };
+}
+
+/**
+ * Delete every tag nothing is using. Returns the removed tags as the undo
+ * snapshot so the toast can put them back exactly as they were.
+ */
+export async function cleanUnusedTagsAction(): Promise<
+  ActionResult<{ removed: number; names: string[] }>
+> {
+  const userId = await requireUserId();
+  const unused = await findUnusedTags(userId);
+  if (!unused.length) {
+    return { ok: true, data: { removed: 0, names: [] } };
+  }
+
+  const snapshot = unused.map((t) => toTagDoc(t, userId));
+  for (const tag of unused) await deleteTag(userId, tag.id);
+
+  revalidatePath("/", "layout");
+  return {
+    ok: true,
+    data: { removed: unused.length, names: unused.map((t) => t.name) },
+    undo: { type: "delete", entity: "tag", snapshot },
+  };
+}
+
+/** Undo a cleanup — restores the exact tags (same ids, colors, order). */
+export async function restoreTagsAction(
+  snapshot: unknown
+): Promise<ActionResult<{ restored: number }>> {
+  const userId = await requireUserId();
+  if (!Array.isArray(snapshot)) return { ok: false, error: "Invalid snapshot" };
+  // Force ownership: a snapshot is client-echoed, so never trust its userId.
+  const docs = snapshot
+    .filter((d): d is TagDoc => Boolean(d) && typeof d === "object")
+    .map((d) => ({ ...d, userId }));
+  const restored = await restoreTags(userId, docs);
+  revalidatePath("/", "layout");
+  return { ok: true, data: { restored } };
+}
+
+/**
+ * The opt-in sweep. Runs at most once a day per account and only removes tags
+ * that have been unused AND untouched for the configured number of days — the
+ * age check keeps a tag you just made from vanishing before you use it.
+ */
+export async function maybeAutoCleanTagsAction(): Promise<
+  ActionResult<{ removed: number }>
+> {
+  const userId = await requireUserId();
+  const settings = await getSettings(userId);
+  if (!settings?.tagAutoClean) return { ok: true, data: { removed: 0 } };
+
+  const now = Date.now();
+  const last = settings.tagsCleanedAt ? Date.parse(settings.tagsCleanedAt) : 0;
+  if (Number.isFinite(last) && now - last < 24 * 60 * 60 * 1000) {
+    return { ok: true, data: { removed: 0 } };
+  }
+
+  const cutoffMs = now - (settings.tagAutoCleanDays ?? 30) * 24 * 60 * 60 * 1000;
+  const unused = (await findUnusedTags(userId)).filter((t) => {
+    const created = Date.parse(t.createdAt);
+    return Number.isFinite(created) ? created < cutoffMs : false;
+  });
+
+  for (const tag of unused) await deleteTag(userId, tag.id);
+  await updateSettings(userId, { tagsCleanedAt: new Date(now).toISOString() });
+
+  if (unused.length) revalidatePath("/", "layout");
+  return { ok: true, data: { removed: unused.length } };
 }

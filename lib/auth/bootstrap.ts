@@ -4,7 +4,7 @@ import "server-only";
 import { insertUser } from "@/lib/db/users";
 import { insertSettings } from "@/lib/db/settings";
 import { ensureDefaultTag } from "@/lib/db/tags";
-import { LIFE_SPAN_MAX } from "@/lib/life-constants";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import { iso } from "@/lib/date";
 
 export async function bootstrapNewUser(user: {
@@ -26,7 +26,7 @@ export async function bootstrapNewUser(user: {
     defaultDueToday: true,
     weekStart: "mon",
     birthDate: null,
-    lifeSpanYears: LIFE_SPAN_MAX,
+    lifeSpanYears: LIFE_SPAN_DEFAULT,
     lifeCalendarFullView: false,
     habitVisibleDays: 30,
     habitVisibleWeeks: 8,
@@ -39,6 +39,9 @@ export async function bootstrapNewUser(user: {
     workEnd: "18:00",
     workDays: [1, 2, 3, 4, 5],
     lifeAutoOverrideMins: 60,
+    tagAutoClean: false,
+    tagAutoCleanDays: 30,
+    tagsCleanedAt: null,
   });
   await ensureDefaultTag(user.id);
 }

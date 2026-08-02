@@ -2,7 +2,7 @@ import {
   buildLifeWeeks,
   clampLifeSpanYears,
 } from "@/lib/life-calendar";
-import { LIFE_SPAN_MAX } from "@/lib/life-constants";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import {
   dateLabel,
   daysInMonth,
@@ -23,7 +23,7 @@ export { isoWeekNumber, isoWeeksInYear, daysInMonth, workweekDay };
 
 export function lifeWeekProgress(
   birthDate: string,
-  spanYears: number = LIFE_SPAN_MAX,
+  spanYears: number = LIFE_SPAN_DEFAULT,
   today: string = iso(),
   timeZone?: string
 ): { lived: number; total: number } {
@@ -79,7 +79,7 @@ export function formatTopbarDateLine(
   if (ctx.birthDate) {
     const { lived, total } = lifeWeekProgress(
       ctx.birthDate,
-      ctx.lifeSpanYears ?? LIFE_SPAN_MAX,
+      ctx.lifeSpanYears ?? LIFE_SPAN_DEFAULT,
       iso(d, tz),
       tz
     );

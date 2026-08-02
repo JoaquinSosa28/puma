@@ -13,6 +13,7 @@ import {
   clearAiApiKeyAction,
 } from "@/lib/actions/settings";
 import { deleteTagAction, updateTagAction } from "@/lib/actions/tags";
+import { CleanTagsButton } from "@/components/tags/CleanTagsButton";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, type ReactNode } from "react";
 import type { OmniType } from "@/lib/types";
-import { LIFE_SPAN_MAX } from "@/lib/date";
+import { LIFE_SPAN_DEFAULT, LIFE_SPAN_MAX } from "@/lib/date";
 import { DEFAULT_HABIT_VISIBILITY, HABIT_VISIBILITY_DEFAULTS } from "@/lib/habit-visibility";
 import { SettingsNumberField } from "@/components/settings/SettingsNumberField";
 import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
@@ -275,6 +276,52 @@ export function SettingsView({
           </SettingsSection>
 
           <SettingsSection
+            title="Tags"
+            description="Housekeeping for tags nothing is using any more."
+          >
+            <SettingRow
+              label="Auto-clean unused tags"
+              description="Once a day, remove tags that nothing references and that are older than the window below. Off by default."
+            >
+              <Switch
+                checked={settings?.tagAutoClean ?? false}
+                onCheckedChange={(v) => update({ tagAutoClean: v })}
+              />
+            </SettingRow>
+            {settings?.tagAutoClean && (
+              <div className="border-t border-border/60 py-3">
+                <label className="mb-1.5 block text-sm text-ink">
+                  Only clean tags unused for
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="w-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                    value={settings?.tagAutoCleanDays ?? 30}
+                    onChange={(e) =>
+                      update({
+                        tagAutoCleanDays: Math.min(
+                          365,
+                          Math.max(1, Number(e.target.value) || 30)
+                        ),
+                      })
+                    }
+                  />
+                  <span className="text-sm text-muted">days</span>
+                </div>
+              </div>
+            )}
+            <div className="border-t border-border/60 pt-3">
+              <p className="mb-2 text-[12px] leading-relaxed text-faint">
+                Or clean once, right now — you can undo it straight after.
+              </p>
+              <CleanTagsButton />
+            </div>
+          </SettingsSection>
+
+          <SettingsSection
             title="Life calendar"
             description="Birth date, span, and how the life grid is displayed."
           >
@@ -307,12 +354,12 @@ export function SettingsView({
                   min={1}
                   max={LIFE_SPAN_MAX}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-                  value={settings?.lifeSpanYears ?? LIFE_SPAN_MAX}
+                  value={settings?.lifeSpanYears ?? LIFE_SPAN_DEFAULT}
                   onChange={(e) =>
                     update({
                       lifeSpanYears: Math.min(
                         LIFE_SPAN_MAX,
-                        Math.max(1, Number(e.target.value) || LIFE_SPAN_MAX)
+                        Math.max(1, Number(e.target.value) || LIFE_SPAN_DEFAULT)
                       ),
                     })
                   }

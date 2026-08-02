@@ -1,5 +1,6 @@
 import type { LifeMood, LifeWeek } from "@/lib/schemas";
 import { addYears, ageAt, daysBetween, iso, LIFE_SPAN_MAX } from "@/lib/date";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 
 export type LifeWeekSlot = {
   weekIndex: number;
@@ -66,7 +67,7 @@ export function clampLifeSpanYears(years: number): number {
 
 export function buildLifeWeeks(
   birthDate: string,
-  spanYears: number = LIFE_SPAN_MAX
+  spanYears: number = LIFE_SPAN_DEFAULT
 ): LifeWeekSlot[] {
   const span = clampLifeSpanYears(spanYears);
   const birth = new Date(birthDate + "T00:00");
@@ -144,7 +145,7 @@ export function buildLifeWeekMap(
 /** Up to LIFE_SPAN_MAX rows × 52 weeks — matches life calendar layout. */
 export function buildLifeWeekGrid(
   birthDate: string,
-  spanYears: number = LIFE_SPAN_MAX,
+  spanYears: number = LIFE_SPAN_DEFAULT,
   currentAge?: number
 ): LifeWeekGrid {
   const span = clampLifeSpanYears(spanYears);
@@ -176,7 +177,7 @@ export function buildLifeWeekGrid(
 
 export function computeLifeStats(
   birthDate: string,
-  spanYears: number = LIFE_SPAN_MAX,
+  spanYears: number = LIFE_SPAN_DEFAULT,
   today: string = iso()
 ): LifeStats {
   const span = clampLifeSpanYears(spanYears);

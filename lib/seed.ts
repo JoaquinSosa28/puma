@@ -13,7 +13,7 @@ import type {
   UserDoc,
 } from "@/lib/schemas";
 import { taskSchema } from "@/lib/schemas";
-import { LIFE_SPAN_MAX } from "@/lib/life-constants";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import { addDays, iso, oid } from "@/lib/date";
 
 export type SeedData = {
@@ -556,7 +556,7 @@ export function createSeedData(userId: string): SeedData {
     defaultDueToday: true,
     weekStart: "mon",
     birthDate: "1997-06-15",
-    lifeSpanYears: LIFE_SPAN_MAX,
+    lifeSpanYears: LIFE_SPAN_DEFAULT,
     lifeCalendarFullView: false,
     habitVisibleDays: 30,
     habitVisibleWeeks: 8,
@@ -569,6 +569,9 @@ export function createSeedData(userId: string): SeedData {
     workEnd: "18:00",
     workDays: [1, 2, 3, 4, 5],
     lifeAutoOverrideMins: 60,
+    tagAutoClean: false,
+    tagAutoCleanDays: 30,
+    tagsCleanedAt: null,
   };
 
   return {

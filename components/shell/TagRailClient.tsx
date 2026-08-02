@@ -1,6 +1,10 @@
 "use client";
 
 import { addTagAction } from "@/lib/actions/settings";
+import {
+  cleanUnusedTagsAction,
+  restoreTagsAction,
+} from "@/lib/actions/tags";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 
 type TagItem = {
   id: string;
@@ -26,6 +30,8 @@ export function TagRailClient({ tags }: { tags: TagItem[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const [cleaning, setCleaning] = useState(false);
+  const unusedCount = tags.filter((t) => t.count === 0).length;
 
   const handleAdd = async () => {
     const trimmed = name.trim().toLowerCase();
@@ -41,17 +47,70 @@ export function TagRailClient({ tags }: { tags: TagItem[] }) {
     router.refresh();
   };
 
+  const handleClean = async () => {
+    if (cleaning) return;
+    setCleaning(true);
+    try {
+      const res = await cleanUnusedTagsAction();
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      const removed = res.data?.removed ?? 0;
+      if (!removed) {
+        toast.success("No unused tags to clean");
+        return;
+      }
+      const snapshot = res.undo?.snapshot;
+      toast.success(
+        removed === 1
+          ? `Removed unused tag "${res.data?.names[0]}"`
+          : `Removed ${removed} unused tags`,
+        {
+          action: snapshot
+            ? {
+                label: "UNDO",
+                onClick: async () => {
+                  const back = await restoreTagsAction(snapshot);
+                  if (!back.ok) toast.error(back.error);
+                  else toast.success("Tags restored");
+                  router.refresh();
+                },
+              }
+            : undefined,
+        }
+      );
+      router.refresh();
+    } finally {
+      setCleaning(false);
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-[18px]">
         <span className="font-mono text-[10px] tracking-widest text-faint2">
           TAGS
         </span>
+        <button
+          type="button"
+          onClick={handleClean}
+          disabled={cleaning || unusedCount === 0}
+          title={
+            unusedCount
+              ? `Remove ${unusedCount} unused tag${unusedCount === 1 ? "" : "s"}`
+              : "No unused tags"
+          }
+          className="ml-auto flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-faint transition-colors hover:bg-hover hover:text-ink disabled:cursor-default disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-faint"
+        >
+          <Sparkles className="h-3 w-3" strokeWidth={2.5} />
+          {cleaning ? "…" : "Clean"}
+        </button>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <button
               type="button"
-              className="ml-auto flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-faint hover:bg-hover hover:text-ink"
+              className="flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] text-faint hover:bg-hover hover:text-ink"
               title="Add tag"
             >
               <Plus className="h-3 w-3" strokeWidth={2.5} />

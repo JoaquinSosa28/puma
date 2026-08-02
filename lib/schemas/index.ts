@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LIFE_SPAN_MAX } from "@/lib/life-constants";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 
 export const userSchema = z.object({
   _id: z.string(),
@@ -41,7 +41,7 @@ export const settingsSchema = z.object({
   defaultDueToday: z.boolean(),
   weekStart: z.enum(["mon", "sun"]),
   birthDate: z.string().nullable().default(null),
-  lifeSpanYears: z.number().default(LIFE_SPAN_MAX),
+  lifeSpanYears: z.number().default(LIFE_SPAN_DEFAULT),
   lifeCalendarFullView: z.boolean().default(false),
   habitVisibleDays: z.number().min(1).default(30),
   habitVisibleWeeks: z.number().min(1).default(8),
@@ -60,6 +60,12 @@ export const settingsSchema = z.object({
   // JS getDay() numbers: 0=Sun … 6=Sat.
   workDays: z.array(z.number().int().min(0).max(6)).default([1, 2, 3, 4, 5]),
   lifeAutoOverrideMins: z.number().int().default(60),
+  // Tag housekeeping. Off by default — deleting things silently should always
+  // be opt-in. A tag counts as unused when nothing references it.
+  tagAutoClean: z.boolean().default(false),
+  tagAutoCleanDays: z.number().int().min(1).max(365).default(30),
+  /** Throttle marker for the auto-sweep (runs at most once a day). */
+  tagsCleanedAt: z.string().nullable().default(null),
 });
 
 export const tagSchema = z.object({

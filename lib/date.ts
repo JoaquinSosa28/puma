@@ -191,7 +191,7 @@ export function parseTimeToMinutes(time: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-export { LIFE_SPAN_MAX } from "./life-constants";
+export { LIFE_SPAN_MAX, LIFE_SPAN_DEFAULT } from "./life-constants";
 
 export function addYears(years: number, fromIso: string): string {
   const d = new Date(fromIso + "T00:00");

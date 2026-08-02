@@ -43,6 +43,8 @@ const settingsPatchSchema = z
     workEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
     workDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
     lifeAutoOverrideMins: z.number().int().min(5).max(720).optional(),
+    tagAutoClean: z.boolean().optional(),
+    tagAutoCleanDays: z.number().int().min(1).max(365).optional(),
   })
   .strict();
 
@@ -62,6 +64,8 @@ export async function updateSettingsAction(patch: {
   workEnd?: string;
   workDays?: number[];
   lifeAutoOverrideMins?: number;
+  tagAutoClean?: boolean;
+  tagAutoCleanDays?: number;
 }): Promise<ActionResult> {
   const parsed = settingsPatchSchema.safeParse(patch);
   if (!parsed.success) return { ok: false, error: "Invalid input" };

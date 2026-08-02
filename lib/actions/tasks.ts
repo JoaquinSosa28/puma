@@ -158,6 +158,7 @@ export async function addTask(
 
   const userId = await requireUserId();
   const tags = await listTags(userId);
+  const settings = await getSettings(userId);
   const { timeZone, today: td } = await userToday();
   const p = parseOmni(parsed.data.text, tags, undefined, undefined, timeZone);
   const newTagIds = await ensureTags(userId, p.newTagNames);
@@ -172,7 +173,11 @@ export async function addTask(
     tagIds,
     priority: p.priority,
     status: "todo",
-    due: parsed.data.due ?? p.due ?? td,
+    // Respect "default due today" — this used to hardcode today, so turning
+    // the setting off changed nothing.
+    due:
+      parsed.data.due ??
+      defaultDue(p.due, settings?.defaultDueToday ?? true, td),
     projectId: project ? parsed.data.projectId! : null,
     goalId: null,
     lifeArea: deriveLifeAreaFromTags(tagIds, tags, parsed.data.lifeArea ?? "personal"),

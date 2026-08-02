@@ -8,6 +8,7 @@ import { TaskTimerProvider } from "@/components/tasks/TaskTimerProvider";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { MobileDock } from "@/components/shell/MobileDock";
 import { MobileCapture } from "@/components/shell/MobileCapture";
+import { TagAutoCleanRunner } from "@/components/tags/TagAutoCleanRunner";
 import { loadShellData } from "@/lib/data";
 import { displayName } from "@/lib/user-display";
 import { resolveLifeView } from "@/lib/life-view-server";
@@ -82,6 +83,7 @@ async function AppShell({ children }: { children: React.ReactNode }) {
             <AssistantProvider>
               <main className="flex min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 lg:px-6 lg:pt-5">
                 <MobileShell demo={demo} />
+                <TagAutoCleanRunner enabled={s?.tagAutoClean ?? false} />
                 <div className="hidden lg:block">
                   <OmniBox
                     tags={data.tags}
@@ -89,6 +91,7 @@ async function AppShell({ children }: { children: React.ReactNode }) {
                     notes={shellNotes}
                     projects={data.projects}
                     defaultType={data.settings?.defaultCaptureType ?? "task"}
+                    defaultDueToday={data.settings?.defaultDueToday ?? true}
                   />
                 </div>
                 <MobileCapture

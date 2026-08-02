@@ -76,6 +76,21 @@ export async function updateTag(
   return toDto(tagSchema.parse(store.tags[idx]));
 }
 
+/** Re-insert whole tag docs — used to undo a cleanup, so ids/colors survive. */
+export async function restoreTags(
+  userId: string,
+  docs: TagDoc[]
+): Promise<number> {
+  const store = getStore();
+  let restored = 0;
+  for (const doc of docs) {
+    if (store.tags.some((t) => t._id === doc._id && t.userId === userId)) continue;
+    store.tags.push({ ...doc, userId });
+    restored += 1;
+  }
+  return restored;
+}
+
 export async function deleteTag(userId: string, id: string): Promise<boolean> {
   const store = getStore();
   const idx = store.tags.findIndex((t) => t._id === id && t.userId === userId);

@@ -8,7 +8,7 @@ import { listAgenda } from "@/lib/db/agenda";
 import { listNotes } from "@/lib/db/notes";
 import { getUser } from "@/lib/db/users";
 import { getSettings } from "@/lib/db/settings";
-import { LIFE_SPAN_MAX } from "@/lib/life-constants";
+import { LIFE_SPAN_DEFAULT } from "@/lib/life-constants";
 import {
   dayDonePercent,
   openTaskCount,
@@ -123,7 +123,7 @@ function shellFromCore(
       projects: projects.length,
     },
     birthDate: core.settings?.birthDate ?? null,
-    lifeSpanYears: core.settings?.lifeSpanYears ?? LIFE_SPAN_MAX,
+    lifeSpanYears: core.settings?.lifeSpanYears ?? LIFE_SPAN_DEFAULT,
   };
 }
 
