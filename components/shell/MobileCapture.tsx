@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
-  MessageCircleQuestion,
   Pencil,
   Plus,
   Search,
@@ -36,7 +35,10 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string }[] = [
   { value: "low", label: "Low" },
 ];
 
-type Mode = "capture" | "plan" | "ask";
+// Same single Assistant entry as the desktop omnibar: the assistant works
+// out whether the text is a question or a request, so the user no longer has
+// to pick Plan or Ask before typing.
+type Mode = "capture" | "assistant";
 
 const TYPES: {
   type: OmniType;
@@ -116,7 +118,9 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
     // Tell the shell a capture is opening (the dock closes its More menu).
     window.dispatchEvent(new CustomEvent("puma:capture-opening"));
     setType(t);
-    setMode("capture");
+    // Opening the sheet from the Assistant page means you want the assistant,
+    // same as the desktop bar switching itself over there.
+    setMode(pathname === "/assistant" ? "assistant" : "capture");
     setText("");
     setSelectedTagIds([]);
     setPickedDue(null);
@@ -175,17 +179,10 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
   const submit = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    if (mode === "plan") {
+    if (mode === "assistant") {
       setText("");
       close();
-      assistant.generatePlan(trimmed);
-      router.push("/assistant");
-      return;
-    }
-    if (mode === "ask") {
-      setText("");
-      close();
-      assistant.askQuestion(trimmed);
+      assistant.run(trimmed);
       router.push("/assistant");
       return;
     }
@@ -224,15 +221,11 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
 
   const activeType = TYPES.find((t) => t.type === type)!;
   const submitLabel =
-    mode === "plan"
+    mode === "assistant"
       ? busy
-        ? "Planning…"
-        : "Plan it"
-      : mode === "ask"
-        ? busy
-          ? "Thinking…"
-          : "Ask it"
-        : `Add ${activeType.label.toLowerCase()}`;
+        ? "Thinking…"
+        : "Send to assistant"
+      : `Add ${activeType.label.toLowerCase()}`;
 
   return (
     <div className="lg:hidden">
@@ -244,7 +237,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
         >
           <Search className="h-4 w-4 shrink-0 text-faint" strokeWidth={2.2} />
           <span className="truncate text-[14px] font-medium text-faint">
-            Capture, plan or ask…
+            Capture or ask the assistant…
           </span>
         </button>
         {/* Twin of the bottom-right dock shortcut — same button, same action */}
@@ -271,7 +264,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between px-4 pb-1">
             <span className="font-mono text-[11px] font-semibold uppercase tracking-widest text-faint">
-              {mode === "capture" ? "Capture" : mode === "plan" ? "Plan" : "Ask"}
+              {mode === "capture" ? "Capture" : "Assistant"}
             </span>
             <div className="flex items-center gap-2">
               {mode === "capture" && lifeTint && (
@@ -313,9 +306,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
               placeholder={
                 mode === "capture"
                   ? capture.placeholder
-                  : mode === "plan"
-                    ? "Describe an idea — I'll plan goals, projects, tasks & habits…"
-                    : "Ask about your tasks, habits, goals…"
+                  : "Ask about your data, or describe what to build…"
               }
               className="w-full resize-none rounded-2xl border-2 border-ink bg-surface px-4 py-3.5 text-[17px] font-medium leading-snug text-ink outline-none placeholder:text-faint"
             />
@@ -328,12 +319,11 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
 
           {/* Mode switch */}
           <div className="shrink-0 px-4 pt-3">
-            <div className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-surface2 p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-surface2 p-1">
               {(
                 [
                   ["capture", "Capture", Pencil],
-                  ["plan", "Plan", Sparkles],
-                  ["ask", "Ask", MessageCircleQuestion],
+                  ["assistant", "Assistant", Sparkles],
                 ] as const
               ).map(([m, label, Icon]) => {
                 const active = mode === m;
@@ -345,18 +335,11 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
                     className={cn(
                       "flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-semibold transition-all",
                       active
-                        ? m === "plan"
+                        ? m === "assistant"
                           ? "bg-primary text-background"
-                          : m === "ask"
-                            ? "text-background"
-                            : "bg-surface text-ink shadow-[1px_1px_0_var(--shadow)]"
+                          : "bg-surface text-ink shadow-[1px_1px_0_var(--shadow)]"
                         : "text-faint"
                     )}
-                    style={
-                      active && m === "ask"
-                        ? { background: "oklch(0.58 0.17 300)" }
-                        : undefined
-                    }
                   >
                     <Icon className="h-4 w-4" />
                     {label}
@@ -545,9 +528,9 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
               </>
             ) : (
               <p className="rounded-2xl border border-dashed border-border bg-surface2/50 px-4 py-5 text-center text-[13.5px] leading-relaxed text-faint">
-                {mode === "plan"
-                  ? "Describe an intent in plain words — the assistant drafts a full plan of goals, projects, tasks and habits for you to review before anything is created."
-                  : "Ask anything about your own data — open tasks, streaks, goals — and get an answer on the Assistant page."}
+                Ask a question about your own data, or describe a change to
+                make — the assistant works out which you meant. Changes arrive
+                as a draft you review before anything is saved.
               </p>
             )}
           </div>
@@ -563,11 +546,8 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
               disabled={pending || busy || !text.trim()}
               className={cn(
                 "w-full rounded-2xl py-3.5 text-[15px] font-bold text-background transition-opacity disabled:opacity-40",
-                mode === "plan" ? "bg-primary" : mode === "ask" ? "" : "bg-ink"
+                mode === "assistant" ? "bg-primary" : "bg-ink"
               )}
-              style={
-                mode === "ask" ? { background: "oklch(0.58 0.17 300)" } : undefined
-              }
             >
               {pending ? "Adding…" : submitLabel}
             </button>

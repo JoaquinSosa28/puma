@@ -3,7 +3,6 @@
 // The unified assistant workspace: one input, and the result is either an
 // answer (widgets) or a changeset (an editable canvas). See ChangesetCanvas
 // for the editing half.
-import { useState } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Topbar } from "@/components/shell/Topbar";
@@ -20,16 +19,22 @@ type Props = {
   aiReady?: boolean;
 };
 
+// Examples earn their place by showing something the assistant can do that
+// isn't obvious — a chart it picks itself, a multi-step edit, a merge that
+// moves work before deleting. "Set up a project for X" taught nothing: it
+// produced one empty project and looked like a worse version of the + button.
 const ASK_EXAMPLES = [
-  "Where does my time go?",
-  "Which projects are stalling?",
-  "Am I getting better at finishing things?",
+  "Where did my time actually go this month?",
+  "Which projects have I not touched in two weeks?",
+  "Am I finishing more than I start?",
+  "How am I tracking against my goals?",
 ];
 
 const BUILD_EXAMPLES = [
-  "Set up a project for the kitchen renovation",
-  "Merge my two reading projects",
-  "Delete the habits I never do",
+  "File my unfiled tasks into the projects they belong to",
+  "Merge my two smallest projects into one",
+  "Make everything overdue high priority",
+  "Archive the habits I haven't done in a month",
 ];
 
 export function AssistantView({
@@ -117,13 +122,6 @@ export function AssistantView({
 // ---------------------------------------------------------------------------
 
 function EmptyState({ onSubmit }: { onSubmit: (text: string) => void }) {
-  const [text, setText] = useState("");
-
-  const submit = (value?: string) => {
-    const t = (value ?? text).trim();
-    if (t) onSubmit(t);
-  };
-
   return (
     <div className="flex flex-1 flex-col px-4 pt-8">
       <div className="mx-auto w-full max-w-[560px] text-center">
@@ -134,30 +132,14 @@ function EmptyState({ onSubmit }: { onSubmit: (text: string) => void }) {
           Ask about your data, or describe what to build.
         </p>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          I read what&apos;s already in PUMA. When you ask for structure I propose
-          the shape — the words inside it stay yours.
+          Use the bar above. I read what&apos;s already in PUMA; when you ask for
+          structure I propose the shape — the words inside it stay yours.
         </p>
-        <div className="mt-5 flex items-center gap-2.5 rounded-xl border-[1.5px] border-border bg-surface px-4 py-3 text-left shadow-[1px_1px_0_var(--shadow)] focus-within:border-primary">
-          <span className="block h-2 w-2 shrink-0 bg-primary" />
-          <input
-            autoFocus
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-            placeholder="Ask anything, or describe something to set up…"
-            className="min-w-0 flex-1 border-none bg-transparent text-[14px] text-ink outline-none placeholder:text-faint"
-          />
-          <kbd className="rounded-[5px] border border-border px-1.5 py-0.5 font-mono text-[10px] text-faint">
-            ↵
-          </kbd>
-        </div>
       </div>
 
-      <div className="mx-auto mt-7 grid w-full max-w-[640px] grid-cols-1 gap-6 sm:grid-cols-2">
-        <ExampleColumn label="Ask" examples={ASK_EXAMPLES} onPick={submit} />
-        <ExampleColumn label="Build" examples={BUILD_EXAMPLES} onPick={submit} accent />
+      <div className="mx-auto mt-8 grid w-full max-w-[720px] grid-cols-1 gap-6 sm:grid-cols-2">
+        <ExampleColumn label="Ask" examples={ASK_EXAMPLES} onPick={onSubmit} />
+        <ExampleColumn label="Build" examples={BUILD_EXAMPLES} onPick={onSubmit} accent />
       </div>
     </div>
   );

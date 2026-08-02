@@ -27,9 +27,9 @@ import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import { RESERVED_WORDS } from "@/lib/omni-reserved";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
-import { MessageCircleQuestion, Pencil, Sparkles } from "lucide-react";
+import { Pencil, Sparkles } from "lucide-react";
 
-type OmniMode = "capture" | "plan" | "ask";
+type OmniMode = "capture" | "assistant";
 
 const TYPE_META: Record<
   OmniType,
@@ -43,14 +43,13 @@ const TYPE_META: Record<
 
 const OMNI_TYPES: OmniType[] = ["task", "habit", "goal", "note"];
 
-/** Tab order while typing in the omnibar: capture types → plan → ask → capture… */
+/** Tab order while typing in the omnibar: capture types → assistant → capture… */
 const OMNI_TAB_CYCLE: { mode: OmniMode; type?: OmniType }[] = [
   { mode: "capture", type: "task" },
   { mode: "capture", type: "habit" },
   { mode: "capture", type: "goal" },
   { mode: "capture", type: "note" },
-  { mode: "plan" },
-  { mode: "ask" },
+  { mode: "assistant" },
 ];
 
 function omniAccent(type: OmniType): string {
@@ -79,8 +78,7 @@ const LIFE_META: Record<
 };
 
 function omniTabIndex(mode: OmniMode, type: OmniType): number {
-  if (mode === "plan") return 4;
-  if (mode === "ask") return 5;
+  if (mode === "assistant") return 4;
   const i = OMNI_TYPES.indexOf(type);
   return i >= 0 ? i : 0;
 }
@@ -132,7 +130,7 @@ export function OmniBox({
   const omniRef = useRef<HTMLDivElement>(null);
   const omniEscBlurredAtRef = useRef<number | null>(null);
   const busy = assistant.status === "pending";
-  const aiMode = mode === "plan" || mode === "ask";
+  const aiMode = mode === "assistant";
 
   // Everything you can capture carries tags — habits and goals included, since
   // their life area is read from them like everything else's.
@@ -167,6 +165,12 @@ export function OmniBox({
   useEffect(() => {
     setType(capture.type);
   }, [capture.type, pathname, searchParams]);
+
+  // On the Assistant page the bar IS the assistant's input — there is no
+  // second field there to type into. Leaving it takes you back to capture.
+  useEffect(() => {
+    setMode(pathname === "/assistant" ? "assistant" : "capture");
+  }, [pathname]);
 
   useEffect(() => {
     if (!taggable) setSelectedTagIds([]);
@@ -380,11 +384,10 @@ export function OmniBox({
     }
   }, [isTask, parsed.due]);
 
-  // "#note", "#goal", "#ask" steer the bar from the text itself. The token is
-  // stripped from the title by the parser, so acting on it here is the only
-  // thing that makes it visible.
+  // "#ask" and "#plan" in the text both steer the bar to the assistant — they
+  // were two doors to one room even before the modes merged.
   useEffect(() => {
-    if (parsed.modeToken && parsed.modeToken !== mode) setMode(parsed.modeToken);
+    if (parsed.modeToken && mode !== "assistant") setMode("assistant");
   }, [parsed.modeToken, mode]);
 
   useEffect(() => {
@@ -433,23 +436,15 @@ export function OmniBox({
     });
   };
 
-  const onPlan = () => {
+  // One entry point: the assistant works out whether this is a question or a
+  // request. Plan and Ask were only ever a guess the user had to make first.
+  const onAiSubmit = () => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setText("");
-    assistant.generatePlan(trimmed);
+    assistant.run(trimmed);
     router.push("/assistant");
   };
-
-  const onAsk = () => {
-    const trimmed = text.trim();
-    if (!trimmed || busy) return;
-    setText("");
-    assistant.askQuestion(trimmed);
-    router.push("/assistant");
-  };
-
-  const onAiSubmit = () => (mode === "ask" ? onAsk() : onPlan());
 
   return (
     <div
@@ -458,11 +453,7 @@ export function OmniBox({
       style={
         {
           "--omni-accent":
-            mode === "ask"
-              ? "oklch(0.58 0.17 300)"
-              : mode === "plan"
-                ? "var(--primary)"
-                : omniAccent(type),
+            mode === "assistant" ? "var(--primary)" : omniAccent(type),
           ...(showLifeSignal && lifeTint
             ? { borderColor: lifeTint.border }
             : {}),
@@ -477,20 +468,9 @@ export function OmniBox({
       <div className="relative z-[1]">
       <div className="flex items-center gap-[11px] max-lg:flex-wrap">
         <ModeSwitch mode={mode} onChange={setMode} />
-        {mode === "ask" ? (
-          <span
-            className="flex shrink-0 items-center gap-1 rounded-[7px] px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]"
-            style={{ background: "oklch(0.58 0.17 300)" }}
-          >
-            <MessageCircleQuestion className="h-3 w-3" />
-            ask
-          </span>
-        ) : mode === "plan" ? (
-          <span className="flex shrink-0 items-center gap-1 rounded-[7px] bg-primary px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]">
-            <Sparkles className="h-3 w-3" />
-            plan
-          </span>
-        ) : (
+        {/* No type pill in assistant mode — the switch beside it already says
+            Assistant, and there is only one kind of assistant input now. */}
+        {mode === "capture" && (
           <span
             className="shrink-0 rounded-[7px] px-[9px] py-1 font-mono text-xs font-semibold lowercase text-background transition-transform duration-200 group-focus-within:scale-[1.04]"
             style={{ background: TYPE_META[type].color }}
@@ -560,11 +540,9 @@ export function OmniBox({
               }
             }}
             placeholder={
-              mode === "ask"
-                ? "Ask about your tasks, habits, goals…"
-                : mode === "plan"
-                  ? "Describe an idea — I'll plan goals, projects, tasks & habits…"
-                  : capture.placeholder
+              mode === "assistant"
+                ? "Ask about your data, or describe something to change…"
+                : capture.placeholder
             }
             disabled={pending || busy}
           />
@@ -575,34 +553,22 @@ export function OmniBox({
           </span>
         )}
         <span className="hidden shrink-0 font-mono text-[10px] text-faint2 transition-all duration-200 group-focus-within:font-semibold group-focus-within:text-ink sm:inline">
-          {mode === "ask" ? "↵ ask" : mode === "plan" ? "↵ plan" : "↵ add"}
+          {mode === "assistant" ? "↵ send" : "↵ add"}
         </span>
       </div>
       <div className="omni-box-scanline" aria-hidden />
       {aiMode ? (
         <div className="mt-2.5 flex items-center gap-2 border-t border-border2 py-2.5 pb-1">
           <span className="shrink-0 font-mono text-[10px] text-faint2">
-            {mode === "ask"
-              ? "Answers about your data → opens on the Assistant page"
-              : "AI plan → preview opens on the Assistant page"}
+            A question gets an answer · a request gets a draft you can edit
           </span>
           <button
             type="button"
             onClick={onAiSubmit}
             disabled={busy}
-            className={cn(
-              "ml-auto cursor-pointer rounded-lg border-none px-4 py-1 text-[12px] font-bold text-background disabled:cursor-not-allowed disabled:opacity-50",
-              mode === "ask" ? "" : "bg-primary"
-            )}
-            style={mode === "ask" ? { background: "oklch(0.58 0.17 300)" } : undefined}
+            className="ml-auto cursor-pointer rounded-lg border-none bg-primary px-4 py-1 text-[12px] font-bold text-background disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy
-              ? mode === "ask"
-                ? "Thinking…"
-                : "Planning…"
-              : mode === "ask"
-                ? "Ask it"
-                : "Plan it"}
+            {busy ? "Thinking…" : "Send"}
           </button>
         </div>
       ) : (
@@ -733,32 +699,17 @@ function ModeSwitch({
       </button>
       <button
         type="button"
-        onClick={() => onChange("plan")}
-        aria-pressed={mode === "plan"}
+        onClick={() => onChange("assistant")}
+        aria-pressed={mode === "assistant"}
         className={cn(
           "flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-all",
-          mode === "plan"
+          mode === "assistant"
             ? "bg-primary text-background shadow-[1px_1px_0_var(--shadow)]"
             : "text-faint hover:text-muted"
         )}
       >
         <Sparkles className="h-3 w-3" />
-        Plan
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("ask")}
-        aria-pressed={mode === "ask"}
-        className={cn(
-          "flex items-center gap-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-all",
-          mode === "ask"
-            ? "text-background shadow-[1px_1px_0_var(--shadow)]"
-            : "text-faint hover:text-muted"
-        )}
-        style={mode === "ask" ? { background: "oklch(0.58 0.17 300)" } : undefined}
-      >
-        <MessageCircleQuestion className="h-3 w-3" />
-        Ask
+        Assistant
       </button>
     </div>
   );

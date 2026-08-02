@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Check, TriangleAlert } from "lucide-react";
+import { Plus, Check, TriangleAlert, MoreHorizontal, Trash2, Pencil, Sparkles, EyeOff, Eye } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -66,8 +66,8 @@ function opTitle(op: ChangeOp): string {
   return op.fields.title || "Untitled";
 }
 
-/** Which draft op (by key) this op files under, if any. */
-function parentRef(op: ChangeOp): string | null {
+/** The ref/id this op files under, if any — what nests it in the tree. */
+function parentOf(op: ChangeOp): string | null {
   if (op.op === "delete") return null;
   return op.fields.projectId || op.fields.goalId || op.fields.goalIds?.[0] || null;
 }
@@ -171,7 +171,7 @@ export function ChangesetCanvas({
           op: "create",
           entity: "task",
           refId: `new-${mintKey()}`,
-          fields: { ...blankOpFields(), parentRef: projectRefOrId },
+          fields: { ...blankOpFields(), projectId: projectRefOrId },
         },
       },
     ]);
@@ -308,7 +308,7 @@ export function ChangesetCanvas({
   const childrenOf = new Map<string, DraftOp[]>();
   const roots: DraftOp[] = [];
   for (const d of draft) {
-    const ref = parentRef(d.op);
+    const ref = parentOf(d.op);
     const parent = ref ? byRef.get(ref) : undefined;
     if (parent && parent.key !== d.key) {
       const list = childrenOf.get(parent.key) ?? [];
@@ -562,6 +562,20 @@ function NodeRow({
   const [renaming, setRenaming] = useState(op.op === "create" && !title);
   const [reprompting, setReprompting] = useState(false);
   const [rewriting, setRewriting] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Right-click on desktop, long-press on touch — the same gesture people
+  // already use for the tag menu elsewhere in the app.
+  const openMenu = () => setMenuOpen(true);
+  const startLongPress = () => {
+    longPress.current = setTimeout(openMenu, 450);
+  };
+  const cancelLongPress = () => {
+    if (longPress.current) clearTimeout(longPress.current);
+    longPress.current = null;
+  };
+  useEffect(() => cancelLongPress, []);
 
   const draggable = useDraggable({ id: node.key, disabled: op.op === "delete" });
   const droppable = useDroppable({
@@ -622,6 +636,13 @@ function NodeRow({
         ref={draggable.setNodeRef}
         {...draggable.attributes}
         {...draggable.listeners}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          openMenu();
+        }}
+        onTouchStart={startLongPress}
+        onTouchEnd={cancelLongPress}
+        onTouchMove={cancelLongPress}
         className={cn(
           "group rounded-[11px] border bg-surface px-3 py-2.5",
           op.op === "delete" ? "border-[1.5px] border-tasks" : "border-border",
@@ -718,15 +739,45 @@ function NodeRow({
 
           <button
             type="button"
-            aria-label="Reprompt this node"
-            onClick={() => setReprompting((v) => !v)}
+            aria-label={`Actions for ${title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              openMenu();
+            }}
             onPointerDown={(e) => e.stopPropagation()}
-            className="grid h-[22px] w-[22px] flex-none place-items-center rounded-md border border-border bg-surface2 font-mono text-[11px] text-faint opacity-45 transition-opacity group-hover:opacity-100 focus:opacity-100"
+            className="flex h-[22px] flex-none items-center gap-1 rounded-md border border-border bg-surface2 px-1.5 font-mono text-[9.5px] uppercase tracking-wider text-faint opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 max-lg:opacity-60"
           >
-            ⌄
+            <MoreHorizontal className="h-3 w-3" />
           </button>
         </div>
       </div>
+
+      {menuOpen && (
+        <NodeMenu
+          title={title}
+          excluded={isExcluded}
+          canReprompt={op.op !== "delete"}
+          onReprompt={() => {
+            setMenuOpen(false);
+            setReprompting(true);
+          }}
+          onRename={() => {
+            setMenuOpen(false);
+            setRenaming(true);
+          }}
+          onToggle={() => {
+            setMenuOpen(false);
+            onToggle(node.key);
+          }}
+          onRemove={() => {
+            setMenuOpen(false);
+            // Remove every op in the subtree: leaving orphaned children behind
+            // is never what "remove this" means.
+            subtreeKeys.forEach(onDrop);
+          }}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
 
       {reprompting && (
         <RepromptPopover
@@ -822,6 +873,89 @@ function display(value: unknown, names: Record<string, string>): string {
   // Timestamps: the day is the part anyone cares about.
   if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return str.slice(0, 10);
   return str;
+}
+
+/**
+ * What you can do to one node. Remove is a real removal — the op leaves the
+ * draft — because unticking something you never wanted still leaves it on the
+ * canvas, and a list of things you have to keep ignoring is worse than a
+ * shorter list.
+ */
+function NodeMenu({
+  title,
+  excluded,
+  canReprompt,
+  onReprompt,
+  onRename,
+  onToggle,
+  onRemove,
+  onClose,
+}: {
+  title: string;
+  excluded: boolean;
+  canReprompt: boolean;
+  onReprompt: () => void;
+  onRename: () => void;
+  onToggle: () => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const away = () => onClose();
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    // A frame's delay, or the click that opened it closes it again.
+    const id = setTimeout(() => {
+      window.addEventListener("click", away);
+      window.addEventListener("keydown", esc);
+    }, 0);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener("click", away);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [onClose]);
+
+  const item =
+    "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] text-ink hover:bg-hover";
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className="mt-1.5 w-full max-w-[260px] rounded-[11px] border border-border bg-surface p-1 shadow-[1px_1px_0_var(--shadow)]"
+    >
+      <p className="m-0 truncate px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-widest text-faint2">
+        {title}
+      </p>
+      {canReprompt && (
+        <button type="button" onClick={onReprompt} className={item}>
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Change this with AI
+        </button>
+      )}
+      {canReprompt && (
+        <button type="button" onClick={onRename} className={item}>
+          <Pencil className="h-3.5 w-3.5 text-faint" />
+          Rename
+        </button>
+      )}
+      <button type="button" onClick={onToggle} className={item}>
+        {excluded ? (
+          <Eye className="h-3.5 w-3.5 text-faint" />
+        ) : (
+          <EyeOff className="h-3.5 w-3.5 text-faint" />
+        )}
+        {excluded ? "Include again" : "Skip this one"}
+      </button>
+      <button
+        type="button"
+        onClick={onRemove}
+        className={cn(item, "text-tasks hover:bg-tasks/10")}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Remove from draft
+      </button>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

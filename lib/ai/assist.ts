@@ -92,7 +92,7 @@ export async function repromptSubtree(
           "You are rewriting ONE SUBTREE of a draft changeset. Your ops REPLACE the subtree below wholesale — whatever you leave out ceases to exist.",
           "",
           "So: return the FULL subtree after the change, not just the new parts. That means the root node itself (first op, same refId as now unless the instruction says to split or remove it), then every child that should survive — unchanged ones included, copied as they are.",
-          "Children must keep pointing at their parent through `parentRef`; a child whose parentRef is empty becomes a loose top-level node, which is almost never what the instruction meant.",
+          "Children must keep pointing at their parent — a task through `projectId`, a project through `goalId`. A child with neither becomes a loose top-level node, which is almost never what the instruction meant.",
           "Keep refIds stable for ops that survive; mint new ones only for genuinely new ops.",
           "The scaffolding rule still applies: structure only, the user's words only.",
         ].join("\n"),
