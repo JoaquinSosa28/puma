@@ -1,9 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useQueryState, parseAsStringLiteral, parseAsString } from "nuqs";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useQueryState,
+  parseAsStringLiteral,
+  parseAsString,
+  parseAsArrayOf,
+} from "nuqs";
 import { ListTodo, Search, X } from "lucide-react";
 import { searchTasks } from "@/lib/task-search";
+import {
+  applyTaskFilters,
+  countActiveFilters,
+  TASK_STATUSES,
+  TASK_PRIORITIES,
+  type TaskFilters,
+} from "@/lib/task-filters";
+import {
+  TaskFilterMenu,
+  TaskFilterChips,
+} from "@/components/tasks/TaskFilterMenu";
 import type { Task, Tag, Project } from "@/lib/schemas";
 import { TaskList } from "@/components/tasks/TaskList";
 import { CarryoverSection } from "@/components/tasks/CarryoverSection";
@@ -54,6 +70,18 @@ export function TasksView({
   const [taskId, setTaskId] = useQueryState("task");
   const [projectFilter, setProjectFilter] = useQueryState("project", parseAsString);
   const [query, setQuery] = useQueryState("q", parseAsString.withDefault(""));
+  const [statusFilter, setStatusFilter] = useQueryState(
+    "status",
+    parseAsArrayOf(parseAsStringLiteral(TASK_STATUSES)).withDefault([])
+  );
+  const [priorityFilter, setPriorityFilter] = useQueryState(
+    "priority",
+    parseAsArrayOf(parseAsStringLiteral(TASK_PRIORITIES)).withDefault([])
+  );
+  const [tagFilter, setTagFilter] = useQueryState(
+    "tag",
+    parseAsArrayOf(parseAsString).withDefault([])
+  );
   const listRef = useRef<HTMLDivElement>(null);
   const timeZone = useTimezone();
   const isDesktop = useIsDesktop();
@@ -70,6 +98,27 @@ export function TasksView({
 
   const trimmedQuery = query.trim();
   const searching = trimmedQuery.length > 0;
+
+  const filters = useMemo<TaskFilters>(
+    () => ({
+      status: statusFilter,
+      priority: priorityFilter,
+      tagIds: tagFilter,
+    }),
+    [statusFilter, priorityFilter, tagFilter]
+  );
+  const filtersActive = countActiveFilters(filters) > 0;
+
+  const setFilters = useCallback(
+    (next: TaskFilters) => {
+      // nuqs drops a param when it equals the default, so empty arrays become
+      // null rather than "?status=".
+      void setStatusFilter(next.status.length ? next.status : null);
+      void setPriorityFilter(next.priority.length ? next.priority : null);
+      void setTagFilter(next.tagIds.length ? next.tagIds : null);
+    },
+    [setStatusFilter, setPriorityFilter, setTagFilter]
+  );
 
   const filtered = useMemo(() => {
     let items: Task[];
@@ -91,7 +140,7 @@ export function TasksView({
     if (projectFilter) {
       items = items.filter((t) => t.projectId === projectFilter);
     }
-    return items;
+    return applyTaskFilters(items, filters);
   }, [
     tasks,
     carryover,
@@ -102,12 +151,15 @@ export function TasksView({
     trimmedQuery,
     tags,
     projects,
+    filters,
   ]);
 
   const filteredCarryover = useMemo(() => {
-    if (!projectFilter) return carryover;
-    return carryover.filter((t) => t.projectId === projectFilter);
-  }, [carryover, projectFilter]);
+    const items = projectFilter
+      ? carryover.filter((t) => t.projectId === projectFilter)
+      : carryover;
+    return applyTaskFilters(items, filters);
+  }, [carryover, projectFilter, filters]);
 
   const todayTasks = useMemo(() => {
     let items = tasks.filter((t) => (t.due ?? "").slice(0, 10) === td);
@@ -133,10 +185,11 @@ export function TasksView({
 
   const taskGroups = useMemo((): Group[] => {
     if (group === "none") {
-      const label = searching
-        ? "Results"
-        : filteredProject?.title ??
-          (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
+      const label =
+        searching || filtersActive
+          ? "Results"
+          : filteredProject?.title ??
+            (tab === "today" ? "Today" : tab === "upcoming" ? "Upcoming" : "All tasks");
       return [
         {
           label,
@@ -192,7 +245,7 @@ export function TasksView({
       });
     }
     return result;
-  }, [group, tags, projects, filtered, tab, filteredProject, searching]);
+  }, [group, tags, projects, filtered, tab, filteredProject, searching, filtersActive]);
 
   useEffect(() => {
     if (projectFilter && !filteredProject) setProjectFilter(null);
@@ -209,8 +262,12 @@ export function TasksView({
   }, [taskId, taskGroups, tab, group, projectFilter]);
 
   const emptyCopy = searching
-    ? `Nothing matches "${trimmedQuery}". Search covers titles, descriptions, subtasks, tags and projects.`
-    : tab === "today"
+    ? filtersActive
+      ? `Nothing matches "${trimmedQuery}" with these filters. Try clearing them.`
+      : `Nothing matches "${trimmedQuery}". Search covers titles, descriptions, subtasks, tags and projects.`
+    : filtersActive
+      ? "No tasks match these filters. Clear one above to widen the net."
+      : tab === "today"
       ? showCarryover && filteredCarryover.length
         ? "Nothing new due today — finish carryover below or check Upcoming."
         : "Nothing due today — capture something above or check Upcoming."
@@ -277,36 +334,41 @@ export function TasksView({
               />
             )}
           </div>
-          <SearchField
-            value={query}
-            onChange={setQuery}
-            resultCount={searching ? filtered.length : null}
-          />
+          <div className="ml-auto flex min-w-0 items-center gap-2 max-lg:ml-0 max-lg:w-full">
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              resultCount={searching ? filtered.length : null}
+            />
+            <TaskFilterMenu filters={filters} onChange={setFilters} tags={tags} />
 
-          <div className="flex items-center gap-0.5 max-lg:hidden">
-            <TaskStat
-              value={
-                summary.todayTotal
-                  ? `${summary.todayDone}/${summary.todayTotal}`
-                  : "0"
-              }
-              label="TODAY DONE"
-              accent={TASK_ACCENT}
-            />
-            <TaskStat
-              value={String(summary.open)}
-              label="OPEN"
-              className="border-l border-border"
-            />
-            {summary.doing > 0 && (
+            <div className="flex shrink-0 items-center gap-0.5 max-lg:hidden">
               <TaskStat
-                value={String(summary.doing)}
-                label="IN PROGRESS"
-                className="border-l border-border text-primary"
+                value={
+                  summary.todayTotal
+                    ? `${summary.todayDone}/${summary.todayTotal}`
+                    : "0"
+                }
+                label="TODAY DONE"
+                accent={TASK_ACCENT}
               />
-            )}
+              <TaskStat
+                value={String(summary.open)}
+                label="OPEN"
+                className="border-l border-border"
+              />
+              {summary.doing > 0 && (
+                <TaskStat
+                  value={String(summary.doing)}
+                  label="IN PROGRESS"
+                  className="border-l border-border text-primary"
+                />
+              )}
+            </div>
           </div>
         </div>
+
+        <TaskFilterChips filters={filters} onChange={setFilters} tags={tags} />
 
         <div
           className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[13px] border border-border bg-surface animate-puma-view lg:grid-cols-[minmax(280px,34%)_minmax(480px,1fr)]"
@@ -323,14 +385,14 @@ export function TasksView({
                     className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface"
                     style={{ color: TASK_ACCENT }}
                   >
-                    {searching ? (
+                    {searching || filtersActive ? (
                       <Search className="h-5 w-5" />
                     ) : (
                       <ListTodo className="h-5 w-5" />
                     )}
                   </div>
                   <p className="m-0 text-sm font-semibold text-ink">
-                    {searching ? "No matches" : "All clear"}
+                    {searching || filtersActive ? "No matches" : "All clear"}
                   </p>
                   <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-faint">
                     {emptyCopy}
@@ -419,7 +481,7 @@ function SearchField({
   resultCount: number | null;
 }) {
   return (
-    <div className="ml-auto flex min-w-[190px] max-w-[280px] items-center gap-2 rounded-lg border border-border bg-surface2 px-2.5 py-1.5 transition-colors focus-within:border-faint max-lg:ml-0 max-lg:w-full max-lg:max-w-none">
+    <div className="flex min-w-[120px] max-w-[280px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface2 px-2.5 py-1.5 transition-colors focus-within:border-faint">
       <Search className="h-3.5 w-3.5 shrink-0 text-faint2" strokeWidth={2.2} />
       {/* Deliberately not type="search": WebKit adds its own clear button and
           we'd render two. */}
