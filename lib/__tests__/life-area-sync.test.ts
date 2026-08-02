@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
-import { filterByLifeView } from "@/lib/life-area";
+import { filterByLifeView, filterGoalsByLifeView, goalLifeArea } from "@/lib/life-area";
 
 const tags = [
   { id: "t-work", name: "work" },
@@ -71,5 +71,31 @@ describe("filterByLifeView", () => {
       "2",
       "3",
     ]);
+  });
+});
+
+describe("filterGoalsByLifeView", () => {
+  const goals = [
+    { id: "p", category: "personal" as const },
+    { id: "w", category: "professional" as const },
+  ];
+
+  it("maps professional onto the work view", () => {
+    expect(goalLifeArea("professional")).toBe("work");
+    expect(goalLifeArea("personal")).toBe("personal");
+  });
+
+  it("shows everything in the both view", () => {
+    expect(filterGoalsByLifeView(goals, "both").map((g) => g.id)).toEqual([
+      "p",
+      "w",
+    ]);
+  });
+
+  it("narrows to the matching category", () => {
+    expect(filterGoalsByLifeView(goals, "personal").map((g) => g.id)).toEqual([
+      "p",
+    ]);
+    expect(filterGoalsByLifeView(goals, "work").map((g) => g.id)).toEqual(["w"]);
   });
 });

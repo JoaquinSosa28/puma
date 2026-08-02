@@ -21,6 +21,7 @@ import { ensureTags } from "@/lib/db/tags";
 import { pickProjectColor } from "@/lib/project-colors";
 import { aiInput } from "@/lib/validation";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { goalLifeArea } from "@/lib/life-area";
 
 const HABIT_COLOR = "oklch(0.6 0.13 155)";
 
@@ -117,7 +118,9 @@ export async function applyPlan(
         metricLabel: g.metricLabel ?? "",
         progress: 0,
         targetDate: g.targetDate ?? null,
-        lifeArea: g.lifeArea,
+        // Keep it consistent with the category, which is what the goal views
+        // and the personal/work filter actually read.
+        lifeArea: goalLifeArea(g.category),
         order: nextGoalOrder(goalAccum, g.category),
         createdAt: td,
       });

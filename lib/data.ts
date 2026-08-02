@@ -25,6 +25,7 @@ import { computeGoalProgress } from "@/lib/goal-sync";
 import {
   DEFAULT_LIFE_VIEW,
   filterByLifeView,
+  filterGoalsByLifeView,
   type LifeView,
 } from "@/lib/life-area";
 import { cache } from "react";
@@ -106,12 +107,16 @@ function shellFromCore(
   const habits = filterByLifeView(core.allHabits, lifeView);
   const projects = filterByLifeView(core.allProjects, lifeView);
   const notes = filterByLifeView(core.allNotes, lifeView);
+  // Goals were the one collection left out of this, so switching to Work still
+  // showed every personal goal. They filter on their category rather than the
+  // shared lifeArea field — see goalLifeArea.
+  const goals = filterGoalsByLifeView(core.allGoals, lifeView);
 
   return {
     tasks,
     allTasks: tasks,
     habits,
-    goals: core.allGoals,
+    goals,
     projects,
     tags: core.tags,
     notes,
@@ -123,7 +128,7 @@ function shellFromCore(
       openTasks: openTaskCount(tasks),
       notes: notes.length,
       habits: habits.length,
-      goals: core.allGoals.length,
+      goals: goals.length,
       projects: projects.length,
     },
     birthDate: core.settings?.birthDate ?? null,
@@ -147,9 +152,12 @@ const loadAppDataForView = cache(async (lifeView: LifeView) => {
   const timezone = await resolveTimezoneFromSettings(core.settings);
 
   const shell = shellFromCore(core, lifeView, timezone);
-  const { tasks, habits, goals, projects, notes, user, settings } = shell;
+  const { tasks, habits, goals } = shell;
 
-  const allGoals2 = core.allGoals.map((g) => ({
+  // Only the goals in view get shown, but their progress still rolls up from
+  // every linked project, habit and task — a work project feeding a personal
+  // goal still counts while you're looking at Personal.
+  const goalsWithProgress = goals.map((g) => ({
     ...g,
     progress:
       computeGoalProgress(
@@ -178,7 +186,7 @@ const loadAppDataForView = cache(async (lifeView: LifeView) => {
 
   return {
     ...shell,
-    goals: allGoals2,
+    goals: goalsWithProgress,
     habitEntries,
     agenda,
     today: td,

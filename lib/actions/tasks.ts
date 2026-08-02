@@ -16,6 +16,7 @@ import { userToday } from "@/lib/timezone-server";
 import type { Task } from "@/lib/schemas";
 import { syncGoalsForProject } from "@/lib/goal-sync-server";
 import { deriveLifeAreaFromTags } from "@/lib/life-area-sync";
+import { goalLifeArea } from "@/lib/life-area";
 import { entityId, title as titleField, noteBody } from "@/lib/validation";
 
 const omniSchema = z.object({
@@ -143,7 +144,9 @@ export async function createFromOmni(
     metricLabel: "",
     progress: 0,
     targetDate: p.due,
-    lifeArea: area,
+    // The category is what decides which view a goal belongs to, so don't let
+    // the view you happened to capture from override it.
+    lifeArea: goalLifeArea(category),
     order: nextGoalOrder(existingGoals, category),
     createdAt: td,
   });

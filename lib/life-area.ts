@@ -26,6 +26,26 @@ export function filterByLifeView<T extends { lifeArea: LifeArea | "both" }>(
 /** @deprecated use filterByLifeView */
 export const filterByLifeArea = filterByLifeView;
 
+/**
+ * Goals say personal/professional where everything else says personal/work.
+ * It's the same divide under different words, and the category is the half a
+ * goal actually shows and lets you set — its stored lifeArea is written
+ * inconsistently by the various create paths and never surfaces in the UI, so
+ * the category is the one to trust.
+ */
+export function goalLifeArea(
+  category: "personal" | "professional"
+): LifeArea {
+  return category === "professional" ? "work" : "personal";
+}
+
+export function filterGoalsByLifeView<
+  T extends { category: "personal" | "professional" },
+>(goals: T[], view: LifeView): T[] {
+  if (view === "both") return goals;
+  return goals.filter((goal) => goalLifeArea(goal.category) === view);
+}
+
 export function lifeAreaForCreate(view: LifeView): LifeArea {
   return view === "work" ? "work" : "personal";
 }

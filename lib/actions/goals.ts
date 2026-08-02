@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { goalLifeArea } from "@/lib/life-area";
 import { z } from "zod";
 import type { ActionResult } from "@/lib/types";
 import { requireUserId } from "@/lib/auth/session";
@@ -36,7 +37,7 @@ export async function addGoalAction(
     metricLabel: "",
     progress: 0,
     targetDate: null,
-    lifeArea: "personal",
+    lifeArea: goalLifeArea(parsed.data.category),
     order: nextGoalOrder(existing, parsed.data.category),
     createdAt,
   });
