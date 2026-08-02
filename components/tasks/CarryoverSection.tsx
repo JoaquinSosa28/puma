@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import type { Task, Tag } from "@/lib/schemas";
 import { Taggable } from "@/components/tags/TagMenuProvider";
 import { TaskList } from "@/components/tasks/TaskList";
+import { PriorityChip } from "@/components/tasks/PriorityChip";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -49,7 +50,8 @@ export function CarryoverSection({
         const content = (
           <>
             <span className="h-[15px] w-[15px] shrink-0 rounded border-[1.6px] border-tasks/55" />
-            {t.title}
+            <PriorityChip priority={t.priority} />
+            <span className="min-w-0 truncate">{t.title}</span>
           </>
         );
         return (

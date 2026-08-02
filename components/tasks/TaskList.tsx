@@ -10,6 +10,7 @@ import { dueDatePart } from "@/lib/date";
 import { toggleTask, cycleTaskPriority, deleteTaskAction } from "@/lib/actions/tasks";
 import { Taggable } from "@/components/tags/TagMenuProvider";
 import { TaskTimer } from "@/components/tasks/TaskTimer";
+import { PriorityChip } from "@/components/tasks/PriorityChip";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { taskDetailHref } from "@/lib/task-links";
@@ -24,14 +25,6 @@ import {
   meetingTimeLabel,
   sortCalendarDayTasks,
 } from "@/lib/calendar-tasks";
-
-const PRIO_COLOR = {
-  high: "oklch(0.64 0.18 25)",
-  med: "oklch(0.7 0.12 70)",
-  // Not var(--border): against the card that renders as a missing dot rather
-  // than a quiet one. Low should look deliberate, just unimportant.
-  low: "var(--faint2)",
-} as const;
 
 const PRIO_BORDER = {
   high: "border-l-[oklch(0.64_0.18_25)]",
@@ -258,15 +251,10 @@ export function TaskList({
                   />
                 )}
               </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePrio(t.id);
-                }}
-                title="priority"
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: PRIO_COLOR[t.priority] }}
+              <PriorityChip
+                priority={t.priority}
+                onCycle={() => handlePrio(t.id)}
+                dimmed={done}
               />
               {detailHref ? (
                 <Link
@@ -304,8 +292,8 @@ export function TaskList({
             ? cn(
                 "cursor-pointer gap-x-2.5 border-b border-border2 px-3 py-2.5 last:border-b-0",
                 showDelete
-                  ? "grid-cols-[20px_minmax(0,1fr)_72px_28px]"
-                  : "grid-cols-[20px_minmax(0,1fr)_72px]",
+                  ? "grid-cols-[20px_34px_minmax(0,1fr)_72px_28px]"
+                  : "grid-cols-[20px_34px_minmax(0,1fr)_72px]",
                 selected
                   ? "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35"
                   : cn("hover:bg-surface2/50", accentBorder)
@@ -319,8 +307,8 @@ export function TaskList({
                       PRIO_BORDER[t.priority]
                     ),
                 showDelete
-                  ? "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px_16px]"
-                  : "grid-cols-[18px_8px_minmax(0,1fr)_92px_52px] max-sm:grid-cols-[18px_8px_minmax(0,1fr)_40px_44px]",
+                  ? "grid-cols-[18px_34px_minmax(0,1fr)_92px_52px_16px] max-sm:grid-cols-[18px_34px_minmax(0,1fr)_40px_44px_16px]"
+                  : "grid-cols-[18px_34px_minmax(0,1fr)_92px_52px] max-sm:grid-cols-[18px_34px_minmax(0,1fr)_40px_44px]",
                 isPage && t.status === "doing" && "bg-primary/[0.03]",
                 selected && "border-l-[3px] border-l-tasks bg-tasks/[0.12] ring-1 ring-inset ring-tasks/35",
                 !selected && accentBorder
@@ -362,18 +350,12 @@ export function TaskList({
               )}
             </button>
 
-            {!compact && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePrio(t.id);
-                }}
-                title="priority"
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{ background: PRIO_COLOR[t.priority] }}
-              />
-            )}
+            <PriorityChip
+              priority={t.priority}
+              onCycle={() => handlePrio(t.id)}
+              dimmed={done}
+              className="justify-self-start"
+            />
 
             <div
               className={cn(

@@ -110,7 +110,7 @@ export function TodayTasksCard({
           </button>
         </div>
       </div>
-      <div className="min-h-0 flex-1 max-lg:overflow-visible @container @max-[470px]:[&_.task-tag-full]:hidden @max-[470px]:[&_.task-tag-mini]:inline @max-[360px]:[&_.task-tag-mini]:!hidden @max-[470px]:[&_.task-subcount-inline]:hidden @max-[470px]:[&_.task-subcount-side]:inline @max-[470px]:[&_.task-time-chip]:hidden @max-[470px]:[&_.task-row]:!grid-cols-[18px_8px_minmax(0,1fr)_28px_44px] @[470px]:[&_.task-timer-cell]:justify-start xl:overflow-y-auto">
+      <div className="min-h-0 flex-1 max-lg:overflow-visible @container @max-[470px]:[&_.task-tag-full]:hidden @max-[470px]:[&_.task-tag-mini]:inline @max-[360px]:[&_.task-tag-mini]:!hidden @max-[470px]:[&_.task-subcount-inline]:hidden @max-[470px]:[&_.task-subcount-side]:inline @max-[470px]:[&_.task-time-chip]:hidden @max-[470px]:[&_.task-row]:!grid-cols-[18px_34px_minmax(0,1fr)_28px_44px] @[470px]:[&_.task-timer-cell]:justify-start xl:overflow-y-auto">
         {onToday && recentCarryover.length > 0 && (
           <CarryoverSection
             tasks={recentCarryover}
