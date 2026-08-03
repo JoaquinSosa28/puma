@@ -26,6 +26,7 @@ import { isEditableTarget } from "@/lib/is-editable-target";
 import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import { RESERVED_WORDS } from "@/lib/omni-reserved";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
+import { isTutorialActive } from "@/lib/tutorial-lock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { Pencil, Sparkles } from "lucide-react";
 
@@ -178,6 +179,8 @@ export function OmniBox({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // The tour owns the keyboard while it's up (see lib/tutorial-lock).
+      if (isTutorialActive()) return;
       if (e.defaultPrevented || e.isComposing) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key.length !== 1) return;
@@ -227,6 +230,8 @@ export function OmniBox({
   // instead of cycling.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // The tour owns the keyboard while it's up (see lib/tutorial-lock).
+      if (isTutorialActive()) return;
       if (e.key !== "Tab" || e.defaultPrevented || e.isComposing) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
@@ -299,6 +304,8 @@ export function OmniBox({
     const OMNI_CLEAR_MS = 3000;
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // The tour owns the keyboard while it's up (see lib/tutorial-lock).
+      if (isTutorialActive()) return;
       if (e.key !== "Escape" || e.defaultPrevented) return;
       const root = omniRef.current;
       if (!root) return;

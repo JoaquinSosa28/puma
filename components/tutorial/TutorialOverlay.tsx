@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BEATS, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
+import { setTutorialActive } from "@/lib/tutorial-lock";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
   MissionBanner,
@@ -110,6 +111,27 @@ export function TutorialOverlay() {
     return () => {
       document.body.style.overflow = previous;
     };
+  }, [playing, finished]);
+
+  // Take the keyboard off the app underneath. The overlay stops pointers by
+  // covering them; keys reach window listeners regardless of what's drawn on
+  // top, and the capture bar has three of them.
+  useEffect(() => {
+    if (!playing || finished) return;
+    setTutorialActive(true);
+    return () => setTutorialActive(false);
+  }, [playing, finished]);
+
+  // Tab belongs to the tour: one mission is about it, and everywhere else it
+  // would walk the focus ring into the app behind the overlay. Same for the
+  // shortcuts the browser hands to the page.
+  useEffect(() => {
+    if (!playing || finished) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab") e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [playing, finished]);
 
   if (finished) return null;

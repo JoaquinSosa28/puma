@@ -21,6 +21,7 @@ import { addTagAction } from "@/lib/actions/settings";
 import { tagsByUsage } from "@/lib/metrics";
 import { isLifeTag, SPECIAL_LIFE_TAGS } from "@/lib/life-area-sync";
 import { toast } from "sonner";
+import { isTutorialActive } from "@/lib/tutorial-lock";
 import { cn } from "@/lib/utils";
 import {
   withSingleProjectTag,
@@ -116,6 +117,7 @@ export function TagMenuProvider({
   useEffect(() => {
     if (!menu) return;
     const onKey = (e: KeyboardEvent) => {
+      if (isTutorialActive()) return;
       if (e.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);

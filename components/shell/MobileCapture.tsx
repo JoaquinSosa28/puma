@@ -23,6 +23,7 @@ import {
   withLifeTags,
 } from "@/lib/life-area-sync";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
+import { isTutorialActive } from "@/lib/tutorial-lock";
 import { sectionMetaFor } from "@/components/shell/MobileDock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
 import { cn } from "@/lib/utils";
@@ -134,6 +135,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
       openWith(t ?? capture.type);
     };
     const onKey = (e: KeyboardEvent) => {
+      if (isTutorialActive()) return;
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("puma:capture", onCapture);

@@ -734,3 +734,26 @@ html {
 .tutorial-nudge {
   animation: tutorialNudge 1.8s ease-out infinite;
 }
+
+/* A keycap that goes down when the real key does. Remounted per press (keyed
+   on the counter) so the animation replays rather than only firing once. */
+@keyframes tutorialKey {
+  0% { transform: translateY(0); border-bottom-width: 3px; }
+  45% { transform: translateY(3px); border-bottom-width: 1px; }
+  100% { transform: translateY(0); border-bottom-width: 3px; }
+}
+
+.tutorial-key {
+  animation: tutorialKey 0.16s ease-out;
+}
+
+/* Softer than tutorial-nudge, for a hint that sits next to the thing rather
+   than on it. */
+@keyframes tutorialNudgeSoft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.tutorial-nudge-soft {
+  animation: tutorialNudgeSoft 1.6s ease-in-out infinite;
+}

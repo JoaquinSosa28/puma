@@ -239,17 +239,68 @@ export function SceneType({ onDone, done }: SceneProps) {
 // 2 — Tab cycles what you're making · MISSION
 
 const TYPES = [
-  { label: "task", color: TASK_RED, hint: "pay rent friday" },
-  { label: "habit", color: HABIT_GREEN, hint: "read 20 min daily" },
-  { label: "goal", color: GOAL_PURPLE, hint: "run a half marathon" },
-  { label: "note", color: "var(--ink)", hint: "kitchen quotes" },
-  { label: "assistant", color: "var(--primary)", hint: "where did my time go?" },
+  {
+    label: "task",
+    color: TASK_RED,
+    hint: "pay rent friday",
+    // A line per stop. Being told "wrong, try again" four times is a form;
+    // being told you took a wrong door is a game.
+    quip: "task. everything starts here — press Tab.",
+  },
+  {
+    label: "habit",
+    color: HABIT_GREEN,
+    hint: "read 20 min daily",
+    quip: "habit — the things you repeat. keep going.",
+  },
+  {
+    label: "goal",
+    color: GOAL_PURPLE,
+    hint: "run a half marathon",
+    quip: "goal. that's the one.",
+  },
+  {
+    label: "note",
+    color: "var(--ink)",
+    hint: "kitchen quotes",
+    quip: "note. one too far — shift+Tab back.",
+  },
+  {
+    label: "assistant",
+    color: "var(--primary)",
+    hint: "where did my time go?",
+    quip: "assistant. lovely, wrong door. shift+Tab twice.",
+  },
 ];
 
 const TAB_TARGET = 2; // goal
 
+/** A keycap that visibly goes down when the real key does. */
+function KeyCap({
+  label,
+  pressed,
+  wide,
+}: {
+  label: string;
+  pressed: number;
+  wide?: boolean;
+}) {
+  return (
+    <span
+      key={pressed}
+      className={cn(
+        "tutorial-key inline-flex items-center justify-center rounded-[7px] border-b-[3px] border-border bg-surface2 px-2.5 py-1.5 font-mono text-[12px] font-bold text-ink shadow-[0_1px_0_var(--shadow)]",
+        wide && "px-4"
+      )}
+    >
+      {label}
+    </span>
+  );
+}
+
 export function SceneTab({ onDone, done }: SceneProps) {
   const [i, setI] = useState(0);
+  const [presses, setPresses] = useState(0);
   const reported = useRef(false);
 
   useEffect(() => {
@@ -258,6 +309,7 @@ export function SceneTab({ onDone, done }: SceneProps) {
       if (e.key !== "Tab") return;
       // Left alone, Tab walks the browser's focus ring straight out of the tour.
       e.preventDefault();
+      setPresses((n) => n + 1);
       setI((prev) => (prev + (e.shiftKey ? -1 : 1) + TYPES.length) % TYPES.length);
     };
     window.addEventListener("keydown", onKey);
@@ -267,28 +319,54 @@ export function SceneTab({ onDone, done }: SceneProps) {
   useEffect(() => {
     if (reported.current || done || i !== TAB_TARGET) return;
     reported.current = true;
-    const t = window.setTimeout(onDone, 500);
+    const t = window.setTimeout(onDone, 600);
     return () => window.clearTimeout(t);
   }, [i, done, onDone]);
 
+  // Nobody has pressed anything yet — say where the key is rather than
+  // repeating the instruction louder.
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    if (presses > 0 || done) return;
+    const t = window.setTimeout(() => setStalled(true), 4500);
+    return () => window.clearTimeout(t);
+  }, [presses, done]);
+
   const current = TYPES[i];
+  const onTarget = i === TAB_TARGET;
+
   return (
     <Frame glow={!done}>
-      <div className="mb-3 flex items-center gap-2">
-        <kbd
+      {/* The key, and what it did. */}
+      <div className="mb-3.5 flex items-center gap-2.5">
+        <span className={cn("flex items-center gap-1.5", !done && !presses && "tutorial-nudge-soft")}>
+          <KeyCap label="⇧" pressed={presses} />
+          <span className="font-mono text-[10px] text-faint2">+</span>
+          <KeyCap label="Tab" pressed={presses} wide />
+        </span>
+        <span
           className={cn(
-            "rounded border border-border bg-surface2 px-2 py-1 font-mono text-[11px] font-bold text-ink",
-            !done && "tutorial-nudge"
+            "min-w-0 flex-1 truncate font-mono text-[10.5px] transition-colors",
+            onTarget ? "font-bold text-habits" : "text-faint"
           )}
         >
-          Tab
-        </kbd>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-faint2">
-          {done ? "that's the one" : "looking for “goal”"}
+          {done || onTarget
+            ? "★ goal — that's the one"
+            : stalled && !presses
+              ? "psst · Tab is the key above Caps Lock"
+              : current.quip}
+        </span>
+        <span className="shrink-0 font-mono text-[10px] tabular-nums text-faint2">
+          {presses ? `×${presses}` : ""}
         </span>
       </div>
 
-      <div className="flex items-center gap-2.5 rounded-[13px] border-2 border-ink bg-surface px-3.5 py-3">
+      <div
+        className={cn(
+          "flex items-center gap-2.5 rounded-[13px] border-2 bg-surface px-3.5 py-3 transition-colors duration-300",
+          onTarget ? "border-habits" : "border-ink"
+        )}
+      >
         <span
           className="shrink-0 rounded-[7px] px-[9px] py-1 font-mono text-[11px] font-semibold lowercase text-background transition-colors duration-300"
           style={{ background: current.color }}
@@ -300,6 +378,8 @@ export function SceneTab({ onDone, done }: SceneProps) {
         </span>
       </div>
 
+      {/* All five stops, so the point of the beat — that there ARE five — is
+          visible rather than implied by cycling through them. */}
       <div className="mt-3.5 flex flex-wrap gap-1.5">
         {TYPES.map((t, idx) => (
           <span
@@ -309,12 +389,12 @@ export function SceneTab({ onDone, done }: SceneProps) {
               idx === i
                 ? "border-2 font-bold text-background"
                 : idx === TAB_TARGET && !done
-                  ? "border-dashed border-faint2 text-faint"
+                  ? "border-2 border-dashed border-habits text-habits"
                   : "border-border bg-surface2 text-faint2"
             )}
             style={idx === i ? { background: t.color, borderColor: t.color } : undefined}
           >
-            {t.label}
+            {idx === TAB_TARGET && idx !== i && !done ? `★ ${t.label}` : t.label}
           </span>
         ))}
       </div>
