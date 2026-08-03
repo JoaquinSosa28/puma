@@ -6,11 +6,12 @@
 // card sets up, and it's short enough to be one.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BEATS, progressAt } from "@/lib/tutorial";
+import { BEATS, isFloundering, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
 import { setTutorialActive } from "@/lib/tutorial-lock";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
+  FlounderCard,
   MissionBanner,
   TutorialChecklist,
 } from "@/components/tutorial/TutorialChrome";
@@ -20,12 +21,17 @@ import {
   SceneBulkWatch,
   SceneLife,
   SceneTab,
+  SceneTabTouch,
   SceneTag,
   SceneType,
 } from "@/components/tutorial/TutorialScenes";
+import { cn } from "@/lib/utils";
 
 /** How long a cleared mission holds on its "✓ …" before moving on. */
 const CLEARED_HOLD_MS = 1400;
+/** The closing sweep — long enough to read as a transition, short enough not
+ *  to be a thing you sit through. */
+const OUTRO_MS = 900;
 
 export function TutorialOverlay() {
   const router = useRouter();
@@ -33,6 +39,9 @@ export function TutorialOverlay() {
   const [finished, setFinished] = useState(false);
   const [index, setIndex] = useState(0);
   const [cleared, setCleared] = useState(false);
+  const [outro, setOutro] = useState(false);
+  const [floundering, setFloundering] = useState(false);
+  const [dismissedFlounder, setDismissedFlounder] = useState(false);
   /** Watch beats only: 0–1 through the current scene. */
   const [p, setP] = useState(0);
   const raf = useRef(0);
@@ -47,7 +56,12 @@ export function TutorialOverlay() {
   );
 
   const beat = BEATS[index];
-  const isMission = beat.kind === "do" && (beat.id !== "bulk" || canModifierClick);
+  // ⌘, shift and Tab are the point of two of these beats, and none of them
+  // exist on a touch screen: there, the bulk beat plays itself and the Tab
+  // beat becomes the type pills it maps to.
+  const isMission =
+    beat.kind === "do" &&
+    (["bulk", "tab"].includes(beat.id) ? canModifierClick : true);
 
   const advance = useCallback(() => {
     setIndex((i) => {
@@ -58,9 +72,16 @@ export function TutorialOverlay() {
     setP(0);
   }, []);
 
+  // Leaving is a sweep of light across the screen, not a disappearance: the
+  // overlay is the size of the window, and something that size vanishing
+  // between two frames reads as a glitch rather than an ending.
   const finish = useCallback(() => {
-    setFinished(true);
-    void markTutorialSeen().then(() => router.refresh());
+    setOutro(true);
+    void markTutorialSeen();
+    window.setTimeout(() => {
+      setFinished(true);
+      router.refresh();
+    }, OUTRO_MS);
   }, [router]);
 
   /** A mission reports itself done; hold on the payoff, then move on. */
@@ -103,6 +124,27 @@ export function TutorialOverlay() {
     return () => cancelAnimationFrame(raf.current);
   }, [playing, finished, isMission, beat.ms, index, advance, finish]);
 
+  // Has this beat been open a while, with the keyboard getting nowhere?
+  // Counted per beat and reset by progress, so a slow reader is never accused
+  // of anything — only someone who is both stuck and busy.
+  const beatOpenedAt = useRef(performance.now());
+  const strayKeys = useRef(0);
+  useEffect(() => {
+    beatOpenedAt.current = performance.now();
+    strayKeys.current = 0;
+    setFloundering(false);
+  }, [index]);
+
+  useEffect(() => {
+    if (!playing || finished || dismissedFlounder || !isMission) return;
+    const id = window.setInterval(() => {
+      if (isFloundering(performance.now() - beatOpenedAt.current, strayKeys.current)) {
+        setFloundering(true);
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [playing, finished, dismissedFlounder, isMission, index]);
+
   // A tour that scrolls out from under itself is worse than no tour.
   useEffect(() => {
     if (!playing || finished) return;
@@ -122,17 +164,35 @@ export function TutorialOverlay() {
     return () => setTutorialActive(false);
   }, [playing, finished]);
 
-  // Tab belongs to the tour: one mission is about it, and everywhere else it
-  // would walk the focus ring into the app behind the overlay. Same for the
-  // shortcuts the browser hands to the page.
+  // The input gate. Each beat declares the keys it wants and everything else
+  // is swallowed, so there is exactly one thing to do at any moment and no way
+  // to wander off and break the scene. Browser combos (⌘R, ⌘L, F5) are left
+  // alone deliberately — trapping someone in a tab is a different and much
+  // worse thing than asking them to press Tab.
   useEffect(() => {
     if (!playing || finished) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Tab") e.preventDefault();
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const wantsTyping = beat.id === "type";
+      const wantsTab = beat.id === "tab" && isMission;
+      if (e.key === "Tab") {
+        // Never let Tab walk the focus ring into the app underneath, whether
+        // or not this beat is the one about Tab.
+        e.preventDefault();
+        if (!wantsTab) strayKeys.current += 1;
+        return;
+      }
+      if (wantsTyping) return;
+      // Anything else, on a beat not listening for it: swallowed, and noted.
+      // Enough of these is what opens the door out.
+      if (e.key.length === 1 || e.key === "Enter" || e.key === "Backspace") {
+        e.preventDefault();
+        strayKeys.current += 1;
+      }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [playing, finished]);
+  }, [playing, finished, beat.id, isMission]);
 
   if (finished) return null;
   if (!playing) return <TutorialIntro onStart={() => setPlaying(true)} />;
@@ -141,7 +201,15 @@ export function TutorialOverlay() {
   const missionTotal = BEATS.filter((b) => b.kind === "do").length;
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-black/70 backdrop-blur-[3px]">
+    <div
+      className={cn(
+        "fixed inset-0 z-[200] flex flex-col bg-black/70 backdrop-blur-[3px]",
+        outro && "tutorial-outro"
+      )}
+    >
+      {outro && (
+        <span className="tutorial-sweep pointer-events-none absolute inset-0" aria-hidden />
+      )}
       <div className="h-[3px] w-full shrink-0 bg-white/15">
         <div
           className="h-full bg-primary transition-[width] duration-500"
@@ -182,6 +250,16 @@ export function TutorialOverlay() {
           className="pointer-events-none mx-auto max-w-[560px] flex-row justify-between overflow-x-auto"
         />
       </div>
+
+      {floundering && !outro && (
+        <FlounderCard
+          onLeave={finish}
+          onStay={() => {
+            setFloundering(false);
+            setDismissedFlounder(true);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -203,7 +281,12 @@ function Scene({
     case "type":
       return <SceneType onDone={onDone} done={done} />;
     case "tab":
-      return <SceneTab onDone={onDone} done={done} />;
+      // No Tab key on a phone: the beat becomes the pills it maps to.
+      return asMission ? (
+        <SceneTab onDone={onDone} done={done} />
+      ) : (
+        <SceneTabTouch onDone={onDone} done={done} />
+      );
     case "tag":
       return <SceneTag onDone={onDone} done={done} />;
     case "bulk":

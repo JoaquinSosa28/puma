@@ -4,7 +4,7 @@
 // down the side. Both exist so the tour never leaves you wondering what it
 // wants or how much is left — the two things that make a walkthrough feel
 // like a hostage situation.
-import { Check } from "lucide-react";
+import { Check, Hand } from "lucide-react";
 import type { Beat } from "@/lib/tutorial";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +146,57 @@ export function TokenChecks({
           {c.label}
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Offered when someone has been on one beat for a while AND the keyboard has
+ * been getting nowhere. The tour can't be skipped, which is funny for two
+ * clicks and cruel after twenty seconds of being genuinely stuck — so it opens
+ * the door itself, takes the joke rather than giving it, and says where to
+ * find the thing again.
+ */
+export function FlounderCard({
+  onLeave,
+  onStay,
+}: {
+  onLeave: () => void;
+  onStay: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+      <div className="tutorial-in w-full max-w-[400px] rounded-[20px] border-2 border-ink bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.35)]">
+        <span className="text-[28px]">🕯️</span>
+        <h2 className="m-0 mt-2 text-[19px] font-extrabold leading-tight tracking-tight text-ink">
+          Not the brightest candle in the drawer, are we.
+        </h2>
+        <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
+          No judgement. The tour was going to end eventually anyway — go and
+          press things until it makes sense, that works too.
+        </p>
+        <p className="m-0 mt-2 font-mono text-[10.5px] leading-relaxed text-faint">
+          It lives in Settings → Tour if you change your mind.
+        </p>
+
+        <div className="mt-5 grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={onStay}
+            className="rounded-xl border-2 border-border px-3 py-3 text-[13px] font-bold text-muted transition-colors hover:border-faint hover:text-ink"
+          >
+            I&apos;ve got this
+          </button>
+          <button
+            type="button"
+            onClick={onLeave}
+            className="flex items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-[13px] font-bold text-background transition-opacity hover:opacity-90"
+          >
+            <Hand className="h-4 w-4" />
+            Enjoy as you wish
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

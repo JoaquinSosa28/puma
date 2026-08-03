@@ -9,9 +9,12 @@
 // through the very selection reducer the app uses. Nothing here writes to the
 // server — it's the muscle memory that has to transfer, not the data.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Sparkles, Tag as TagIcon } from "lucide-react";
-import { checkCapture, typedChars } from "@/lib/tutorial";
-import { EMPTY_SELECTION, intentFor, reduceSelection } from "@/lib/task-selection";
+import { Check, MousePointerClick, Sparkles, Tag as TagIcon } from "lucide-react";
+import { checkCapture, nextHold, typedChars } from "@/lib/tutorial";
+import {
+  reduceSelection,
+  type SelectionState,
+} from "@/lib/task-selection";
 import { TokenChecks } from "@/components/tutorial/TutorialChrome";
 import { cn } from "@/lib/utils";
 
@@ -245,7 +248,7 @@ const TYPES = [
     hint: "pay rent friday",
     // A line per stop. Being told "wrong, try again" four times is a form;
     // being told you took a wrong door is a game.
-    quip: "task. everything starts here — press Tab.",
+    quip: "task. everything starts here.",
   },
   {
     label: "habit",
@@ -257,7 +260,7 @@ const TYPES = [
     label: "goal",
     color: GOAL_PURPLE,
     hint: "run a half marathon",
-    quip: "goal. that's the one.",
+    quip: "goal. hold it there.",
   },
   {
     label: "note",
@@ -269,28 +272,31 @@ const TYPES = [
     label: "assistant",
     color: "var(--primary)",
     hint: "where did my time go?",
-    quip: "assistant. lovely, wrong door. shift+Tab twice.",
+    quip: "assistant. lovely, wrong door.",
   },
 ];
 
 const TAB_TARGET = 2; // goal
 
-/** A keycap that visibly goes down when the real key does. */
+/** A keycap the size of a real one, that goes down when the real one does. */
 function KeyCap({
   label,
   pressed,
   wide,
+  big,
 }: {
   label: string;
   pressed: number;
   wide?: boolean;
+  big?: boolean;
 }) {
   return (
     <span
       key={pressed}
       className={cn(
-        "tutorial-key inline-flex items-center justify-center rounded-[7px] border-b-[3px] border-border bg-surface2 px-2.5 py-1.5 font-mono text-[12px] font-bold text-ink shadow-[0_1px_0_var(--shadow)]",
-        wide && "px-4"
+        "tutorial-key inline-flex items-center justify-center rounded-[9px] border-b-[4px] border-border bg-surface2 font-mono font-bold text-ink shadow-[0_2px_0_var(--shadow)]",
+        big ? "px-4 py-2.5 text-[15px]" : "px-2.5 py-1.5 text-[12px]",
+        wide && (big ? "px-7" : "px-4")
       )}
     >
       {label}
@@ -298,16 +304,22 @@ function KeyCap({
   );
 }
 
+/**
+ * Desktop: press Tab to walk the five types, then STAY on goal while a meter
+ * fills. Arriving proves a key works; staying proves you read the label — and
+ * because the meter drains faster than it fills, Tab cannot be mashed through.
+ */
 export function SceneTab({ onDone, done }: SceneProps) {
   const [i, setI] = useState(0);
   const [presses, setPresses] = useState(0);
+  const [hold, setHold] = useState(0);
   const reported = useRef(false);
+  const onTarget = i === TAB_TARGET;
 
   useEffect(() => {
     if (done) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
-      // Left alone, Tab walks the browser's focus ring straight out of the tour.
       e.preventDefault();
       setPresses((n) => n + 1);
       setI((prev) => (prev + (e.shiftKey ? -1 : 1) + TYPES.length) % TYPES.length);
@@ -316,49 +328,52 @@ export function SceneTab({ onDone, done }: SceneProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [done]);
 
+  // The meter. Runs continuously so leaving drains it, rather than only
+  // ticking while you happen to be in the right place.
   useEffect(() => {
-    if (reported.current || done || i !== TAB_TARGET) return;
-    reported.current = true;
-    const t = window.setTimeout(onDone, 600);
-    return () => window.clearTimeout(t);
-  }, [i, done, onDone]);
+    if (done) return;
+    let last = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const dt = Math.min(now - last, 100);
+      last = now;
+      setHold((h) => nextHold(h, onTarget, dt));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [onTarget, done]);
 
-  // Nobody has pressed anything yet — say where the key is rather than
-  // repeating the instruction louder.
-  const [stalled, setStalled] = useState(false);
   useEffect(() => {
-    if (presses > 0 || done) return;
-    const t = window.setTimeout(() => setStalled(true), 4500);
-    return () => window.clearTimeout(t);
-  }, [presses, done]);
+    if (reported.current || done || hold < 1) return;
+    reported.current = true;
+    onDone();
+  }, [hold, done, onDone]);
 
   const current = TYPES[i];
-  const onTarget = i === TAB_TARGET;
 
   return (
     <Frame glow={!done}>
-      {/* The key, and what it did. */}
-      <div className="mb-3.5 flex items-center gap-2.5">
-        <span className={cn("flex items-center gap-1.5", !done && !presses && "tutorial-nudge-soft")}>
-          <KeyCap label="⇧" pressed={presses} />
-          <span className="font-mono text-[10px] text-faint2">+</span>
-          <KeyCap label="Tab" pressed={presses} wide />
-        </span>
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate font-mono text-[10.5px] transition-colors",
-            onTarget ? "font-bold text-habits" : "text-faint"
+      {/* The instruction, as the key itself. Nobody reads "press Tab"; they
+          look at a picture of the key. */}
+      <div className="mb-4 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2">
+          <KeyCap label="⇧ shift" pressed={presses} />
+          <span className="font-mono text-[11px] text-faint2">+</span>
+          <span className={cn(!presses && "tutorial-nudge-soft")}>
+            <KeyCap label="⇥ Tab" pressed={presses} wide big />
+          </span>
+        </div>
+        <p className="m-0 text-center font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
+          {presses === 0
+            ? "press Tab"
+            : onTarget
+              ? "hold it — don't press again"
+              : "again"}
+          {presses > 0 && (
+            <span className="ml-2 tabular-nums text-faint2">×{presses}</span>
           )}
-        >
-          {done || onTarget
-            ? "★ goal — that's the one"
-            : stalled && !presses
-              ? "psst · Tab is the key above Caps Lock"
-              : current.quip}
-        </span>
-        <span className="shrink-0 font-mono text-[10px] tabular-nums text-faint2">
-          {presses ? `×${presses}` : ""}
-        </span>
+        </p>
       </div>
 
       <div
@@ -378,9 +393,28 @@ export function SceneTab({ onDone, done }: SceneProps) {
         </span>
       </div>
 
-      {/* All five stops, so the point of the beat — that there ARE five — is
-          visible rather than implied by cycling through them. */}
-      <div className="mt-3.5 flex flex-wrap gap-1.5">
+      {/* The meter, and what the current stop has to say about itself. */}
+      <div className="mt-3">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface2">
+          <div
+            className="h-full rounded-full transition-colors"
+            style={{
+              width: `${hold * 100}%`,
+              background: onTarget ? HABIT_GREEN : "var(--faint2)",
+            }}
+          />
+        </div>
+        <p
+          className={cn(
+            "m-0 mt-2 text-center font-mono text-[10.5px] transition-colors",
+            onTarget ? "font-bold text-habits" : "text-faint"
+          )}
+        >
+          {done ? "★ goal — locked in" : current.quip}
+        </p>
+      </div>
+
+      <div className="mt-3.5 flex flex-wrap justify-center gap-1.5">
         {TYPES.map((t, idx) => (
           <span
             key={t.label}
@@ -396,6 +430,73 @@ export function SceneTab({ onDone, done }: SceneProps) {
           >
             {idx === TAB_TARGET && idx !== i && !done ? `★ ${t.label}` : t.label}
           </span>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/**
+ * Phone: there is no Tab key, so the beat becomes what the mobile capture
+ * sheet actually offers — the row of type pills, tapped. Showing a keycap
+ * nobody has would be teaching a shortcut that doesn't exist on the device
+ * it's being taught on.
+ */
+export function SceneTabTouch({ onDone, done }: SceneProps) {
+  const [i, setI] = useState(0);
+  const reported = useRef(false);
+  const onTarget = i === TAB_TARGET;
+
+  useEffect(() => {
+    if (reported.current || done || !onTarget) return;
+    reported.current = true;
+    const t = window.setTimeout(onDone, 600);
+    return () => window.clearTimeout(t);
+  }, [onTarget, done, onDone]);
+
+  const current = TYPES[i];
+  return (
+    <Frame glow={!done}>
+      <p className="m-0 mb-3 text-center font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
+        {done ? "★ goal" : "tap goal"}
+      </p>
+
+      <div
+        className={cn(
+          "flex items-center gap-2.5 rounded-[13px] border-2 bg-surface px-3.5 py-3 transition-colors duration-300",
+          onTarget ? "border-habits" : "border-ink"
+        )}
+      >
+        <span
+          className="shrink-0 rounded-[7px] px-[9px] py-1 font-mono text-[11px] font-semibold lowercase text-background transition-colors duration-300"
+          style={{ background: current.color }}
+        >
+          {current.label}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-faint2">
+          {current.hint}
+        </span>
+      </div>
+
+      <div className="mt-3.5 flex flex-wrap justify-center gap-1.5">
+        {TYPES.map((t, idx) => (
+          <button
+            key={t.label}
+            type="button"
+            disabled={done}
+            onClick={() => setI(idx)}
+            className={cn(
+              "rounded-lg border px-3 py-1.5 font-mono text-[11.5px] transition-all duration-300 active:scale-95",
+              idx === i
+                ? "border-2 font-bold text-background"
+                : idx === TAB_TARGET && !done
+                  ? "border-2 border-dashed border-habits text-habits tutorial-nudge"
+                  : "border-border bg-surface2 text-faint2"
+            )}
+            style={idx === i ? { background: t.color, borderColor: t.color } : undefined}
+          >
+            {idx === TAB_TARGET && idx !== i && !done ? `★ ${t.label}` : t.label}
+          </button>
         ))}
       </div>
     </Frame>
@@ -569,14 +670,27 @@ const BULK_ROWS = [
   "Build hero section",
 ];
 
-function BulkPanel({ count, applied }: { count: number; applied: boolean }) {
+function BulkPanel({
+  count,
+  applied,
+  previewing,
+}: {
+  count: number;
+  applied: boolean;
+  previewing?: boolean;
+}) {
   return (
     <div className="rounded-lg border border-border bg-surface2 p-2.5">
-      <p className="m-0 text-[13px] font-bold text-ink">
+      <p
+        className={cn(
+          "m-0 text-[13px] font-bold transition-colors",
+          previewing ? "text-primary/70" : "text-ink"
+        )}
+      >
         {count} <span className="text-[11px] font-semibold">selected</span>
       </p>
       <p className="m-0 mt-1 font-mono text-[9px] leading-relaxed text-faint2">
-        ⌘-click · shift-click
+        {previewing ? "release to take them" : "shift-click a range"}
       </p>
       <p className="m-0 mt-2.5 font-mono text-[9px] uppercase tracking-widest text-faint2">
         Priority
@@ -610,23 +724,36 @@ function BulkRow({
   picked,
   applied,
   nudge,
+  ghost,
+  anchor,
   onClick,
+  onMouseEnter,
 }: {
   title: string;
   picked: boolean;
   applied: boolean;
   nudge?: boolean;
+  /** Part of the range the pointer is proposing, not yet committed. */
+  ghost?: boolean;
+  /** The row the tour handed over — the fixed end of the range. */
+  anchor?: boolean;
   onClick?: (e: React.MouseEvent) => void;
+  onMouseEnter?: () => void;
 }) {
   return (
     <Row
       title={title}
       accent={picked ? "var(--primary)" : TASK_RED}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
       className={cn(
-        "select-none transition-all duration-200",
+        "h-[44px] select-none transition-all duration-150",
         onClick && "cursor-pointer",
-        picked && "bg-primary/[0.10] ring-1 ring-inset ring-primary/40",
+        picked && !ghost && "bg-primary/[0.10] ring-1 ring-inset ring-primary/40",
+        // The proposed half of the range reads as lighter than the committed
+        // half, so "about to take" never looks like "taken".
+        ghost && "bg-primary/[0.05] ring-1 ring-inset ring-primary/25",
+        anchor && "ring-2 ring-inset ring-primary/60",
         nudge && "tutorial-nudge"
       )}
     >
@@ -652,53 +779,153 @@ function BulkRow({
   );
 }
 
+/**
+ * Guided rather than open: the first row arrives already selected, and the
+ * only accepted move is a shift-click further down. Offering the full gesture
+ * set here would mean explaining ⌘ and shift at once and letting someone
+ * arrive at four selected rows by four separate clicks — which looks like
+ * success and teaches nothing. One gesture, forced, shown before it's asked
+ * for: hovering draws the range you're about to take.
+ */
 export function SceneBulk({ onDone, done }: SceneProps) {
   const order = useMemo(() => BULK_ROWS.map((_, i) => `r${i}`), []);
-  const [sel, setSel] = useState(EMPTY_SELECTION);
+  // Row 0 is handed to you — the mission is the second half of the gesture.
+  const [sel, setSel] = useState<SelectionState>({ ids: ["r0"], anchor: "r0" });
+  const [hover, setHover] = useState<number | null>(null);
   const [applied, setApplied] = useState(false);
+  const [wrongClick, setWrongClick] = useState(false);
   const reported = useRef(false);
 
-  // The mission is the gesture, not the number: a range of three or more can
-  // only have come from a shift-click.
   useEffect(() => {
-    if (reported.current || done || sel.ids.length < 3) return;
+    if (reported.current || done || sel.ids.length < 2) return;
     reported.current = true;
     setApplied(true);
     const t = window.setTimeout(onDone, 950);
     return () => window.clearTimeout(t);
   }, [sel.ids.length, done, onDone]);
 
-  const click = (id: string, e: React.MouseEvent) => {
-    const intent = intentFor(e);
-    // A plain click isn't the gesture being taught — leave the selection be.
-    if (intent === "open") return;
+  const click = (index: number, e: React.MouseEvent) => {
+    if (done || reported.current) return;
+    // Only shift. A plain or ⌘ click would start a different selection and
+    // quietly undo the half of the gesture the tour set up.
+    if (!e.shiftKey || index === 0) {
+      setWrongClick(true);
+      window.setTimeout(() => setWrongClick(false), 450);
+      return;
+    }
     window.getSelection?.()?.removeAllRanges();
-    setSel((s) => reduceSelection(s, order, id, intent));
+    setSel((s) => reduceSelection(s, order, order[index], "range"));
   };
+
+  // What a shift-click right now would take — drawn before it's committed.
+  const preview = hover !== null && hover > 0 && !applied ? hover : null;
 
   return (
     <Frame glow={!done}>
+      <div className="mb-3.5 flex items-center justify-center gap-2">
+        <KeyCap label="⇧ shift" pressed={0} big />
+        <span className="font-mono text-[13px] font-bold text-faint2">+</span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-[9px] border-b-[4px] border-border bg-surface2 px-4 py-2.5 font-mono text-[15px] font-bold text-ink shadow-[0_2px_0_var(--shadow)]",
+            !applied && "tutorial-nudge-soft"
+          )}
+        >
+          <MousePointerClick className="h-4 w-4" />
+          click
+        </span>
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_150px]">
         <div
-          className="flex flex-col gap-1.5"
+          className={cn("relative flex flex-col gap-1.5", wrongClick && "tutorial-shake")}
+          onMouseLeave={() => setHover(null)}
           onMouseDownCapture={(e) => {
+            // Stop shift-drag painting a text selection down the list.
             if (e.shiftKey) e.preventDefault();
           }}
         >
-          {BULK_ROWS.map((title, i) => (
-            <BulkRow
-              key={order[i]}
-              title={title}
-              picked={sel.ids.includes(order[i])}
-              applied={applied}
-              nudge={!done && !sel.ids.length && i === 0}
-              onClick={(e) => click(order[i], e)}
-            />
-          ))}
+          {BULK_ROWS.map((title, i) => {
+            const picked = sel.ids.includes(order[i]);
+            const inPreview = preview !== null && i > 0 && i <= preview;
+            return (
+              <BulkRow
+                key={order[i]}
+                title={title}
+                picked={picked || inPreview}
+                ghost={inPreview && !picked}
+                applied={applied}
+                anchor={i === 0}
+                onMouseEnter={() => setHover(i)}
+                onClick={(e) => click(i, e)}
+              />
+            );
+          })}
+
+          {/* The arrow from the row you were given to the row you're pointing
+              at, so the range is a thing you can see before you commit it. */}
+          {preview !== null && <RangeArrow rows={preview} />}
         </div>
-        <BulkPanel count={sel.ids.length} applied={applied} />
+
+        <BulkPanel
+          count={applied || sel.ids.length > 1 ? sel.ids.length : (preview ?? 0) + 1}
+          applied={applied}
+          previewing={preview !== null && sel.ids.length < 2}
+        />
       </div>
+
+      <p
+        className={cn(
+          "m-0 mt-3 text-center font-mono text-[10.5px] transition-colors",
+          wrongClick ? "font-bold text-tasks" : "text-faint"
+        )}
+      >
+        {done || applied
+          ? "★ four rows, one click"
+          : wrongClick
+            ? "shift. hold shift, then click."
+            : "first one's yours — shift-click any row below it"}
+      </p>
     </Frame>
+  );
+}
+
+/**
+ * Spans from the first row to the hovered one. Absolutely positioned over the
+ * list, so it costs the rows nothing and can't shift the layout as it grows.
+ */
+function RangeArrow({ rows }: { rows: number }) {
+  // Rows are a fixed height with a fixed gap, so the geometry is arithmetic
+  // rather than a measurement — no observers, no reflow, no lag behind the
+  // pointer.
+  const ROW = 44;
+  const GAP = 6;
+  const top = ROW / 2;
+  const height = rows * (ROW + GAP);
+  return (
+    <svg
+      className="pointer-events-none absolute -left-1 top-0 z-10 overflow-visible"
+      width="18"
+      height={top + height}
+      aria-hidden
+    >
+      <defs>
+        <marker id="tut-arrow" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
+          <path d="M0,0 L7,3.5 L0,7 z" fill="var(--primary)" />
+        </marker>
+      </defs>
+      <line
+        x1="9"
+        y1={top}
+        x2="9"
+        y2={top + height - 9}
+        stroke="var(--primary)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        markerEnd="url(#tut-arrow)"
+        className="tutorial-arrow"
+      />
+    </svg>
   );
 }
 

@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   BEATS,
   checkCapture,
+  FLOUNDER_KEYS,
+  FLOUNDER_MS,
+  HOLD_MS,
+  isFloundering,
+  nextHold,
   progressAt,
   typedChars,
   watchMs,
@@ -105,5 +110,47 @@ describe("the capture mission", () => {
   it("wants a real tag, not a lone hash", () => {
     expect(checkCapture("pay rent friday #").hasTag).toBe(false);
     expect(checkCapture("pay rent friday #a").hasTag).toBe(false);
+  });
+});
+
+describe("hold-to-confirm", () => {
+  it("fills over the hold window while you stay on target", () => {
+    let h = 0;
+    h = nextHold(h, true, HOLD_MS / 2);
+    expect(h).toBeCloseTo(0.5);
+    h = nextHold(h, true, HOLD_MS / 2);
+    expect(h).toBe(1);
+  });
+
+  it("drains faster than it fills, so overshooting costs you", () => {
+    const gained = nextHold(0, true, 200);
+    const lost = 0.5 - nextHold(0.5, false, 200);
+    expect(lost).toBeGreaterThan(gained);
+  });
+
+  it("never goes below empty or above full", () => {
+    expect(nextHold(0, false, 5_000)).toBe(0);
+    expect(nextHold(1, true, 5_000)).toBe(1);
+  });
+
+  it("can't be mashed through: leaving and returning loses ground", () => {
+    // 300ms on, 300ms off, repeated — a meter that crept up would let someone
+    // Tab past the target over and over and still finish.
+    let h = 0;
+    for (let i = 0; i < 8; i++) {
+      h = nextHold(h, true, 300);
+      h = nextHold(h, false, 300);
+    }
+    expect(h).toBe(0);
+  });
+});
+
+describe("knowing when to let someone go", () => {
+  it("needs both the time and the flailing, not either", () => {
+    expect(isFloundering(FLOUNDER_MS, FLOUNDER_KEYS)).toBe(true);
+    // Reading slowly is not floundering.
+    expect(isFloundering(FLOUNDER_MS * 3, 0)).toBe(false);
+    // Neither is typing fast and getting it right.
+    expect(isFloundering(2_000, FLOUNDER_KEYS * 5)).toBe(false);
   });
 });

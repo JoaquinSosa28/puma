@@ -50,7 +50,7 @@ export const BEATS: Beat[] = [
     kind: "do",
     step: "Switch",
     caption: "Tab changes what you're making.",
-    sub: "Press Tab until the bar says goal.",
+    sub: "Press Tab until the bar says goal — then hold it there.",
     done: "One bar for tasks, habits, goals, notes and the assistant.",
   },
   {
@@ -66,7 +66,7 @@ export const BEATS: Beat[] = [
     kind: "do",
     step: "Select",
     caption: "Pick many. Change them all.",
-    sub: "⌘-click the first task, then shift-click the last.",
+    sub: "The first one is already yours. Shift-click any row below it.",
     done: "Whatever you select changes together.",
   },
   {
@@ -112,6 +112,42 @@ export function typedChars(
   if (progress >= endAt) return text;
   const t = (progress - startAt) / (endAt - startAt);
   return text.slice(0, Math.round(t * text.length));
+}
+
+// ---------------------------------------------------------------------------
+// Hold-to-confirm
+//
+// Landing on the right answer for a single frame proves you pressed a key.
+// Staying there proves you read what it said. The Tab mission fills a meter
+// while you're on `goal` and drains it faster than it fills once you leave —
+// so overshooting costs you, and mashing Tab never gets you through.
+
+export const HOLD_MS = 1400;
+/** Leaving is quicker than arriving; a mashed key shouldn't creep forwards. */
+const DRAIN_RATE = 2.2;
+
+/** The meter after `dtMs` more milliseconds, clamped to 0–1. */
+export function nextHold(hold: number, onTarget: boolean, dtMs: number): number {
+  const delta = onTarget
+    ? dtMs / HOLD_MS
+    : -(dtMs * DRAIN_RATE) / HOLD_MS;
+  return Math.min(1, Math.max(0, hold + delta));
+}
+
+// ---------------------------------------------------------------------------
+// Knowing when to let someone go
+//
+// The tour can't be skipped, which is a joke as long as it stays short. It
+// stops being one the moment somebody is genuinely stuck — so if a beat has
+// been open a while AND the keyboard has been getting nowhere, the tour offers
+// the door itself rather than waiting to be forced.
+
+export const FLOUNDER_MS = 20_000;
+export const FLOUNDER_KEYS = 12;
+
+/** Both, not either: 20s of reading is fine, and 12 keys in a hurry is fine. */
+export function isFloundering(msOnBeat: number, strayKeys: number): boolean {
+  return msOnBeat >= FLOUNDER_MS && strayKeys >= FLOUNDER_KEYS;
 }
 
 // ---------------------------------------------------------------------------

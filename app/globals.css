@@ -757,3 +757,44 @@ html {
 .tutorial-nudge-soft {
   animation: tutorialNudgeSoft 1.6s ease-in-out infinite;
 }
+
+/* Leaving the tour: the dim lifts while a band of light sweeps across, so the
+   app is revealed rather than the overlay simply ceasing to exist. Something
+   the size of the window vanishing between two frames reads as a glitch. */
+@keyframes tutorialOutro {
+  0% { opacity: 1; backdrop-filter: blur(3px); }
+  100% { opacity: 0; backdrop-filter: blur(0px); }
+}
+
+.tutorial-outro {
+  animation: tutorialOutro 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes tutorialSweep {
+  0% { transform: translateX(-120%) skewX(-12deg); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: translateX(120%) skewX(-12deg); opacity: 0; }
+}
+
+.tutorial-sweep {
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    oklch(0.55 0.16 274 / 0.28) 42%,
+    rgba(255, 255, 255, 0.5) 50%,
+    oklch(0.55 0.16 274 / 0.28) 58%,
+    transparent 100%
+  );
+  animation: tutorialSweep 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* The range arrow grows from the anchor row to the one under the pointer. */
+@keyframes tutorialArrow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.tutorial-arrow {
+  animation: tutorialArrow 0.14s ease-out;
+}
