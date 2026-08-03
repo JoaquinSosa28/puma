@@ -562,28 +562,33 @@ export function SceneType({
         )}
       </div>
 
-      {/* The Tab prompt only exists while Tab is the answer. */}
-      {(step === "rotate" || step === "narrow") && !done ? (
-        <div className="mt-3 flex flex-col items-center gap-1.5">
-          <div className="flex items-center gap-2.5">
-            <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
-              <KeyCap label="⇥ Tab" pressed={tabs} wide big />
-            </span>
-            <span className="font-mono text-[10.5px] text-faint">
-              {step === "rotate"
-                ? `${DEMO_TAGS.length} tags start with p — press again`
-                : "one match now — Tab lands it"}
-            </span>
-          </div>
-          <p className="m-0 font-mono text-[9.5px] text-faint2">
-            shift + Tab goes back
+      {/* The Tab prompt only exists while Tab is the answer — but the room for
+          it is always there. It appears three steps into a seven-step mission,
+          and without the reservation the whole card jumped 50px under the
+          cursor at the exact moment someone was reading it. */}
+      <div className="mt-3 flex min-h-[68px] flex-col items-center justify-center gap-1.5">
+        {(step === "rotate" || step === "narrow") && !done ? (
+          <>
+            <div className="flex items-center gap-2.5">
+              <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
+                <KeyCap label="⇥ Tab" pressed={tabs} wide big />
+              </span>
+              <span className="font-mono text-[10.5px] text-faint">
+                {step === "rotate"
+                  ? `${DEMO_TAGS.length} tags start with p — press again`
+                  : "one match now — Tab lands it"}
+              </span>
+            </div>
+            <p className="m-0 font-mono text-[9.5px] text-faint2">
+              shift + Tab goes back
+            </p>
+          </>
+        ) : (
+          <p className="m-0 text-center font-mono text-[10.5px] text-faint">
+            {shake ? "not that one — read the step" : copy.why}
           </p>
-        </div>
-      ) : (
-        <p className="m-0 mt-3 text-center font-mono text-[10.5px] text-faint">
-          {shake ? "not that one — read the step" : copy.why}
-        </p>
-      )}
+        )}
+      </div>
 
       <div className="mt-3 min-h-[46px]">
         {captured && (
@@ -1269,41 +1274,61 @@ const BULK_ROWS = [
 ];
 
 /**
- * The target ring: a light that travels the border of the button you're being
- * asked to press.
+ * The target: the button already wearing its chosen colours, with the border
+ * itself alive — one bright segment running the rim, and a hairline that
+ * expands out of the edge and fades.
  *
- * On the same rAF clock as the scenes, not a CSS keyframe — a browser pauses
- * CSS animations outright on a page it thinks is hidden while still serving
- * frames, and a "press this" marker that has quietly stopped moving is worse
- * than none. The conic sweep sits behind an opaque button, so only the rim of
- * it shows.
+ * The rim is a conic gradient in the 2px gutter between two rounded boxes, so
+ * what shows is a moving *border*, not a glow bleeding over the label. No
+ * blur, no washed-out halo: the button stays as readable as the one beside it.
+ *
+ * On the same rAF clock as the scenes rather than a CSS keyframe — a browser
+ * stops CSS animation dead both on a page it thinks is hidden and under
+ * prefers-reduced-motion, and a "press this" marker that isn't moving is a
+ * marker nobody sees.
  */
-function TargetRing({ color }: { color: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
+function TargetBorder({ color }: { color: string }) {
+  const rimRef = useRef<HTMLSpanElement>(null);
+  const pulseRef = useRef<HTMLSpanElement>(null);
+
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // Same reasoning as the cursor: this marks the thing to press, and a
-    // marker that has stopped moving is a marker nobody sees.
+    const rim = rimRef.current;
+    const pulse = pulseRef.current;
+    if (!rim || !pulse) return;
     let t = 0;
     return startTutorialClock((dt) => {
-      t = (t + dt / 1800) % 1;
-      const breathe = 0.62 + 0.38 * Math.sin(t * Math.PI * 2);
-      el.style.background = `conic-gradient(from ${(t * 360).toFixed(
+      t = (t + dt / 2000) % 1;
+      const deg = t * 360;
+      // A tight bright arc on a steady base, so the border reads as lit all
+      // the way round with one segment travelling it.
+      // color-mix, not a "#rrggbbaa" suffix: these tokens are oklch(), and
+      // "oklch(…)88" is not a colour — it invalidates the whole gradient and
+      // the border silently renders as nothing at all.
+      const dim = `color-mix(in oklch, ${color} 58%, transparent)`;
+      rim.style.background = `conic-gradient(from ${deg.toFixed(
         1
-      )}deg, transparent 0deg, ${color} 42deg, #fff 62deg, ${color} 82deg, transparent 130deg, transparent 360deg)`;
-      el.style.opacity = (0.55 + 0.45 * breathe).toFixed(3);
-      el.style.filter = `blur(${(1.4 + breathe * 1.3).toFixed(2)}px)`;
+      )}deg, ${color} 0deg, #fff 16deg, ${color} 44deg, ${dim} 140deg, ${dim} 360deg)`;
+      // …and the edge letting go of a ring every other lap.
+      const p = (t * 2) % 1;
+      pulse.style.transform = `scale(${(1 + p * 0.34).toFixed(3)})`;
+      pulse.style.opacity = (0.5 * (1 - p) ** 1.6).toFixed(3);
     }, false);
   }, [color]);
 
   return (
-    <span
-      ref={ref}
-      aria-hidden
-      className="pointer-events-none absolute -inset-[3px] rounded-[8px]"
-      style={{ opacity: 0 }}
-    />
+    <>
+      <span
+        ref={pulseRef}
+        aria-hidden
+        className="pointer-events-none absolute inset-0 rounded-md border-2"
+        style={{ borderColor: color, opacity: 0 }}
+      />
+      <span
+        ref={rimRef}
+        aria-hidden
+        className="pointer-events-none absolute -inset-[2px] rounded-[8px]"
+      />
+    </>
   );
 }
 
@@ -1356,23 +1381,31 @@ function BulkPanel({
           const target = !!armed && l === "High";
           return (
             <span key={l} className="relative flex-1">
-              {target && <TargetRing color={TASK_RED} />}
+              {target && <TargetBorder color={TASK_RED} />}
               <button
                 type="button"
                 disabled={!armed}
                 onClick={() => onPick?.(l)}
                 className={cn(
                   "relative w-full rounded-md border py-1 text-center font-mono text-[9px] font-bold uppercase transition-colors duration-300",
-                  chosen ? "border-2 text-ink" : "border-border bg-surface text-faint2",
-                  armed && "cursor-pointer",
-                  target && "text-ink"
+                  chosen || target ? "border-2 text-ink" : "border-border bg-surface text-faint2",
+                  armed && "cursor-pointer"
                 )}
                 style={
-                  chosen
-                    ? { borderColor: TASK_RED, background: "oklch(0.64 0.18 25 / 0.12)" }
-                    : target
-                      ? { background: "var(--surface)" }
-                      : undefined
+                  // The target wears the chosen look already — the only thing
+                  // telling it apart is that its border is moving. An opaque
+                  // fill, so the rim behind it shows as a border and not a
+                  // wash across the word.
+                  chosen || target
+                    ? {
+                        borderColor: target ? "transparent" : TASK_RED,
+                        // Opaque, not a 12% wash: the travelling rim sits
+                        // directly behind this and would show straight through
+                        // a translucent face.
+                        background: `color-mix(in oklch, ${TASK_RED} 13%, var(--surface))`,
+                        backgroundClip: "padding-box",
+                      }
+                    : undefined
                 }
               >
                 {l}

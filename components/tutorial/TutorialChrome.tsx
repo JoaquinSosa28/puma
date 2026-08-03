@@ -46,19 +46,33 @@ export function MissionBanner({
       </div>
 
       {/* The ask, in the biggest type on screen. The theme sits under it —
-          it's why the step exists, not what to do about it. */}
-      <p className="m-0 text-[24px] font-extrabold leading-tight tracking-tight text-white sm:text-[32px]">
-        {cleared && beat.done ? `✓ ${beat.done}` : instruction ?? beat.caption}
-      </p>
+          it's why the step exists, not what to do about it.
 
-      <p
-        className={cn(
-          "m-0 mt-2 text-[13.5px] leading-relaxed transition-colors",
-          cleared ? "font-semibold text-habits" : "text-white/55"
-        )}
-      >
-        {instruction ? beat.caption : beat.sub}
-      </p>
+          Both lines live in boxes of a fixed height. The text under them
+          changes on nearly every keystroke, and a block that resizes itself
+          drags the whole scene up and down the screen while you are trying to
+          type into it. Reserving the room costs a little whitespace on the
+          short lines and buys a stage that never moves. */}
+      <div className="flex min-h-[62px] items-center justify-center sm:min-h-[82px]">
+        <p className="m-0 text-[24px] font-extrabold leading-tight tracking-tight text-white sm:text-[32px]">
+          {cleared && beat.done ? `✓ ${beat.done}` : instruction ?? beat.caption}
+        </p>
+      </div>
+
+      <div className="mt-1 flex min-h-[42px] items-start justify-center">
+        <p
+          className={cn(
+            "m-0 leading-relaxed transition-colors",
+            cleared
+              // The payoff line was mid-green on a dark backdrop and barely
+              // legible — the one line you actually want read.
+              ? "text-[15px] font-bold text-[oklch(0.84_0.16_152)]"
+              : "text-[13.5px] text-white/60"
+          )}
+        >
+          {instruction ? beat.caption : beat.sub}
+        </p>
+      </div>
     </div>
   );
 }
