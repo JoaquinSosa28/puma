@@ -1,125 +1,195 @@
 "use client";
 
-// The projector: holds the clock, picks the scene, draws the caption and the
-// draining bar. The tour cannot be skipped once it starts — that's the joke
-// the intro card sets up — but it is 60 seconds and it says so.
-import { useCallback, useEffect, useRef, useState } from "react";
+// The projector. Watch beats run on a clock; missions wait for the user and
+// have no clock at all — which is why progress is counted in beats rather than
+// seconds. The tour can't be skipped once it starts; that's the joke the intro
+// card sets up, and it's short enough to be one.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BEATS, beatAt, totalMs } from "@/lib/tutorial";
+import { BEATS, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
+  MissionBanner,
+  TutorialChecklist,
+} from "@/components/tutorial/TutorialChrome";
+import {
   SceneAssistant,
   SceneBulk,
+  SceneBulkWatch,
   SceneLife,
   SceneTab,
   SceneTag,
   SceneType,
 } from "@/components/tutorial/TutorialScenes";
-import { cn } from "@/lib/utils";
 
-const TOTAL = totalMs();
+/** How long a cleared mission holds on its "✓ …" before moving on. */
+const CLEARED_HOLD_MS = 1400;
 
 export function TutorialOverlay() {
   const router = useRouter();
   const [playing, setPlaying] = useState(false);
-  const [done, setDone] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const startedAt = useRef(0);
+  const [finished, setFinished] = useState(false);
+  const [index, setIndex] = useState(0);
+  const [cleared, setCleared] = useState(false);
+  /** Watch beats only: 0–1 through the current scene. */
+  const [p, setP] = useState(0);
   const raf = useRef(0);
 
+  // ⌘ and shift are the whole point of one mission, and neither exists on a
+  // touch screen — so there it plays instead of being asked for.
+  const canModifierClick = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: fine)").matches !== false,
+    []
+  );
+
+  const beat = BEATS[index];
+  const isMission = beat.kind === "do" && (beat.id !== "bulk" || canModifierClick);
+
+  const advance = useCallback(() => {
+    setIndex((i) => {
+      if (i + 1 >= BEATS.length) return i;
+      return i + 1;
+    });
+    setCleared(false);
+    setP(0);
+  }, []);
+
   const finish = useCallback(() => {
-    setDone(true);
+    setFinished(true);
     void markTutorialSeen().then(() => router.refresh());
   }, [router]);
 
+  /** A mission reports itself done; hold on the payoff, then move on. */
+  const onDone = useCallback(() => {
+    setCleared(true);
+    window.setTimeout(() => {
+      if (index + 1 >= BEATS.length) finish();
+      else advance();
+    }, CLEARED_HOLD_MS);
+  }, [index, advance, finish]);
+
+  // The clock, for watch beats only.
+  //
+  // It counts frames rather than wall-clock time on purpose. Switch tabs and
+  // the browser stops serving frames, but performance.now() keeps running —
+  // so a wall-clock beat would be over the instant you came back, and you'd
+  // have missed the only thing it had to show you. Accumulating between
+  // frames pauses the scene while nobody's watching and resumes it when they
+  // are.
   useEffect(() => {
-    if (!playing || done) return;
-    startedAt.current = performance.now();
+    if (!playing || finished || isMission) return;
+    const ms = beat.ms ?? 9_000;
+    let elapsed = 0;
+    let last = performance.now();
     const tick = (now: number) => {
-      const t = now - startedAt.current;
-      if (t >= TOTAL) {
-        setElapsed(TOTAL);
-        finish();
+      // A gap longer than a stutter is a tab switch, not a slow frame.
+      elapsed += Math.min(now - last, 100);
+      last = now;
+      const t = elapsed / ms;
+      if (t >= 1) {
+        setP(1);
+        if (index + 1 >= BEATS.length) finish();
+        else advance();
         return;
       }
-      setElapsed(t);
+      setP(t);
       raf.current = requestAnimationFrame(tick);
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-  }, [playing, done, finish]);
+  }, [playing, finished, isMission, beat.ms, index, advance, finish]);
 
-  // While it plays the page behind must not move — a tour that scrolls out
-  // from under itself is worse than no tour.
+  // A tour that scrolls out from under itself is worse than no tour.
   useEffect(() => {
-    if (!playing || done) return;
+    if (!playing || finished) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
     };
-  }, [playing, done]);
+  }, [playing, finished]);
 
-  if (done) return null;
+  if (finished) return null;
   if (!playing) return <TutorialIntro onStart={() => setPlaying(true)} />;
 
-  const { beat, index, progress } = beatAt(elapsed);
-  const overall = elapsed / TOTAL;
+  const missionNumber = BEATS.slice(0, index).filter((b) => b.kind === "do").length;
+  const missionTotal = BEATS.filter((b) => b.kind === "do").length;
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-black/70 backdrop-blur-[3px]">
-      {/* One bar draining over the whole minute — no "step 3 of 6", because
-          this is meant to feel like a film rather than a form. */}
       <div className="h-[3px] w-full shrink-0 bg-white/15">
         <div
-          className="h-full bg-primary"
-          style={{ width: `${overall * 100}%` }}
+          className="h-full bg-primary transition-[width] duration-500"
+          style={{ width: `${progressAt(index + (cleared ? 1 : 0)) * 100}%` }}
         />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-5">
-        <div key={beat.id} className="tutorial-in flex w-full justify-center">
-          <Scene id={beat.id} p={progress} />
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-4 py-4">
+        <MissionBanner
+          beat={{ ...beat, kind: isMission ? "do" : "watch" }}
+          index={missionNumber}
+          total={missionTotal}
+          cleared={cleared}
+        />
 
-        <div key={`${beat.id}-cap`} className="tutorial-in max-w-[560px] text-center">
-          <p className="m-0 text-[19px] font-extrabold leading-tight tracking-tight text-white sm:text-[22px]">
-            {beat.caption}
-          </p>
-          {beat.sub && (
-            <p className="m-0 mt-1.5 text-[13px] leading-relaxed text-white/60">
-              {beat.sub}
-            </p>
-          )}
+        <div key={beat.id} className="tutorial-in flex w-full justify-center">
+          <Scene
+            id={beat.id}
+            p={p}
+            done={cleared}
+            onDone={onDone}
+            asMission={isMission}
+          />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-center gap-1.5 pb-6">
-        {BEATS.map((b, i) => (
-          <span
-            key={b.id}
-            className={cn(
-              "h-1 rounded-full transition-all duration-500",
-              i === index ? "w-6 bg-white" : i < index ? "w-1.5 bg-white/50" : "w-1.5 bg-white/20"
-            )}
-          />
-        ))}
+      {/* Desktop: down the left, out of the way. Phone: a strip along the
+          bottom, where there's width to spare and no height. */}
+      <TutorialChecklist
+        beats={BEATS}
+        index={index}
+        className="pointer-events-none absolute left-5 top-1/2 hidden -translate-y-1/2 lg:flex"
+      />
+      <div className="shrink-0 px-4 pb-4 lg:hidden">
+        <TutorialChecklist
+          beats={BEATS}
+          index={index}
+          className="pointer-events-none mx-auto max-w-[560px] flex-row justify-between overflow-x-auto"
+        />
       </div>
     </div>
   );
 }
 
-function Scene({ id, p }: { id: (typeof BEATS)[number]["id"]; p: number }) {
+function Scene({
+  id,
+  p,
+  done,
+  onDone,
+  asMission,
+}: {
+  id: (typeof BEATS)[number]["id"];
+  p: number;
+  done: boolean;
+  onDone: () => void;
+  asMission: boolean;
+}) {
   switch (id) {
     case "type":
-      return <SceneType p={p} />;
+      return <SceneType onDone={onDone} done={done} />;
     case "tab":
-      return <SceneTab p={p} />;
+      return <SceneTab onDone={onDone} done={done} />;
     case "tag":
-      return <SceneTag p={p} />;
+      return <SceneTag onDone={onDone} done={done} />;
     case "bulk":
-      return <SceneBulk p={p} />;
+      return asMission ? (
+        <SceneBulk onDone={onDone} done={done} />
+      ) : (
+        <SceneBulkWatch p={p} />
+      );
     case "assistant":
       return <SceneAssistant p={p} />;
     case "life":

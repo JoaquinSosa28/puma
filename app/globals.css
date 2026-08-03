@@ -709,3 +709,28 @@ html {
 .tutorial-in {
   animation: tutorialIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* A wrong answer in the tour shakes rather than scolds. */
+@keyframes tutorialShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+.tutorial-shake {
+  animation: tutorialShake 0.4s ease-in-out;
+}
+
+/* "This is the thing you're being asked to press." A slow pulse of the ring
+   rather than a bouncing arrow — it has to survive being looked at for as
+   long as someone takes to work out what to do. */
+@keyframes tutorialNudge {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.55 0.16 274 / 0.5); }
+  50% { box-shadow: 0 0 0 5px oklch(0.55 0.16 274 / 0); }
+}
+
+.tutorial-nudge {
+  animation: tutorialNudge 1.8s ease-out infinite;
+}

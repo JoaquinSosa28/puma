@@ -1,4 +1,4 @@
-// The 60-second tour, as data.
+// The tour, as data.
 //
 // Every beat earns its place by teaching something a person would not work out
 // on their own. Filters, delete buttons and the settings page are deliberately
@@ -7,99 +7,100 @@
 // type-anywhere capture, tags as filing rather than labelling, and an
 // assistant that proposes instead of doing.
 //
-// Timings are in this file so re-cutting the tour is editing one array.
+// Two kinds of beat:
+//
+//   "do"    — a mission. The user performs the real gesture (types, presses
+//             Tab, right-clicks, ⌘-clicks) and the tour waits for it. Reading
+//             about a keyboard shortcut teaches nobody; doing it once teaches
+//             everybody.
+//   "watch" — a scene that plays itself, for the things there is nothing to
+//             press: an assistant answer needs a model behind it, and a life
+//             calendar is a thing to look at.
+//
+// A mission has no duration. It ends when it's done.
 
-export type BeatId =
-  | "type"
-  | "tab"
-  | "tag"
-  | "bulk"
-  | "assistant"
-  | "life";
+export type BeatId = "type" | "tab" | "tag" | "bulk" | "assistant" | "life";
 
 export type Beat = {
   id: BeatId;
-  /** The one line on screen. Short enough to read while the scene plays. */
+  kind: "do" | "watch";
+  /** Checklist label. Two words at most — it sits in a narrow column. */
+  step: string;
+  /** The big line on screen. */
   caption: string;
-  /** Second line, quieter — the "so what". Optional. */
-  sub?: string;
-  ms: number;
+  /** The quieter second line: what to actually do, or why it matters. */
+  sub: string;
+  /** Watch beats only — how long the scene runs. */
+  ms?: number;
+  /** Missions only — the confirmation once it lands. */
+  done?: string;
 };
 
 export const BEATS: Beat[] = [
   {
     id: "type",
+    kind: "do",
+    step: "Capture",
     caption: "Don't click anything. Just type.",
-    sub: "Dates, #tags and !priority are read as you go.",
-    ms: 10_000,
+    sub: "Give it a day and a #tag — try: pay rent friday #finance",
+    done: "That's the whole capture flow.",
   },
   {
     id: "tab",
+    kind: "do",
+    step: "Switch",
     caption: "Tab changes what you're making.",
-    sub: "One bar for tasks, habits, goals, notes — and the assistant.",
-    ms: 8_000,
+    sub: "Press Tab until the bar says goal.",
+    done: "One bar for tasks, habits, goals, notes and the assistant.",
   },
   {
     id: "tag",
+    kind: "do",
+    step: "File it",
     caption: "A tag isn't a label. It's where the thing lives.",
-    sub: "Tag it with a project and it moves in. Work vs personal follows.",
-    ms: 11_000,
+    sub: "Right-click the task — long-press on a phone — and pick website-redesign.",
+    done: "It moved into the project, and took the project's side of life with it.",
   },
   {
     id: "bulk",
+    kind: "do",
+    step: "Select",
     caption: "Pick many. Change them all.",
-    sub: "⌘-click to add, shift-click for a range.",
-    ms: 9_000,
+    sub: "⌘-click the first task, then shift-click the last.",
+    done: "Whatever you select changes together.",
   },
   {
     id: "assistant",
+    kind: "watch",
+    step: "Assistant",
     caption: "Ask it, or tell it.",
     sub: "It proposes. You edit. Nothing is saved until you say so.",
     ms: 12_000,
   },
   {
     id: "life",
+    kind: "watch",
+    step: "Your weeks",
     caption: "This is your life in weeks.",
     sub: "1,521 down. Spend the next one on purpose.",
     ms: 9_000,
   },
 ];
 
-/** How long the whole thing runs, in ms. */
-export function totalMs(beats: Beat[] = BEATS): number {
-  return beats.reduce((sum, b) => sum + b.ms, 0);
+/** Missions can't be timed, so progress counts beats rather than seconds. */
+export function progressAt(index: number, beats: Beat[] = BEATS): number {
+  return Math.min(1, Math.max(0, index / beats.length));
 }
 
-/** Where a beat starts on the timeline, for the progress bar and for seeking. */
-export function beatStartMs(index: number, beats: Beat[] = BEATS): number {
-  return beats.slice(0, index).reduce((sum, b) => sum + b.ms, 0);
-}
-
-/**
- * The beat playing at `elapsed`, and how far through it we are (0–1).
- * Past the end it pins to the last beat at 1 rather than going undefined —
- * the closing frame should hold, not vanish.
- */
-export function beatAt(
-  elapsed: number,
-  beats: Beat[] = BEATS
-): { index: number; beat: Beat; progress: number } {
-  let acc = 0;
-  for (let i = 0; i < beats.length; i++) {
-    const end = acc + beats[i].ms;
-    if (elapsed < end) {
-      return { index: i, beat: beats[i], progress: (elapsed - acc) / beats[i].ms };
-    }
-    acc = end;
-  }
-  const last = beats.length - 1;
-  return { index: last, beat: beats[last], progress: 1 };
+/** What the self-playing beats add up to — the honest part of "60 seconds". */
+export function watchMs(beats: Beat[] = BEATS): number {
+  return beats.reduce((sum, b) => sum + (b.kind === "watch" ? b.ms ?? 0 : 0), 0);
 }
 
 /**
- * Characters revealed so far when typing `text` over `ms`, given the beat's
- * progress. `startAt`/`endAt` bound the typing to part of the beat, so the
- * scene can hold on the finished line before moving on.
+ * Characters revealed so far when typing `text`, given a watch beat's
+ * progress. `startAt`/`endAt` bound the typing to part of the beat, so a line
+ * can land early and the rest of the beat holds on it.
  */
 export function typedChars(
   text: string,
@@ -111,4 +112,38 @@ export function typedChars(
   if (progress >= endAt) return text;
   const t = (progress - startAt) / (endAt - startAt);
   return text.slice(0, Math.round(t * text.length));
+}
+
+// ---------------------------------------------------------------------------
+// Mission checks — pure, so the rules sit in one readable place and can be
+// tested without a DOM.
+
+/** The date words the capture parser understands, for the first mission. */
+const DAY_WORDS =
+  /\b(today|tonight|tomorrow|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+
+export type CaptureCheck = {
+  hasTitle: boolean;
+  hasDay: boolean;
+  hasTag: boolean;
+  ok: boolean;
+};
+
+/**
+ * The capture mission wants a title, a day and a tag — all three, not any of
+ * them. The beat exists to show that the bar reads all of it at once, and
+ * accepting two out of three would teach two thirds of the idea.
+ */
+export function checkCapture(text: string): CaptureCheck {
+  const hasDay = DAY_WORDS.test(text);
+  const hasTag = /#[a-z0-9-]{2,}/i.test(text);
+  // Whatever is left once the tokens are lifted out is the title.
+  const title = text
+    .replace(/#[a-z0-9-]+/gi, " ")
+    .replace(/![a-z]+/gi, " ")
+    .replace(DAY_WORDS, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const hasTitle = title.length >= 3;
+  return { hasTitle, hasDay, hasTag, ok: hasTitle && hasDay && hasTag };
 }

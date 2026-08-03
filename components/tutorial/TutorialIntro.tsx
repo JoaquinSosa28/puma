@@ -7,11 +7,15 @@ import { cn } from "@/lib/utils";
 /**
  * The card that opens the tour, and the joke it tells.
  *
- * Skip is real-looking and never works, but the bit is over in two clicks
- * rather than running forever: the first press makes the buttons trade places,
- * the second appears to accept the skip and then — mid-press — relabels itself
- * and starts anyway. A gag that can't be escaped for longer than that stops
- * being a gag, so this one gets in and out.
+ * The two buttons live in fixed grid cells and SLIDE past each other, rather
+ * than being re-ordered in the DOM. Re-ordering swapped them instantly and in
+ * silence: same two buttons, same two places, and the eye reads it as nothing
+ * having happened — you just think you missed. Watching them physically
+ * change lanes is the whole gag, so it has to be a move you can see.
+ *
+ * The bit is over in two clicks. The first press swaps them; the second
+ * accepts the skip, says so, and starts the tour anyway. A gag with no exit
+ * stops being a gag somewhere around the third attempt.
  */
 export function TutorialIntro({ onStart }: { onStart: () => void }) {
   // 0 — untouched · 1 — buttons have swapped · 2 — the fake-out is playing
@@ -24,50 +28,23 @@ export function TutorialIntro({ onStart }: { onStart: () => void }) {
       return;
     }
     if (stage === 1) {
-      // "Skipping…" for a beat, then the punchline, then it just plays.
       setStage(2);
-      window.setTimeout(onStart, 1600);
+      window.setTimeout(onStart, 1500);
     }
   };
 
-  const skipButton = (
-    <button
-      key="skip"
-      type="button"
-      onClick={onSkip}
-      disabled={stage === 2}
-      className={cn(
-        "flex flex-1 items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-[13.5px] font-bold transition-all duration-300",
-        stage === 2
-          ? "border-primary bg-primary text-background"
-          : "border-tasks/50 text-tasks hover:bg-tasks/10 active:scale-95"
-      )}
-    >
-      {stage === 2 ? (
-        <Play className="h-3.5 w-3.5 fill-current" />
-      ) : (
-        <X className="h-3.5 w-3.5" />
-      )}
-      {stage === 2 ? "ok, starting tutorial" : "Skip"}
-    </button>
-  );
-
-  const startButton = (
-    <button
-      key="start"
-      type="button"
-      onClick={onStart}
-      disabled={stage === 2}
-      className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3 text-[13.5px] font-bold text-background transition-all duration-300 hover:opacity-90 active:scale-95 disabled:opacity-40"
-    >
-      <Play className="h-3.5 w-3.5 fill-current" />
-      Let&apos;s go
-    </button>
-  );
+  // Each button sits in its own half and is pushed a full lane sideways when
+  // swapped: one goes right, the other left, and they cross in view.
+  const lane = (isSkip: boolean) =>
+    ({
+      transform: swapped
+        ? `translateX(calc(${isSkip ? "100% + 10px" : "-100% - 10px"}))`
+        : "translateX(0)",
+    }) as React.CSSProperties;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-      <div className="animate-puma-bloom w-full max-w-[420px] rounded-[20px] border-2 border-ink bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.35)]">
+      <div className="w-full max-w-[420px] rounded-[20px] border-2 border-ink bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.35)]">
         <span className="inline-grid h-11 w-11 place-items-center rounded-[12px] bg-ink font-mono text-[18px] font-extrabold text-background">
           P
         </span>
@@ -75,25 +52,54 @@ export function TutorialIntro({ onStart }: { onStart: () => void }) {
           Sixty seconds, then it&apos;s yours.
         </h2>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          The six things about PUMA you would never guess on your own. No
-          feature tour, no checklist — just watch.
+          Six things about PUMA you would never guess on your own — and you
+          drive. No feature tour, no checklist of buttons.
         </p>
 
-        {/* The two buttons trade DOM positions, so the swap is a real move
-            rather than two labels changing text. */}
-        <div className="mt-6 flex gap-2.5">
-          {swapped ? [startButton, skipButton] : [skipButton, startButton]}
+        <div className="mt-6 grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={stage === 2}
+            style={lane(true)}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-[13.5px] font-bold transition-[transform,background-color,border-color,color] duration-500 [transition-timing-function:cubic-bezier(0.34,1.4,0.64,1)]",
+              stage === 2
+                ? "border-primary bg-primary text-background"
+                : "border-tasks/50 text-tasks hover:bg-tasks/10"
+            )}
+          >
+            {stage === 2 ? (
+              <Play className="h-3.5 w-3.5 shrink-0 fill-current" />
+            ) : (
+              <X className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span className="truncate">
+              {stage === 2 ? "starting…" : "Skip"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={stage === 2}
+            style={lane(false)}
+            className="flex items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-[13.5px] font-bold text-background transition-[transform,opacity] duration-500 [transition-timing-function:cubic-bezier(0.34,1.4,0.64,1)] disabled:opacity-40"
+          >
+            <Play className="h-3.5 w-3.5 shrink-0 fill-current" />
+            <span className="truncate">Let&apos;s go</span>
+          </button>
         </div>
 
         <p
           className={cn(
-            "m-0 mt-3 text-center font-mono text-[10.5px] transition-opacity duration-300",
-            stage === 0 ? "text-faint2" : "text-faint"
+            "m-0 mt-3 text-center font-mono text-[10.5px] transition-colors duration-300",
+            stage === 2 ? "font-semibold text-primary" : "text-faint2"
           )}
         >
           {stage === 0 && "60 seconds. You can spare it."}
-          {stage === 1 && "…that's not where it was, is it."}
-          {stage === 2 && "skipped successfully ✓"}
+          {stage === 1 && "↔ they swapped. try again."}
+          {stage === 2 && "skipped successfully ✓ … starting tutorial"}
         </p>
       </div>
     </div>
