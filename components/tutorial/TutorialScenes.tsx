@@ -907,95 +907,180 @@ const TAG_OPTIONS = [
  * a sentence; a cursor arriving at the row and flashing its right button is
  * the thing itself, and it needs no translating.
  */
-/** Where in the 4s loop the button goes down — the ring and the sound both
- *  land here, or the click is seen and heard at two different moments. */
-const CLICK_AT_MS = 0.38 * 4000;
+/** One pass of the mime: glide in, settle, click, show the word, glide out. */
+const CYCLE_MS = 4200;
 
 /**
- * The click itself. Synthesised rather than fetched: it's six milliseconds of
- * envelope and doesn't deserve a network request or a file in the repo.
+ * The click itself. Synthesised rather than fetched: it's a few milliseconds
+ * of envelope and doesn't deserve a network request or a file in the repo.
  *
- * Silent for anyone who has asked for less motion — that preference is about
- * being left alone, and a ticking cursor is exactly the sort of thing it
- * means. The tour is always entered by pressing a button, so the audio context
- * has its gesture by the time this runs.
+ * Returned as a function rather than run on its own timer, so the sound is
+ * fired by the same loop that draws the press. Two clocks meant the click
+ * could be seen and heard at different moments.
  */
-function useClickTick(active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    type WithLegacy = typeof window & { webkitAudioContext?: typeof AudioContext };
-    const Ctor = window.AudioContext ?? (window as WithLegacy).webkitAudioContext;
-    if (!Ctor) return;
-    let ctx: AudioContext | null = null;
+function useClickSound(): () => void {
+  const ctxRef = useRef<AudioContext | null>(null);
+  useEffect(() => () => void ctxRef.current?.close(), []);
 
-    const tick = () => {
-      try {
-        ctx ??= new Ctor();
-        if (ctx.state === "suspended") void ctx.resume();
-        const now = ctx.currentTime;
-        // A short burst through a high-pass reads as a mouse button; a tone
-        // reads as a notification, which is not what this is.
-        const noise = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.02), ctx.sampleRate);
-        const data = noise.getChannelData(0);
-        for (let i = 0; i < data.length; i++) {
-          data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 6;
-        }
-        const src = ctx.createBufferSource();
-        src.buffer = noise;
-        const hp = ctx.createBiquadFilter();
-        hp.type = "highpass";
-        hp.frequency.value = 1800;
-        const gain = ctx.createGain();
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
-        src.connect(hp).connect(gain).connect(ctx.destination);
-        src.start(now);
-      } catch {
-        // Audio is decoration here. A blocked or exhausted context is not a
-        // reason for the tour to stop working.
+  return useCallback(() => {
+    try {
+      type WithLegacy = typeof window & { webkitAudioContext?: typeof AudioContext };
+      const Ctor = window.AudioContext ?? (window as WithLegacy).webkitAudioContext;
+      if (!Ctor) return;
+      const ctx = (ctxRef.current ??= new Ctor());
+      if (ctx.state === "suspended") void ctx.resume();
+      const now = ctx.currentTime;
+      // A short burst through a high-pass reads as a mouse button; a tone
+      // reads as a notification, which is not what this is.
+      const noise = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.02), ctx.sampleRate);
+      const data = noise.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 6;
       }
-    };
-
-    const first = window.setTimeout(tick, CLICK_AT_MS);
-    const every = window.setInterval(tick, 4000);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(every);
-      void ctx?.close();
-    };
-  }, [active]);
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 1800;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.07, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+      src.connect(hp).connect(gain).connect(ctx.destination);
+      src.start(now);
+    } catch {
+      // Audio is decoration here. A blocked or exhausted context is not a
+      // reason for the tour to stop working.
+    }
+  }, []);
 }
 
+/** 0 before `a`, 1 after `b`, linear between — one phase of the cycle. */
+function seg(t: number, a: number, b: number): number {
+  return Math.min(1, Math.max(0, (t - a) / (b - a)));
+}
+const easeOut = (x: number) => 1 - (1 - x) ** 3;
+const easeIn = (x: number) => x ** 3;
+
+/** Where the cursor starts and ends its pass, relative to the target. */
+const ENTER_X = 52;
+const ENTER_Y = 30;
+
 function GhostCursor({ label }: { label: string }) {
-  useClickTick(true);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const armRef = useRef<HTMLSpanElement>(null);
+  const burstRef = useRef<SVGSVGElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const play = useClickSound();
+
+  // Driven from JS rather than a CSS keyframe loop, and that is not a style
+  // choice. A browser pauses CSS animations outright on a page it considers
+  // hidden while still serving requestAnimationFrame — so the keyframe version
+  // sat perfectly still in exactly the places the rest of the tour kept
+  // playing. Same clock as every other scene now, so it moves whenever they do.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const arm = armRef.current;
+    const burst = burstRef.current;
+    const tag = labelRef.current;
+    if (!wrap || !arm || !burst || !tag) return;
+
+    // Deliberately not gated on prefers-reduced-motion. Every other scene in
+    // the tour moves — the assistant types, the weeks fill in — because the
+    // movement IS the lesson rather than decoration around it. Parking this
+    // one made the tour inconsistent with itself: five scenes playing and the
+    // one miming a gesture standing perfectly still, which reads as broken.
+    // The app's decorative animation still honours the preference globally.
+    let t = 0;
+    let clicked = false;
+    return startTutorialClock((dt) => {
+      const prev = t;
+      t = (t + dt / CYCLE_MS) % 1;
+      if (t < prev) clicked = false;
+
+      // In, settle, press, speak, out. Unhurried on purpose: a cursor that
+      // snaps about reads as a glitch, one that clicks every second nags.
+      const inAt = easeOut(seg(t, 0, 0.18));
+      const outAt = easeIn(seg(t, 0.84, 1));
+      const away = 1 - inAt + outAt;
+      const press = Math.sin(Math.PI * seg(t, 0.34, 0.44));
+
+      wrap.style.transform = `translate(${(ENTER_X * away).toFixed(2)}px, ${(
+        ENTER_Y * away
+      ).toFixed(2)}px)`;
+      wrap.style.opacity = String(Math.min(seg(t, 0, 0.1), 1 - seg(t, 0.9, 1)));
+      arm.style.transform = `translateY(${(press * 2).toFixed(2)}px) scale(${(
+        1 - press * 0.1
+      ).toFixed(3)})`;
+
+      // The strokes that fly off a click, out and gone.
+      const b = seg(t, 0.38, 0.68);
+      burst.style.opacity = String(b > 0 && b < 1 ? (1 - b) * 0.95 : 0);
+      burst.style.transform = `scale(${(0.35 + b * 1.15).toFixed(3)})`;
+
+      const say = seg(t, 0.4, 0.5) * (1 - seg(t, 0.7, 0.84));
+      tag.style.opacity = String(say);
+      tag.style.transform = `translateY(${(4 - 4 * seg(t, 0.4, 0.5) - 8 * seg(t, 0.7, 0.84)).toFixed(
+        2
+      )}px)`;
+
+      if (!clicked && t >= 0.4) {
+        clicked = true;
+        play();
+      }
+    }, false);
+  }, [play]);
+
   return (
-    // One slow pass: glide in, settle, click, let the label bloom and fade,
-    // glide out, wait. The whole cycle is deliberately unhurried — a cursor
-    // that snaps about reads as a glitch, and one that clicks every second
-    // reads as nagging.
-    <span className="tutorial-cursor pointer-events-none absolute left-[38%] top-1/2 z-20">
+    <span
+      ref={wrapRef}
+      className="pointer-events-none absolute left-[38%] top-1/2 z-20"
+      style={{ opacity: 0 }}
+    >
       <span className="relative block">
-        <svg width="20" height="25" viewBox="0 0 18 22" aria-hidden className="block drop-shadow-sm">
-          <path
-            d="M2 1.5 L2 17 L6 13.4 L8.8 19.6 L11.6 18.3 L8.8 12.2 L14 12.2 Z"
-            fill="var(--ink)"
-            stroke="var(--background)"
-            strokeWidth="1.3"
-            strokeLinejoin="round"
-          />
-          {/* The right button, lighting up at the moment of the press. */}
-          <path
-            className="tutorial-cursor-btn"
-            d="M8.6 1.9 L12.6 1.9 L12.6 6.4 L8.6 6.4 Z"
-            fill="var(--primary)"
-            opacity="0"
-          />
+        {/* The click, as the strokes it throws off — centred on the arrow tip
+            so it reads as coming out of the point rather than the cursor. */}
+        <svg
+          ref={burstRef}
+          className="absolute left-[-10px] top-[-10px] h-6 w-6"
+          viewBox="-12 -12 24 24"
+          aria-hidden
+          style={{ opacity: 0 }}
+        >
+          {[0, 62, 124, 186, 298].map((a) => (
+            <line
+              key={a}
+              x1="0"
+              y1="-5.5"
+              x2="0"
+              y2="-10"
+              transform={`rotate(${a})`}
+              stroke="#fff"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          ))}
         </svg>
-        {/* The click: one ring, out and gone. */}
-        <span className="tutorial-cursor-ring absolute left-0 top-0 h-6 w-6 rounded-full border-2 border-primary" />
+
+        <span ref={armRef} className="block">
+          <svg width="20" height="25" viewBox="0 0 18 22" aria-hidden className="block">
+            {/* White, the way a cursor is — with a dark edge under it, or it
+                would vanish into the card it's pointing at. */}
+            <path
+              d="M2 1.5 L2 17 L6 13.4 L8.8 19.6 L11.6 18.3 L8.8 12.2 L14 12.2 Z"
+              fill="#fff"
+              stroke="var(--ink)"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+
         {/* …and the word for it, drifting up as it fades. */}
-        <span className="tutorial-cursor-label absolute left-5 top-3 whitespace-nowrap rounded-md bg-ink px-2 py-1 font-mono text-[10px] font-bold text-background">
+        <span
+          ref={labelRef}
+          className="absolute left-5 top-3 whitespace-nowrap rounded-md bg-ink px-2 py-1 font-mono text-[10px] font-bold text-background"
+          style={{ opacity: 0 }}
+        >
           ✳ {label}
         </span>
       </span>
@@ -1077,7 +1162,7 @@ export function SceneTag({
             >
               <span className="h-4 w-4 shrink-0 rounded-[5px] border-[1.8px] border-border" />
               {!menu && (
-                <GhostCursor label={isTouch() ? "long-press" : "right-click"} />
+                <GhostCursor label={isTouch() ? "long press" : "right click"} />
               )}
             </Row>
           )}
@@ -1183,6 +1268,45 @@ const BULK_ROWS = [
   "Build hero section",
 ];
 
+/**
+ * The target ring: a light that travels the border of the button you're being
+ * asked to press.
+ *
+ * On the same rAF clock as the scenes, not a CSS keyframe — a browser pauses
+ * CSS animations outright on a page it thinks is hidden while still serving
+ * frames, and a "press this" marker that has quietly stopped moving is worse
+ * than none. The conic sweep sits behind an opaque button, so only the rim of
+ * it shows.
+ */
+function TargetRing({ color }: { color: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Same reasoning as the cursor: this marks the thing to press, and a
+    // marker that has stopped moving is a marker nobody sees.
+    let t = 0;
+    return startTutorialClock((dt) => {
+      t = (t + dt / 1800) % 1;
+      const breathe = 0.62 + 0.38 * Math.sin(t * Math.PI * 2);
+      el.style.background = `conic-gradient(from ${(t * 360).toFixed(
+        1
+      )}deg, transparent 0deg, ${color} 42deg, #fff 62deg, ${color} 82deg, transparent 130deg, transparent 360deg)`;
+      el.style.opacity = (0.55 + 0.45 * breathe).toFixed(3);
+      el.style.filter = `blur(${(1.4 + breathe * 1.3).toFixed(2)}px)`;
+    }, false);
+  }, [color]);
+
+  return (
+    <span
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none absolute -inset-[3px] rounded-[8px]"
+      style={{ opacity: 0 }}
+    />
+  );
+}
+
 function BulkPanel({
   count,
   applied,
@@ -1197,6 +1321,11 @@ function BulkPanel({
   armed?: boolean;
   onPick?: (level: string) => void;
 }) {
+  // Whatever the rows actually are right now reads as chosen. They start low,
+  // so low is the one filled in — showing high as chosen before anyone had
+  // pressed it made the mission look already done.
+  const current = applied ? "High" : "Low";
+
   return (
     <div className="rounded-lg border border-border bg-surface2 p-2.5">
       <p
@@ -1220,32 +1349,35 @@ function BulkPanel({
         Priority
       </p>
       {/* Live once the rows are selected — the panel is the second half of the
-          gesture, and a decoration you can't press teaches the wrong thing.
-          High is the only one lit: the point is that one press moves all four,
-          not that there are three buttons. */}
+          gesture, and a decoration you can't press teaches the wrong thing. */}
       <div className="mt-1 flex gap-1">
         {["Low", "Mid", "High"].map((l) => {
-          const lit = (applied || armed) && l === "High";
+          const chosen = l === current;
+          const target = !!armed && l === "High";
           return (
-            <button
-              key={l}
-              type="button"
-              disabled={!armed}
-              onClick={() => onPick?.(l)}
-              className={cn(
-                "flex-1 rounded-md border py-1 text-center font-mono text-[9px] font-bold uppercase transition-all duration-300",
-                lit ? "border-2 text-ink" : "border-border bg-surface text-faint2",
-                armed && "cursor-pointer",
-                armed && l === "High" && "tutorial-nudge"
-              )}
-              style={
-                lit
-                  ? { borderColor: TASK_RED, background: "oklch(0.64 0.18 25 / 0.12)" }
-                  : undefined
-              }
-            >
-              {l}
-            </button>
+            <span key={l} className="relative flex-1">
+              {target && <TargetRing color={TASK_RED} />}
+              <button
+                type="button"
+                disabled={!armed}
+                onClick={() => onPick?.(l)}
+                className={cn(
+                  "relative w-full rounded-md border py-1 text-center font-mono text-[9px] font-bold uppercase transition-colors duration-300",
+                  chosen ? "border-2 text-ink" : "border-border bg-surface text-faint2",
+                  armed && "cursor-pointer",
+                  target && "text-ink"
+                )}
+                style={
+                  chosen
+                    ? { borderColor: TASK_RED, background: "oklch(0.64 0.18 25 / 0.12)" }
+                    : target
+                      ? { background: "var(--surface)" }
+                      : undefined
+                }
+              >
+                {l}
+              </button>
+            </span>
           );
         })}
       </div>
