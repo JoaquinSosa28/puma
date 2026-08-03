@@ -90,6 +90,28 @@ export async function updateSettingsAction(patch: {
   return { ok: true };
 }
 
+/**
+ * Remember that the tour has played.
+ *
+ * Its own action rather than a field on updateSettingsAction: that one is the
+ * settings form's patch, validated against a schema of things a user chose,
+ * and this is a timestamp the app writes for itself.
+ */
+export async function markTutorialSeen(): Promise<ActionResult> {
+  const userId = await requireUserId();
+  await updateSettings(userId, { tutorialSeenAt: new Date().toISOString() });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Play it again from Settings — clears the marker so the overlay re-arms. */
+export async function replayTutorial(): Promise<ActionResult> {
+  const userId = await requireUserId();
+  await updateSettings(userId, { tutorialSeenAt: null });
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function addTagAction(name: string): Promise<ActionResult<Tag>> {
   const parsed = tagName.safeParse(name.toLowerCase());
   if (!parsed.success) return { ok: false, error: "Invalid name" };

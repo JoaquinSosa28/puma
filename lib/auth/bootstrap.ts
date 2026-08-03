@@ -44,6 +44,8 @@ export async function bootstrapNewUser(user: {
     tagAutoClean: false,
     tagAutoCleanDays: 30,
     tagsCleanedAt: null,
+    // Null: a brand-new account is exactly who the tour is for.
+    tutorialSeenAt: null,
   });
   await ensureLifeTags(user.id);
 }

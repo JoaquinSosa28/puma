@@ -658,6 +658,24 @@ html {
   animation-delay: var(--ask-delay, 0s);
 }
 
+/* Someone who asked for less motion should land on the finished frame, not
+   watch it arrive — and this app animates a lot: cards bloom in, rows fly
+   between projects, charts draw themselves. Collapsing every duration to
+   effectively zero keeps all of that correct (elements still end where they
+   were going) while removing the movement. Without it, a browser that freezes
+   motion rather than skipping it leaves things stranded part-way — a card at a
+   third of its opacity, a chip half-way between two colours. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ask-shimmer,
   .ask-spinner,
@@ -672,4 +690,22 @@ html {
   .ask-arc {
     stroke-dasharray: var(--ask-arc);
   }
+}
+
+/* The tour's scene and caption entrances animate TRANSFORM ONLY, never
+   opacity. A fade is prettier, but it makes the content invisible until the
+   animation finishes — and an animation that a browser freezes rather than
+   plays (some do, under reduced-motion or heavy throttling) then leaves the
+   whole scene at nothing. Movement is decoration; legibility isn't. */
+@keyframes tutorialIn {
+  from {
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.tutorial-in {
+  animation: tutorialIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }

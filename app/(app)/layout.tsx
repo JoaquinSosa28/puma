@@ -7,6 +7,7 @@ import { AssistantProvider } from "@/components/assistant/AssistantProvider";
 import { TaskTimerProvider } from "@/components/tasks/TaskTimerProvider";
 import { MobileShell } from "@/components/shell/MobileShell";
 import { MobileDock } from "@/components/shell/MobileDock";
+import { TutorialOverlay } from "@/components/tutorial/TutorialOverlay";
 import { MobileCapture } from "@/components/shell/MobileCapture";
 import { TagAutoCleanRunner } from "@/components/tags/TagAutoCleanRunner";
 import { loadShellData } from "@/lib/data";
@@ -105,6 +106,10 @@ async function AppShell({ children }: { children: React.ReactNode }) {
                   {children}
                 </div>
                 <MobileDock lifeAuto={lifeAuto} />
+                {/* Null means it has never run. A brand-new account lands
+                    here with six empty boxes, which is exactly the moment
+                    the tour is for. */}
+                {data.settings?.tutorialSeenAt == null && <TutorialOverlay />}
               </main>
             </AssistantProvider>
           </div>

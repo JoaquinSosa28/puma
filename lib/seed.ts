@@ -615,6 +615,8 @@ export function createSeedData(userId: string): SeedData {
     tagAutoClean: false,
     tagAutoCleanDays: 30,
     tagsCleanedAt: null,
+    // The seeded demo has already 'seen' nothing — let the tour play.
+    tutorialSeenAt: null,
   };
 
   return {

@@ -3,7 +3,8 @@
 // chart makes a wrong number look authoritative.
 //
 // Pure functions over plain rows. No db, no AI, unit-testable.
-import { addDays, iso, streakOf, bestStreak } from "@/lib/date";
+import { streakOf, bestStreak } from "@/lib/date";
+import { addDaysToIsoDate } from "@/lib/timezone";
 
 type TaskRow = {
   status: "todo" | "doing" | "done";
@@ -90,10 +91,16 @@ export function buildAggregates(input: {
   // --- completions over time ------------------------------------------------
   // Buckets are trailing 7-day windows ending today, newest last, so "this
   // week" is always the final entry regardless of the calendar.
+  //
+  // Anchored to the caller's `today`, not the server's clock: everything else
+  // in this snapshot is (dueToday, overdue, streaks), and mixing the two puts
+  // the chart a day out of step with the numbers beside it whenever the two
+  // disagree — which they do for every user whose evening is the server's
+  // tomorrow.
   const completionsByWeek: { weekEnd: string; created: number; completed: number }[] = [];
   for (let w = WEEKS - 1; w >= 0; w--) {
-    const end = iso(addDays(-7 * w, new Date(), timezone), timezone);
-    const start = iso(addDays(-7 * (w + 1) + 1, new Date(), timezone), timezone);
+    const end = addDaysToIsoDate(today, -7 * w, timezone);
+    const start = addDaysToIsoDate(today, -7 * (w + 1) + 1, timezone);
     completionsByWeek.push({
       weekEnd: end,
       created: tasks.filter((t) => t.createdAt >= start && t.createdAt <= end).length,
@@ -126,7 +133,9 @@ export function buildAggregates(input: {
     .filter((h) => !h.archived)
     .map((h) => {
       const set = entriesByHabit.get(h.id) ?? new Set<string>();
-      const last30 = iso(addDays(-30, new Date(), timezone), timezone);
+      // Same reason as the week buckets: `today` is the user's, the clock is
+      // the server's, and streakOf on the line below already uses `today`.
+      const last30 = addDaysToIsoDate(today, -30, timezone);
       return {
         name: h.name,
         streak: streakOf(set, today, timezone),

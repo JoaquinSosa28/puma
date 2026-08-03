@@ -30,6 +30,7 @@ import { TimezoneSelect } from "@/components/settings/TimezoneSelect";
 import { SubscriptionCard } from "@/components/settings/SubscriptionCard";
 import { AssistantProviderFields } from "@/components/settings/AssistantProviderFields";
 import { DataSection } from "@/components/settings/DataSection";
+import { ReplayTutorialButton } from "@/components/settings/ReplayTutorialButton";
 import type { DeleteAccountBlock } from "@/lib/actions/account";
 import { DueQuickPick } from "@/components/shell/DueQuickPick";
 import { cn } from "@/lib/utils";
@@ -210,6 +211,14 @@ export function SettingsView({
               model={settings?.aiModel ?? null}
               last4={settings?.aiApiKeyLast4 ?? null}
             />
+          </SettingsSection>
+
+          <SettingsSection
+            title="Tour"
+            description="The sixty seconds you watched on your first day. Worth another look after a while away — it covers the things that aren't buttons."
+            className="lg:col-span-2"
+          >
+            <ReplayTutorialButton />
           </SettingsSection>
 
           {showSubscription && (

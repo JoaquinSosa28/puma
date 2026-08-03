@@ -71,6 +71,10 @@ export const settingsSchema = z.object({
   tagAutoCleanDays: z.number().int().min(1).max(365).default(30),
   /** Throttle marker for the auto-sweep (runs at most once a day). */
   tagsCleanedAt: z.string().nullable().default(null),
+  // When the 60-second tour was last finished. Null means it has never run,
+  // which is the whole trigger — a nullable timestamp rather than a boolean so
+  // "when did they see it" survives a later re-cut of the tour.
+  tutorialSeenAt: z.string().nullable().default(null),
 });
 
 export const tagSchema = z.object({
