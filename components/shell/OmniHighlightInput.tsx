@@ -94,7 +94,9 @@ export const OmniHighlightInput = forwardRef<HTMLInputElement, Props>(
             {tokens.map((token, i) => {
               if (token.kind === "text") {
                 return (
-                  <span key={i} className={token.bold ? "font-bold" : undefined}>
+                  // Colour only — anything that changes glyph width here
+                  // drifts this layer out of step with the input under it.
+                  <span key={i} className={token.dim ? "text-faint" : undefined}>
                     {token.text}
                   </span>
                 );

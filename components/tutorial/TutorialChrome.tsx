@@ -174,11 +174,11 @@ export function FlounderCard({
       <div className="tutorial-in w-full max-w-[400px] rounded-[20px] border-2 border-ink bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.35)]">
         <span className="text-[28px]">🕯️</span>
         <h2 className="m-0 mt-2 text-[19px] font-extrabold leading-tight tracking-tight text-ink">
-          Not the brightest candle in the drawer, are we.
+          Not the brightest candle in the drawer.
         </h2>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          No judgement. The tour was going to end eventually anyway — go and
-          press things until it makes sense, that works too.
+          The tour was going to end eventually anyway — go and press things
+          until it makes sense, that works too.
         </p>
 
         {/* Borrowed from the loudest man alive, because a four-beat tutorial

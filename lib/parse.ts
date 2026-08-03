@@ -174,7 +174,10 @@ export function parseOmni(
   }
 
   return {
-    title: title || text.trim(),
+    // Titles only. Whitespace either side of a title is never meant — it's
+    // the space you typed before the tag you then deleted. A description or a
+    // note body is prose and keeps whatever shape it was given.
+    title: title.trim() || text.trim(),
     tagIds,
     pills,
     pendingTag,
@@ -190,22 +193,21 @@ export function parseOmni(
 }
 
 /**
- * Split "title: description" on the first colon that is followed by
- * whitespace.
+ * Split "title: description" at the first colon that means it.
  *
- * The whitespace matters: it keeps "https://example.com" and a stray "14:30"
- * in one piece, which a bare indexOf(":") would tear in half.
+ * Spacing is not the signal — "a:b", "a :b", "a: b" and "a : b" all split the
+ * same way, because they're all the same thought typed at different speeds.
  */
 export function splitDescription(text: string): {
   title: string;
   description: string;
 } {
-  const match = text.match(/^([^:]+?):\s+([\s\S]+)$/);
-  if (!match) return { title: text, description: "" };
-  const title = match[1].trim();
-  const description = match[2].trim();
-  if (!title || !description) return { title: text, description: "" };
-  return { title, description };
+  const at = descriptionColonIndex(text);
+  if (at === null) return { title: text, description: "" };
+  return {
+    title: text.slice(0, at).trim(),
+    description: text.slice(at + 1).trim(),
+  };
 }
 
 /**
@@ -219,7 +221,7 @@ export function parseNoteCapture(
 ): NoteParseResult {
   const p = parseOmni(text, tags, referenceDate, { forNote: true }, timeZone);
   const cleaned = p.title.trim();
-  const colonIdx = cleaned.indexOf(":");
+  const colonIdx = descriptionColonIndex(cleaned) ?? -1;
 
   if (colonIdx > 0) {
     const noteTitle = cleaned.slice(0, colonIdx).trim();
@@ -267,7 +269,7 @@ export function toggleTagInText(text: string, tagName: string): string {
 }
 
 export type OmniInputToken =
-  | { kind: "text"; text: string; bold?: boolean }
+  | { kind: "text"; text: string; dim?: boolean }
   | {
       kind: "tag";
       text: string;
@@ -345,27 +347,51 @@ export function tokenizeOmniInput(
     : text
       ? [{ kind: "text", text }]
       : [];
-  return boldTitleBeforeColon(built, text);
+  return dimDescriptionAfterColon(built, text);
 }
 
 /**
- * Where "title: description" splits, in raw-text coordinates.
+ * Where "title: description" splits, in raw-text coordinates — the one place
+ * the rule lives, so what looks like the title while you type is exactly what
+ * gets stored as one.
  *
- * Same rule as splitDescription — a colon followed by whitespace — so what
- * looks like the title while typing is exactly what gets stored as one.
+ * Any colon splits, spaced or not. The two that reliably mean something else
+ * are skipped rather than banned: the one in a URL scheme, and the one in a
+ * clock time. Skipping rather than giving up means "standup 14:30: bring the
+ * numbers" still splits — at the second colon, where it should.
+ *
+ * A colon with nothing on one side of it isn't a split either, so a title
+ * ending in one goes on being a title while you type the rest.
  */
 export function descriptionColonIndex(text: string): number | null {
-  const m = text.match(/^([^:]+?):\s/);
-  return m ? m[1].length : null;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== ":") continue;
+    if (text.startsWith("//", i + 1)) continue;
+    const before = text[i - 1];
+    const after = text[i + 1];
+    if (before && after && /\d/.test(before) && /\d/.test(after)) continue;
+    if (!text.slice(0, i).trim() || !text.slice(i + 1).trim()) continue;
+    return i;
+  }
+  return null;
 }
 
 /**
- * Weight the title half of a "title: description" capture.
+ * Set the description half of a "title: description" capture back from the
+ * title.
  *
- * Only plain text is split; a tag or priority straddling the colon keeps its
- * own styling, which is fine — they aren't part of either half.
+ * By colour, never by weight. This styling is painted on a layer sitting over
+ * a transparent <input>, and the browser draws the caret and handles the
+ * selection from the input's own text — so the two layers have to agree on
+ * where every character is, to the pixel. Bold glyphs are wider than medium
+ * ones, so bolding the title pushed the overlay right of the input beneath
+ * it: the caret landed between the wrong letters and the text looked like it
+ * was printing over itself. Colour costs nothing in advance width.
+ *
+ * Only plain text is dimmed; a tag or priority after the colon keeps its own
+ * styling, which is fine — those aren't prose.
  */
-function boldTitleBeforeColon(
+function dimDescriptionAfterColon(
   segments: OmniInputToken[],
   text: string
 ): OmniInputToken[] {
@@ -379,18 +405,18 @@ function boldTitleBeforeColon(
     const end = offset + token.text.length;
     offset = end;
 
-    if (token.kind !== "text" || start >= colon) {
+    if (token.kind !== "text" || end <= colon) {
       out.push(token);
       continue;
     }
-    if (end <= colon) {
-      out.push({ ...token, bold: true });
+    if (start >= colon) {
+      out.push({ ...token, dim: true });
       continue;
     }
-    // The colon lands inside this run — split it so only the title bolds.
+    // The colon lands inside this run — split it so only the tail dims.
     const cut = colon - start;
-    out.push({ kind: "text", text: token.text.slice(0, cut), bold: true });
-    out.push({ kind: "text", text: token.text.slice(cut) });
+    out.push({ kind: "text", text: token.text.slice(0, cut) });
+    out.push({ kind: "text", text: token.text.slice(cut), dim: true });
   }
   return out;
 }

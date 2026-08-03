@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { iso, addDays, streakOf, bestStreak, weekDates, currentAgendaIndex } from "@/lib/date";
-import { parseOmni, parseNoteCapture, toggleTagInText } from "@/lib/parse";
+import {
+  parseOmni,
+  parseNoteCapture,
+  splitDescription,
+  toggleTagInText,
+} from "@/lib/parse";
 import { isReservedTagName } from "@/lib/omni-reserved";
 import { defaultNoteTitle } from "@/lib/date";
 import {
@@ -134,6 +139,35 @@ describe("parseOmni", () => {
 
   it("needs something on both sides", () => {
     expect(parseOmni("trailing colon:", tags).description).toBe("");
+  });
+
+  it("splits however you space the colon", () => {
+    // Same thought, four typing speeds.
+    for (const text of ["a:b", "a :b", "a: b", "a : b"]) {
+      const r = parseOmni(text, tags);
+      expect([text, r.title, r.description]).toEqual([text, "a", "b"]);
+    }
+  });
+
+  it("steps over a clock time to the colon that meant it", () => {
+    // Straight at the splitter: through parseOmni, chrono lifts the time out
+    // of the title first and there'd be no clock left to step over.
+    expect(splitDescription("standup 14:30: bring the numbers")).toEqual({
+      title: "standup 14:30",
+      description: "bring the numbers",
+    });
+    expect(splitDescription("14:30")).toEqual({
+      title: "14:30",
+      description: "",
+    });
+  });
+
+  it("trims the title but not the description", () => {
+    const r = parseOmni("  buy milk  ", tags);
+    expect(r.title).toBe("buy milk");
+    const d = parseOmni("buy milk: the good kind", tags);
+    expect(d.title).toBe("buy milk");
+    expect(d.description).toBe("the good kind");
   });
 
   it("toggleTagInText adds and removes tags", () => {
