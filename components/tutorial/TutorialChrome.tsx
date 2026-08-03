@@ -180,7 +180,19 @@ export function FlounderCard({
           No judgement. The tour was going to end eventually anyway — go and
           press things until it makes sense, that works too.
         </p>
-        <p className="m-0 mt-2 font-mono text-[10.5px] leading-relaxed text-faint">
+
+        {/* Borrowed from the loudest man alive, because a four-beat tutorial
+            defeating you is exactly the sort of small suffering he means. */}
+        <blockquote className="m-0 mt-3 border-l-2 border-ink/20 pl-3">
+          <p className="m-0 text-[12.5px] font-semibold italic leading-relaxed text-ink">
+            &ldquo;Suffering is the true test of life.&rdquo;
+          </p>
+          <p className="m-0 mt-0.5 font-mono text-[10px] text-faint">
+            — David Goggins, about something harder than this
+          </p>
+        </blockquote>
+
+        <p className="m-0 mt-2.5 font-mono text-[10.5px] leading-relaxed text-faint">
           It lives in Settings → Tour if you change your mind.
         </p>
 
@@ -188,9 +200,12 @@ export function FlounderCard({
           <button
             type="button"
             onClick={onStay}
-            className="rounded-xl border-2 border-border px-3 py-3 text-[13px] font-bold text-muted transition-colors hover:border-faint hover:text-ink"
+            className="rounded-xl border-2 border-border px-3 py-3 text-[13px] font-bold leading-tight text-muted transition-colors hover:border-faint hover:text-ink"
           >
-            I&apos;ve got this
+            I&apos;m dumb but hard{" "}
+            <span className="font-mono text-[10px] font-semibold text-faint">
+              (continue)
+            </span>
           </button>
           <button
             type="button"
@@ -198,7 +213,7 @@ export function FlounderCard({
             className="flex items-center justify-center gap-2 rounded-xl bg-ink px-3 py-3 text-[13px] font-bold text-background transition-opacity hover:opacity-90"
           >
             <Hand className="h-4 w-4" />
-            Enjoy as you wish
+            Give up
           </button>
         </div>
       </div>

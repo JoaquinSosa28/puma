@@ -1190,10 +1190,15 @@ function BulkPanel({
   count,
   applied,
   previewing,
+  armed,
+  onPick,
 }: {
   count: number;
   applied: boolean;
   previewing?: boolean;
+  /** The rows are selected and the panel is now the thing to press. */
+  armed?: boolean;
+  onPick?: (level: string) => void;
 }) {
   return (
     <div className="rounded-lg border border-border bg-surface2 p-2.5">
@@ -1206,30 +1211,46 @@ function BulkPanel({
         {count} <span className="text-[11px] font-semibold">selected</span>
       </p>
       <p className="m-0 mt-1 font-mono text-[9px] leading-relaxed text-faint2">
-        {previewing ? "release to take them" : "shift-click a range"}
+        {applied
+          ? "all four, at once"
+          : armed
+            ? "one click changes all four"
+            : previewing
+              ? "release to take them"
+              : "shift-click a range"}
       </p>
       <p className="m-0 mt-2.5 font-mono text-[9px] uppercase tracking-widest text-faint2">
         Priority
       </p>
+      {/* Live once the rows are selected — the panel is the second half of the
+          gesture, and a decoration you can't press teaches the wrong thing.
+          High is the only one lit: the point is that one press moves all four,
+          not that there are three buttons. */}
       <div className="mt-1 flex gap-1">
-        {["Low", "Mid", "High"].map((l) => (
-          <span
-            key={l}
-            className={cn(
-              "flex-1 rounded-md border py-1 text-center font-mono text-[9px] font-bold uppercase transition-all duration-300",
-              applied && l === "High"
-                ? "border-2 text-ink"
-                : "border-border bg-surface text-faint2"
-            )}
-            style={
-              applied && l === "High"
-                ? { borderColor: TASK_RED, background: "oklch(0.64 0.18 25 / 0.12)" }
-                : undefined
-            }
-          >
-            {l}
-          </span>
-        ))}
+        {["Low", "Mid", "High"].map((l) => {
+          const lit = (applied || armed) && l === "High";
+          return (
+            <button
+              key={l}
+              type="button"
+              disabled={!armed}
+              onClick={() => onPick?.(l)}
+              className={cn(
+                "flex-1 rounded-md border py-1 text-center font-mono text-[9px] font-bold uppercase transition-all duration-300",
+                lit ? "border-2 text-ink" : "border-border bg-surface text-faint2",
+                armed && "cursor-pointer",
+                armed && l === "High" && "tutorial-nudge"
+              )}
+              style={
+                lit
+                  ? { borderColor: TASK_RED, background: "oklch(0.64 0.18 25 / 0.12)" }
+                  : undefined
+              }
+            >
+              {l}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -1289,7 +1310,7 @@ function BulkRow({
             : { color: "var(--faint2)", background: "var(--surface2)" }
         }
       >
-        {applied && picked ? "HIGH" : "MID"}
+        {applied && picked ? "HIGH" : "LOW"}
       </span>
     </Row>
   );
@@ -1314,28 +1335,42 @@ export function SceneBulk({
   // Row 0 is handed to you — the mission is the second half of the gesture.
   const [sel, setSel] = useState<SelectionState>({ ids: ["r0"], anchor: "r0" });
   const [hover, setHover] = useState<number | null>(null);
-  const [applied, setApplied] = useState(false);
+  // Selecting four rows proves nothing on its own — the point of a selection
+  // is the edit you make through it, so the mission isn't over until one
+  // click has moved all four from low to high at once.
+  const [phase, setPhase] = useState<"select" | "raise" | "applied">("select");
   const [wrongClick, setWrongClick] = useState(false);
+  const applied = phase === "applied";
   const reported = useRef(false);
 
   useEffect(() => {
-    if (reported.current || done || sel.ids.length < 2) return;
+    if (phase !== "select" || done || sel.ids.length < 2) return;
+    setPhase("raise");
+  }, [sel.ids.length, done, phase]);
+
+  const refuse = useCallback(() => {
+    setWrongClick(true);
+    onStray?.();
+    window.setTimeout(() => setWrongClick(false), 450);
+  }, [onStray]);
+
+  /** The whole lesson, in one click: four rows, one change. */
+  const raise = (level: string) => {
+    if (done || reported.current || phase !== "raise") return;
+    // Low is where they already are and mid is a shrug — neither shows you
+    // anything, so neither is accepted.
+    if (level !== "High") return refuse();
     reported.current = true;
-    setApplied(true);
-    const t = window.setTimeout(onDone, 950);
-    return () => window.clearTimeout(t);
-  }, [sel.ids.length, done, onDone]);
+    onProgress?.();
+    setPhase("applied");
+    window.setTimeout(onDone, 1100);
+  };
 
   const click = (index: number, e: React.MouseEvent) => {
-    if (done || reported.current) return;
+    if (done || phase !== "select") return;
     // Only shift. A plain or ⌘ click would start a different selection and
     // quietly undo the half of the gesture the tour set up.
-    if (!e.shiftKey || index === 0) {
-      setWrongClick(true);
-      onStray?.();
-      window.setTimeout(() => setWrongClick(false), 450);
-      return;
-    }
+    if (!e.shiftKey || index === 0) return refuse();
     onProgress?.();
     window.getSelection?.()?.removeAllRanges();
     setSel((s) => reduceSelection(s, order, order[index], "range"));
@@ -1345,8 +1380,14 @@ export function SceneBulk({
   const preview = hover !== null && hover > 0 && !applied ? hover : null;
 
   useEffect(() => {
-    onInstruction?.(applied || done ? "Four in one click" : "Shift-click a row below");
-  }, [applied, done, onInstruction]);
+    onInstruction?.(
+      applied || done
+        ? "Four rows, one click"
+        : phase === "raise"
+          ? "Now set them all to high"
+          : "Shift-click a row below"
+    );
+  }, [applied, done, phase, onInstruction]);
 
   return (
     <Frame glow={!done}>
@@ -1399,6 +1440,8 @@ export function SceneBulk({
           count={applied || sel.ids.length > 1 ? sel.ids.length : (preview ?? 0) + 1}
           applied={applied}
           previewing={preview !== null && sel.ids.length < 2}
+          armed={phase === "raise"}
+          onPick={raise}
         />
       </div>
 
@@ -1411,8 +1454,12 @@ export function SceneBulk({
         {done || applied
           ? "★ four rows, one click"
           : wrongClick
-            ? "shift. hold shift, then click."
-            : "first one's yours — shift-click any row below it"}
+            ? phase === "raise"
+              ? "high. the one on the right."
+              : "shift. hold shift, then click."
+            : phase === "raise"
+              ? "all four are yours now — send them to high"
+              : "first one's yours — shift-click any row below it"}
       </p>
     </Frame>
   );

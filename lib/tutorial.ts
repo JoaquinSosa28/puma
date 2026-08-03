@@ -66,7 +66,7 @@ export const BEATS: Beat[] = [
     kind: "do",
     step: "Select",
     caption: "Pick many. Change them all.",
-    sub: "The first one is already yours. Shift-click any row below it.",
+    sub: "Shift-click a range, then move the lot of them at once.",
     done: "Whatever you select changes together.",
   },
   {
