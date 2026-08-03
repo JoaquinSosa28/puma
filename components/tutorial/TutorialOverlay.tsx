@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { BEATS, isFloundering, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
 import { setTutorialActive } from "@/lib/tutorial-lock";
+import { stallLimitMs, startTutorialClock } from "@/lib/tutorial-clock";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
   FlounderCard,
@@ -47,7 +48,6 @@ export function TutorialOverlay() {
   const [instruction, setInstruction] = useState<string | undefined>();
   /** Watch beats only: 0–1 through the current scene. */
   const [p, setP] = useState(0);
-  const raf = useRef(0);
 
   // ⌘ and shift are the whole point of one mission, and neither exists on a
   // touch screen — so there it plays instead of being asked for.
@@ -98,33 +98,37 @@ export function TutorialOverlay() {
 
   // The clock, for watch beats only.
   //
-  // It counts frames rather than wall-clock time on purpose. Switch tabs and
-  // the browser stops serving frames, but performance.now() keeps running —
-  // so a wall-clock beat would be over the instant you came back, and you'd
-  // have missed the only thing it had to show you. Accumulating between
-  // frames pauses the scene while nobody's watching and resumes it when they
-  // are.
+  // It runs on real time while the page is visible and pauses outright while
+  // it isn't: switch tabs mid-beat and you come back to where you left off
+  // rather than to a scene that has already played to an empty room.
+  //
+  // The stall limit is the backstop for hosts that call a page hidden while
+  // someone is looking straight at it — without it the tour simply stops, and
+  // a watch beat is not a mission, so nothing else would ever offer a way out.
   useEffect(() => {
     if (!playing || finished || isMission) return;
     const ms = beat.ms ?? 9_000;
     let elapsed = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      // A gap longer than a stutter is a tab switch, not a slow frame.
-      elapsed += Math.min(now - last, 100);
-      last = now;
-      const t = elapsed / ms;
-      if (t >= 1) {
-        setP(1);
-        if (index + 1 >= BEATS.length) finish();
-        else advance();
-        return;
-      }
-      setP(t);
-      raf.current = requestAnimationFrame(tick);
+    let stop = () => {};
+    const done = () => {
+      stop();
+      window.clearTimeout(stall);
+      setP(1);
+      if (index + 1 >= BEATS.length) finish();
+      else advance();
     };
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
+    // A timer rather than a check inside the clock: the clock is exactly what
+    // stops running in the case this exists to survive.
+    const stall = window.setTimeout(done, stallLimitMs(ms));
+    stop = startTutorialClock((dt) => {
+      elapsed += dt;
+      if (elapsed >= ms) return done();
+      setP(elapsed / ms);
+    });
+    return () => {
+      stop();
+      window.clearTimeout(stall);
+    };
   }, [playing, finished, isMission, beat.ms, index, advance, finish]);
 
   // Has this beat been open a while, with the keyboard getting nowhere?

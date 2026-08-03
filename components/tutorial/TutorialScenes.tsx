@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MousePointerClick, Sparkles, Tag as TagIcon } from "lucide-react";
 import { nextHold, typedChars } from "@/lib/tutorial";
+import { startTutorialClock } from "@/lib/tutorial-clock";
 import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import {
   reduceSelection,
@@ -705,16 +706,12 @@ export function SceneTab({
   // ticking while you happen to be in the right place.
   useEffect(() => {
     if (done) return;
-    let last = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const dt = Math.min(now - last, 100);
-      last = now;
-      setHold((h) => nextHold(h, onTarget, dt));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // Real time, not paused time: you cannot hold a key on a page you aren't
+    // looking at, so there is nothing here to protect from a tab switch.
+    return startTutorialClock(
+      (dt) => setHold((h) => nextHold(h, onTarget, dt)),
+      false
+    );
   }, [onTarget, done]);
 
   useEffect(() => {
