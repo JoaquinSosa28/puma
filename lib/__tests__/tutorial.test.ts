@@ -146,11 +146,14 @@ describe("hold-to-confirm", () => {
 });
 
 describe("knowing when to let someone go", () => {
-  it("needs both the time and the flailing, not either", () => {
-    expect(isFloundering(FLOUNDER_MS, FLOUNDER_KEYS)).toBe(true);
-    // Reading slowly is not floundering.
-    expect(isFloundering(FLOUNDER_MS * 3, 0)).toBe(false);
-    // Neither is typing fast and getting it right.
-    expect(isFloundering(2_000, FLOUNDER_KEYS * 5)).toBe(false);
+  it("takes either signal on its own", () => {
+    // Stuck and silent — the person most likely to need the way out.
+    expect(isFloundering(FLOUNDER_MS, 0)).toBe(true);
+    // Stuck and hammering keys the step never wanted.
+    expect(isFloundering(0, FLOUNDER_KEYS)).toBe(true);
+  });
+
+  it("leaves someone alone while they're still getting on with it", () => {
+    expect(isFloundering(FLOUNDER_MS - 1, FLOUNDER_KEYS - 1)).toBe(false);
   });
 });

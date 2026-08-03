@@ -4,7 +4,7 @@
 // down the side. Both exist so the tour never leaves you wondering what it
 // wants or how much is left — the two things that make a walkthrough feel
 // like a hostage situation.
-import { Check, Hand } from "lucide-react";
+import { Check, Hand, X } from "lucide-react";
 import type { Beat } from "@/lib/tutorial";
 import { cn } from "@/lib/utils";
 
@@ -13,11 +13,16 @@ export function MissionBanner({
   index,
   total,
   cleared,
+  instruction,
 }: {
   beat: Beat;
   index: number;
   total: number;
   cleared: boolean;
+  /** The step's actual ask. It gets the big type — "Type u" is what you need
+   *  to read, and it was being whispered under a caption that never changed
+   *  while the thing being asked for did. */
+  instruction?: string;
 }) {
   const isMission = beat.kind === "do";
   return (
@@ -40,19 +45,19 @@ export function MissionBanner({
         )}
       </div>
 
-      <p className="m-0 text-[20px] font-extrabold leading-tight tracking-tight text-white sm:text-[25px]">
-        {beat.caption}
+      {/* The ask, in the biggest type on screen. The theme sits under it —
+          it's why the step exists, not what to do about it. */}
+      <p className="m-0 text-[24px] font-extrabold leading-tight tracking-tight text-white sm:text-[32px]">
+        {cleared && beat.done ? `✓ ${beat.done}` : instruction ?? beat.caption}
       </p>
 
-      {/* The instruction is replaced by the payoff once the mission lands, so
-          the banner is never telling you to do something you've just done. */}
       <p
         className={cn(
           "m-0 mt-2 text-[13.5px] leading-relaxed transition-colors",
-          cleared ? "font-semibold text-habits" : "text-white/65"
+          cleared ? "font-semibold text-habits" : "text-white/55"
         )}
       >
-        {cleared && beat.done ? `✓ ${beat.done}` : beat.sub}
+        {instruction ? beat.caption : beat.sub}
       </p>
     </div>
   );
@@ -198,5 +203,24 @@ export function FlounderCard({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The way out, once it's been offered and turned down. Someone who said "I've
+ * got this" and then changed their mind shouldn't have to get stuck a second
+ * time to be asked again.
+ */
+export function QuitButton({ onQuit }: { onQuit: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onQuit}
+      aria-label="Leave the tour"
+      title="Leave the tour"
+      className="absolute right-4 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-white/50 transition-colors hover:border-white/50 hover:text-white"
+    >
+      <X className="h-4 w-4" />
+    </button>
   );
 }

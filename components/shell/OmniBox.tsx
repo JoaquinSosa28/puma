@@ -253,13 +253,20 @@ export function OmniBox({
       // intent, and there's nothing to complete the rest of the time.
       const el = inputRef.current;
       if (el && active === el && !e.shiftKey) {
-        const caretNow = el.selectionStart ?? el.value.length;
-        const before = el.value.slice(0, caretNow);
+        const selStart = el.selectionStart ?? el.value.length;
+        const selEnd = el.selectionEnd ?? selStart;
+        // The last press left its guess SELECTED after the caret. Complete
+        // against the text without it — the way typing over a selection
+        // works — or the leftover gets spliced in and "#prime" cycles to
+        // "#pummarime".
+        const value = el.value.slice(0, selStart) + el.value.slice(selEnd);
+        const caretNow = selStart;
+        const before = value.slice(0, caretNow);
         // Tab again on the same token steps to the next option; touching the
         // text at all starts the cycle over from the narrowed set.
         const again = rotateRef.current?.from === before;
         const done = completeOmniToken(
-          el.value,
+          value,
           caretNow,
           [...tags.map((t) => t.name), ...RESERVED_WORDS],
           again ? rotateRef.current!.index + 1 : undefined,
@@ -268,19 +275,38 @@ export function OmniBox({
         if (done) {
           e.preventDefault();
           setText(done.text);
+          // What you actually typed, as opposed to what Tab filled in.
+          const typedWord = again
+            ? rotateRef.current!.base
+            : (tokenAtCaret(value, caretNow)?.word ?? "");
           rotateRef.current = done.exact
             ? null
             : {
-                from: done.text.slice(0, done.caret),
+                // Measured to the end of YOUR text, not the end of the
+                // suggestion — that's where the caret is about to sit, and
+                // it's what the next Tab compares against.
+                from: done.text.slice(
+                  0,
+                  done.caret - (done.completion.length - typedWord.length)
+                ),
                 index: again ? rotateRef.current!.index + 1 : 0,
                 // The partial as first typed — the cycle is over that set, not
                 // over whatever the last press wrote in.
-                base: again
-                  ? rotateRef.current!.base
-                  : (tokenAtCaret(el.value, caretNow)?.word ?? ""),
+                base: typedWord,
               };
           requestAnimationFrame(() => {
-            el.setSelectionRange(done.caret, done.caret);
+            if (done.exact) {
+              el.setSelectionRange(done.caret, done.caret);
+              return;
+            }
+            // Still cycling: leave the caret after what you typed and SELECT
+            // the guessed part, the way a browser address bar does. Type on
+            // and the guess is replaced, so "#p" + "u" narrows to "#pu"
+            // instead of turning into "#primeu" — before this you had to
+            // delete the suggestion to refine it, which made Tab a dead end
+            // unless it guessed right first time.
+            const typedEnd = done.caret - (done.completion.length - typedWord.length);
+            el.setSelectionRange(typedEnd, done.caret);
           });
           return;
         }

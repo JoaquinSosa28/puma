@@ -142,12 +142,18 @@ export function nextHold(hold: number, onTarget: boolean, dtMs: number): number 
 // been open a while AND the keyboard has been getting nowhere, the tour offers
 // the door itself rather than waiting to be forced.
 
-export const FLOUNDER_MS = 20_000;
-export const FLOUNDER_KEYS = 12;
+export const FLOUNDER_MS = 15_000;
+export const FLOUNDER_KEYS = 15;
 
-/** Both, not either: 20s of reading is fine, and 12 keys in a hurry is fine. */
+/**
+ * Either is enough. Fifteen keys that the step wasn't listening for is
+ * someone hunting for the answer; fifteen seconds without moving is someone
+ * who has stopped looking. Requiring both meant the quietly-stuck — reading
+ * the same line over and over, pressing nothing — were never offered the
+ * door, which is exactly the person who needs it.
+ */
 export function isFloundering(msOnBeat: number, strayKeys: number): boolean {
-  return msOnBeat >= FLOUNDER_MS && strayKeys >= FLOUNDER_KEYS;
+  return msOnBeat >= FLOUNDER_MS || strayKeys >= FLOUNDER_KEYS;
 }
 
 // ---------------------------------------------------------------------------

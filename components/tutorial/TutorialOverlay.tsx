@@ -13,6 +13,7 @@ import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
   FlounderCard,
   MissionBanner,
+  QuitButton,
   TutorialChecklist,
 } from "@/components/tutorial/TutorialChrome";
 import {
@@ -42,6 +43,8 @@ export function TutorialOverlay() {
   const [outro, setOutro] = useState(false);
   const [floundering, setFloundering] = useState(false);
   const [dismissedFlounder, setDismissedFlounder] = useState(false);
+  /** The step's own ask, for the banner. Scenes know it; beats don't. */
+  const [instruction, setInstruction] = useState<string | undefined>();
   /** Watch beats only: 0–1 through the current scene. */
   const [p, setP] = useState(0);
   const raf = useRef(0);
@@ -133,7 +136,29 @@ export function TutorialOverlay() {
     beatOpenedAt.current = performance.now();
     strayKeys.current = 0;
     setFloundering(false);
+    // Belt and braces: a beat whose scene forgets to report an ask should
+    // fall back to its own caption rather than shouting the last one's.
+    setInstruction(undefined);
   }, [index]);
+
+  // Progress within a beat counts too: a seven-step mission shouldn't accuse
+  // someone of being stuck while they're moving through it.
+  const noteProgress = useCallback(() => {
+    beatOpenedAt.current = performance.now();
+    strayKeys.current = 0;
+  }, []);
+
+  const noteStray = useCallback(() => {
+    strayKeys.current += 1;
+  }, []);
+
+  const takeInstruction = useCallback(
+    (next: string) => {
+      setInstruction(next);
+      noteProgress();
+    },
+    [noteProgress]
+  );
 
   useEffect(() => {
     if (!playing || finished || dismissedFlounder || !isMission) return;
@@ -223,6 +248,7 @@ export function TutorialOverlay() {
           index={missionNumber}
           total={missionTotal}
           cleared={cleared}
+          instruction={isMission ? instruction : undefined}
         />
 
         <div key={beat.id} className="tutorial-in flex w-full justify-center">
@@ -232,6 +258,9 @@ export function TutorialOverlay() {
             done={cleared}
             onDone={onDone}
             asMission={isMission}
+            onInstruction={takeInstruction}
+            onStray={noteStray}
+            onProgress={noteProgress}
           />
         </div>
       </div>
@@ -251,12 +280,25 @@ export function TutorialOverlay() {
         />
       </div>
 
+      {/* Offered once and turned down: from then on the door stays visible
+          rather than making someone get stuck again to be asked twice. */}
+      {dismissedFlounder && !outro && <QuitButton onQuit={finish} />}
+
       {floundering && !outro && (
         <FlounderCard
           onLeave={finish}
           onStay={() => {
             setFloundering(false);
             setDismissedFlounder(true);
+            noteProgress();
+            // The card had focus; without this you'd have to click the field
+            // before you could type again.
+            window.setTimeout(() => {
+              const field = document.querySelector<HTMLInputElement>(
+                '.z-\\[200\\] input'
+              );
+              field?.focus();
+            }, 60);
           }}
         />
       )}
@@ -270,31 +312,30 @@ function Scene({
   done,
   onDone,
   asMission,
+  onInstruction,
+  onStray,
+  onProgress,
 }: {
   id: (typeof BEATS)[number]["id"];
   p: number;
   done: boolean;
   onDone: () => void;
   asMission: boolean;
+  onInstruction: (text: string) => void;
+  onStray: () => void;
+  onProgress: () => void;
 }) {
+  const shared = { onDone, done, onInstruction, onStray, onProgress };
   switch (id) {
     case "type":
-      return <SceneType onDone={onDone} done={done} />;
+      return <SceneType {...shared} />;
     case "tab":
       // No Tab key on a phone: the beat becomes the pills it maps to.
-      return asMission ? (
-        <SceneTab onDone={onDone} done={done} />
-      ) : (
-        <SceneTabTouch onDone={onDone} done={done} />
-      );
+      return asMission ? <SceneTab {...shared} /> : <SceneTabTouch {...shared} />;
     case "tag":
-      return <SceneTag onDone={onDone} done={done} />;
+      return <SceneTag {...shared} />;
     case "bulk":
-      return asMission ? (
-        <SceneBulk onDone={onDone} done={done} />
-      ) : (
-        <SceneBulkWatch p={p} />
-      );
+      return asMission ? <SceneBulk {...shared} /> : <SceneBulkWatch p={p} />;
     case "assistant":
       return <SceneAssistant p={p} />;
     case "life":

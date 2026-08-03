@@ -37,7 +37,19 @@ const isTouch = () =>
   window.matchMedia?.("(pointer: fine)").matches === false;
 
 /** Missions report completion once; the overlay handles moving on. */
-export type SceneProps = { onDone: () => void; done: boolean };
+export type SceneProps = {
+  onDone: () => void;
+  done: boolean;
+  /** The line to put in the big banner — the ask, not the theme. */
+  onInstruction?: (text: string) => void;
+  /** A keystroke this step wasn't listening for. Enough of them opens the
+   *  door out, so the scene has to say when one happens. */
+  onStray?: () => void;
+  /** A keystroke it WAS listening for. The idle clock measures time since
+   *  anything worked, not time since the step changed — otherwise someone
+   *  typing their way through a long step gets told they're stuck. */
+  onProgress?: () => void;
+};
 
 // ---------------------------------------------------------------------------
 // Shared furniture
@@ -189,15 +201,21 @@ const STEP_ORDER: CaptureStep[] = ["title", "day", "hash", "letter", "rotate", "
 
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
   title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
-  day: { ask: "Add a day.", why: "plain english, wherever you like in the line" },
-  hash: { ask: "Now press #", why: "that's how a tag starts" },
+  day: { ask: "Add a day, then press space.", why: "plain english, anywhere in the line" },
+  hash: { ask: "Press #", why: "that's how a tag starts" },
   letter: { ask: "Type one letter: p", why: "just the one — then stop" },
-  rotate: { ask: "Now press Tab.", why: "three tags start with p — Tab walks them" },
+  rotate: { ask: "Press Tab", why: "three tags start with p — Tab walks them" },
   narrow: { ask: "Type u", why: "more letters, fewer options" },
-  send: { ask: "Press Enter.", why: "one line, fully parsed" },
+  send: { ask: "Press Enter", why: "one line, fully parsed" },
 };
 
-export function SceneType({ onDone, done }: SceneProps) {
+export function SceneType({
+  onDone,
+  done,
+  onInstruction,
+  onStray,
+  onProgress,
+}: SceneProps) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("title");
   const [tabs, setTabs] = useState(0);
@@ -213,11 +231,30 @@ export function SceneType({ onDone, done }: SceneProps) {
   // each edit is judged against the one before it.
   const textRef = useRef("");
   const stepRef = useRef<CaptureStep>("title");
-
-  const commit = useCallback((next: string) => {
-    textRef.current = next;
-    setText(next);
+  // Tab's guess, shown after the caret but not owned by you: typing replaces
+  // it. Without this, Tab was a dead end — "#p" became "#prime" and refining
+  // to "#pu" meant deleting the suggestion first.
+  const [ghost, setGhost] = useState("");
+  const ghostRef = useRef("");
+  const setGuess = useCallback((g: string) => {
+    ghostRef.current = g;
+    setGhost(g);
   }, []);
+
+  const commit = useCallback(
+    (next: string) => {
+      textRef.current = next;
+      setText(next);
+      // Anything the step accepted counts as getting on with it.
+      onProgress?.();
+    },
+    [onProgress]
+  );
+
+  /** Tell the banner what to shout. */
+  useEffect(() => {
+    onInstruction?.(done ? "Captured." : STEP_COPY[step].ask);
+  }, [step, done, onInstruction]);
 
   const goStep = useCallback((next: CaptureStep) => {
     stepRef.current = next;
@@ -226,8 +263,9 @@ export function SceneType({ onDone, done }: SceneProps) {
 
   const reject = useCallback(() => {
     setShake(true);
+    onStray?.();
     window.setTimeout(() => setShake(false), 400);
-  }, []);
+  }, [onStray]);
 
   // The beat is about typing without clicking first, so it had better work
   // without clicking first: any printable key re-takes the field if focus has
@@ -237,13 +275,30 @@ export function SceneType({ onDone, done }: SceneProps) {
     if (done) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key.length !== 1) return;
       if (document.activeElement === inputRef.current) return;
-      // Focus wandered — onto the frame, a chip, the backdrop. Take it back
-      // and replay the keystroke by hand, because focusing during keydown
-      // lands after the browser has already decided where the character goes.
-      // The beat is about typing without clicking first; it had better hold
-      // even when something has quietly stolen the field.
+      // Focus wandered — onto the frame, a chip, the backdrop, a dialog that
+      // has just closed. Take it back and replay the keystroke by hand,
+      // because focusing during keydown lands after the browser has already
+      // decided where the character goes. The beat is about typing without
+      // clicking first; it had better hold even when something has quietly
+      // stolen the field.
+      //
+      // Tab and Enter go through the same door: handling them only on the
+      // input meant the mission silently stopped responding the moment
+      // anything else took focus.
+      if (e.key === "Tab") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        handleTab();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        inputRef.current?.focus();
+        submit();
+        return;
+      }
+      if (e.key.length !== 1) return;
       e.preventDefault();
       inputRef.current?.focus();
       handleChar(e.key);
@@ -313,9 +368,12 @@ export function SceneType({ onDone, done }: SceneProps) {
         return;
       }
       case "day": {
-        const next = current + ch;
-        commit(next);
-        if (daySettled(next)) goStep("hash");
+        // A finished day word wants the space that ends it — the same
+        // keystroke Tab-completion would have added for you. Any OTHER space
+        // is just a space: people write "pay rent on friday", and refusing
+        // the gaps between their own words is not a lesson about days.
+        commit(current + ch);
+        if (ch === " " && daySettled(current)) goStep("hash");
         return;
       }
       case "hash": {
@@ -336,16 +394,25 @@ export function SceneType({ onDone, done }: SceneProps) {
         return reject();
       case "narrow": {
         if (ch.toLowerCase() !== "u") return reject();
+        // Your character replaces Tab's guess, exactly as it does in the bar.
+        setGuess("");
         commit(current + "u");
         rotateRef.current = null;
         return;
       }
       case "send":
+        // Only Enter from here. Another character would edit a line the tour
+        // has already declared finished.
         return reject();
     }
   }
 
   /** Tab: the same completion the real bar runs, rotation and all. */
+  /** The part of the current #token that the user actually typed. */
+  function typedWord(value: string): string {
+    return value.match(/#([a-z0-9-]*)$/i)?.[1] ?? "";
+  }
+
   function handleTab() {
     const st = stepRef.current;
     if (st !== "rotate" && st !== "narrow") return reject();
@@ -361,23 +428,36 @@ export function SceneType({ onDone, done }: SceneProps) {
     );
     if (!result) return reject();
 
-    commit(result.text);
+    // Your text stays yours; the guess lives beside it. On an exact match
+    // there's nothing left to guess, so it's written out for real.
+    if (result.exact) {
+      setGuess("");
+      commit(result.text);
+    } else {
+      setGuess(result.completion.slice(typedWord(value).length));
+    }
+    // Keyed on the text as it stands, not on what the completion would make
+    // it: the guess lives beside the field rather than in it, so the value is
+    // unchanged and a second Tab has to recognise itself as the same cycle —
+    // otherwise every press starts over and lands on the first candidate
+    // again, which looks exactly like Tab being broken.
     rotateRef.current = result.exact
       ? null
       : {
-          from: result.text.slice(0, result.caret),
+          from: value,
           index: again ? rotateRef.current!.index + 1 : 0,
           base: again ? rotateRef.current!.base : tokenAtCaret(value, caret)?.word ?? "",
         };
 
     const seen = tabs + 1;
     setTabs(seen);
+    onProgress?.();
 
     if (st === "rotate") {
-      // Two presses is enough to see it move; then the better trick.
+      // Two presses is enough to see it move; then the better trick. Your
+      // text is already just "#p" — only the guess beside it was changing.
       if (seen >= 2) {
         window.setTimeout(() => {
-          commit(textRef.current.replace(/#[a-z0-9-]*$/i, "#p"));
           rotateRef.current = null;
           goStep("narrow");
         }, 600);
@@ -390,7 +470,8 @@ export function SceneType({ onDone, done }: SceneProps) {
 
   const submit = () => {
     if (stepRef.current !== "send") return reject();
-    setCaptured(textRef.current.trim());
+    setCaptured((textRef.current + ghostRef.current).trim());
+    setGuess("");
     commit("");
     onDone();
   };
@@ -428,6 +509,16 @@ export function SceneType({ onDone, done }: SceneProps) {
           <div className="pointer-events-none flex items-center truncate whitespace-pre text-[15px] font-medium text-ink">
             {text ? tokenise(text) : <span className="text-faint2">start typing…</span>}
             {!done && <Caret />}
+            {/* Tab's guess: after the caret, dimmed, and not yours until you
+                take it. Type instead and it's gone. */}
+            {ghost && (
+              <span
+                className="shrink-0 rounded-[3px] font-mono text-[13px]"
+                style={{ color: FINANCE_AMBER, background: "oklch(0.7 0.12 70 / 0.22)" }}
+              >
+                {ghost}
+              </span>
+            )}
             {/* The drifting hint, parked at the caret. */}
             {step === "day" && (
               <span
@@ -472,15 +563,20 @@ export function SceneType({ onDone, done }: SceneProps) {
 
       {/* The Tab prompt only exists while Tab is the answer. */}
       {(step === "rotate" || step === "narrow") && !done ? (
-        <div className="mt-3 flex items-center justify-center gap-2.5">
-          <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
-            <KeyCap label="⇥ Tab" pressed={tabs} wide big />
-          </span>
-          <span className="font-mono text-[10.5px] text-faint">
-            {step === "rotate"
-              ? `${DEMO_TAGS.length} tags start with p — press again`
-              : "one match now — Tab lands it"}
-          </span>
+        <div className="mt-3 flex flex-col items-center gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
+              <KeyCap label="⇥ Tab" pressed={tabs} wide big />
+            </span>
+            <span className="font-mono text-[10.5px] text-faint">
+              {step === "rotate"
+                ? `${DEMO_TAGS.length} tags start with p — press again`
+                : "one match now — Tab lands it"}
+            </span>
+          </div>
+          <p className="m-0 font-mono text-[9.5px] text-faint2">
+            shift + Tab goes back
+          </p>
         </div>
       ) : (
         <p className="m-0 mt-3 text-center font-mono text-[10.5px] text-faint">
@@ -580,7 +676,12 @@ function KeyCap({
  * fills. Arriving proves a key works; staying proves you read the label — and
  * because the meter drains faster than it fills, Tab cannot be mashed through.
  */
-export function SceneTab({ onDone, done }: SceneProps) {
+export function SceneTab({
+  onDone,
+  done,
+  onInstruction,
+  onProgress,
+}: SceneProps) {
   const [i, setI] = useState(0);
   const [presses, setPresses] = useState(0);
   const [hold, setHold] = useState(0);
@@ -593,11 +694,12 @@ export function SceneTab({ onDone, done }: SceneProps) {
       if (e.key !== "Tab") return;
       e.preventDefault();
       setPresses((n) => n + 1);
+      onProgress?.();
       setI((prev) => (prev + (e.shiftKey ? -1 : 1) + TYPES.length) % TYPES.length);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [done]);
+  }, [done, onProgress]);
 
   // The meter. Runs continuously so leaving drains it, rather than only
   // ticking while you happen to be in the right place.
@@ -623,18 +725,20 @@ export function SceneTab({ onDone, done }: SceneProps) {
 
   const current = TYPES[i];
 
+  useEffect(() => {
+    onInstruction?.(done ? "Locked in" : onTarget ? "Hold it there" : "Press Tab");
+  }, [onTarget, done, onInstruction]);
+
   return (
     <Frame glow={!done}>
-      {/* The instruction, as the key itself. Nobody reads "press Tab"; they
-          look at a picture of the key. */}
+      {/* The instruction, as the key itself — nobody reads "press Tab", they
+          look at a picture of the key. One key, on its own. Showing "⇧ shift + ⇥ Tab" side by side read as
+          a chord you had to press together — shift is only the way back, so
+          it says so underneath in small type. */}
       <div className="mb-4 flex flex-col items-center gap-2">
-        <div className="flex items-center gap-2">
-          <KeyCap label="⇧ shift" pressed={presses} />
-          <span className="font-mono text-[11px] text-faint2">+</span>
-          <span className={cn(!presses && "tutorial-nudge-soft")}>
-            <KeyCap label="⇥ Tab" pressed={presses} wide big />
-          </span>
-        </div>
+        <span className={cn(!presses && "tutorial-nudge-soft")}>
+          <KeyCap label="⇥ Tab" pressed={presses} wide big />
+        </span>
         <p className="m-0 text-center font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
           {presses === 0
             ? "press Tab"
@@ -644,6 +748,9 @@ export function SceneTab({ onDone, done }: SceneProps) {
           {presses > 0 && (
             <span className="ml-2 tabular-nums text-faint2">×{presses}</span>
           )}
+        </p>
+        <p className="m-0 font-mono text-[9.5px] text-faint2">
+          shift + Tab goes back
         </p>
       </div>
 
@@ -713,7 +820,12 @@ export function SceneTab({ onDone, done }: SceneProps) {
  * nobody has would be teaching a shortcut that doesn't exist on the device
  * it's being taught on.
  */
-export function SceneTabTouch({ onDone, done }: SceneProps) {
+export function SceneTabTouch({
+  onDone,
+  done,
+  onInstruction,
+  onProgress,
+}: SceneProps) {
   const [i, setI] = useState(0);
   const reported = useRef(false);
   const onTarget = i === TAB_TARGET;
@@ -726,6 +838,11 @@ export function SceneTabTouch({ onDone, done }: SceneProps) {
   }, [onTarget, done, onDone]);
 
   const current = TYPES[i];
+
+  useEffect(() => {
+    onInstruction?.(done ? "Locked in" : "Tap goal");
+  }, [done, onInstruction]);
+
   return (
     <Frame glow={!done}>
       <p className="m-0 mb-3 text-center font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
@@ -755,7 +872,10 @@ export function SceneTabTouch({ onDone, done }: SceneProps) {
             key={t.label}
             type="button"
             disabled={done}
-            onClick={() => setI(idx)}
+            onClick={() => {
+              onProgress?.();
+              setI(idx);
+            }}
             className={cn(
               "rounded-lg border px-3 py-1.5 font-mono text-[11.5px] transition-all duration-300 active:scale-95",
               idx === i
@@ -790,27 +910,108 @@ const TAG_OPTIONS = [
  * a sentence; a cursor arriving at the row and flashing its right button is
  * the thing itself, and it needs no translating.
  */
+/** Where in the 4s loop the button goes down — the ring and the sound both
+ *  land here, or the click is seen and heard at two different moments. */
+const CLICK_AT_MS = 0.38 * 4000;
+
+/**
+ * The click itself. Synthesised rather than fetched: it's six milliseconds of
+ * envelope and doesn't deserve a network request or a file in the repo.
+ *
+ * Silent for anyone who has asked for less motion — that preference is about
+ * being left alone, and a ticking cursor is exactly the sort of thing it
+ * means. The tour is always entered by pressing a button, so the audio context
+ * has its gesture by the time this runs.
+ */
+function useClickTick(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    type WithLegacy = typeof window & { webkitAudioContext?: typeof AudioContext };
+    const Ctor = window.AudioContext ?? (window as WithLegacy).webkitAudioContext;
+    if (!Ctor) return;
+    let ctx: AudioContext | null = null;
+
+    const tick = () => {
+      try {
+        ctx ??= new Ctor();
+        if (ctx.state === "suspended") void ctx.resume();
+        const now = ctx.currentTime;
+        // A short burst through a high-pass reads as a mouse button; a tone
+        // reads as a notification, which is not what this is.
+        const noise = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.02), ctx.sampleRate);
+        const data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) {
+          data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 6;
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = noise;
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 1800;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+        src.connect(hp).connect(gain).connect(ctx.destination);
+        src.start(now);
+      } catch {
+        // Audio is decoration here. A blocked or exhausted context is not a
+        // reason for the tour to stop working.
+      }
+    };
+
+    const first = window.setTimeout(tick, CLICK_AT_MS);
+    const every = window.setInterval(tick, 4000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(every);
+      void ctx?.close();
+    };
+  }, [active]);
+}
+
 function GhostCursor({ label }: { label: string }) {
+  useClickTick(true);
   return (
-    <span className="tutorial-cursor pointer-events-none absolute -right-1 top-1/2 z-20 flex items-center gap-1.5">
-      <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden>
-        <path
-          d="M2 1.5 L2 17 L6 13.4 L8.8 19.6 L11.6 18.3 L8.8 12.2 L14 12.2 Z"
-          fill="var(--ink)"
-          stroke="var(--background)"
-          strokeWidth="1.3"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <span className="tutorial-cursor-ring absolute -left-1 -top-1 h-5 w-5 rounded-full border-2 border-primary" />
-      <span className="whitespace-nowrap rounded-md bg-ink px-1.5 py-0.5 font-mono text-[9px] font-bold text-background">
-        {label}
+    // One slow pass: glide in, settle, click, let the label bloom and fade,
+    // glide out, wait. The whole cycle is deliberately unhurried — a cursor
+    // that snaps about reads as a glitch, and one that clicks every second
+    // reads as nagging.
+    <span className="tutorial-cursor pointer-events-none absolute left-[38%] top-1/2 z-20">
+      <span className="relative block">
+        <svg width="20" height="25" viewBox="0 0 18 22" aria-hidden className="block drop-shadow-sm">
+          <path
+            d="M2 1.5 L2 17 L6 13.4 L8.8 19.6 L11.6 18.3 L8.8 12.2 L14 12.2 Z"
+            fill="var(--ink)"
+            stroke="var(--background)"
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+          {/* The right button, lighting up at the moment of the press. */}
+          <path
+            className="tutorial-cursor-btn"
+            d="M8.6 1.9 L12.6 1.9 L12.6 6.4 L8.6 6.4 Z"
+            fill="var(--primary)"
+            opacity="0"
+          />
+        </svg>
+        {/* The click: one ring, out and gone. */}
+        <span className="tutorial-cursor-ring absolute left-0 top-0 h-6 w-6 rounded-full border-2 border-primary" />
+        {/* …and the word for it, drifting up as it fades. */}
+        <span className="tutorial-cursor-label absolute left-5 top-3 whitespace-nowrap rounded-md bg-ink px-2 py-1 font-mono text-[10px] font-bold text-background">
+          ✳ {label}
+        </span>
       </span>
     </span>
   );
 }
 
-export function SceneTag({ onDone, done }: SceneProps) {
+export function SceneTag({
+  onDone,
+  done,
+  onInstruction,
+  onProgress,
+}: SceneProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [picked, setPicked] = useState(false);
   const pressTimer = useRef(0);
@@ -824,6 +1025,7 @@ export function SceneTag({ onDone, done }: SceneProps) {
   );
 
   const choose = (project: boolean) => {
+    onProgress?.();
     setMenu(null);
     // The other tag is a label, not a place — picking it files nothing, which
     // is the distinction this beat is about.
@@ -833,6 +1035,18 @@ export function SceneTag({ onDone, done }: SceneProps) {
   };
 
   const landed = picked || done;
+
+  useEffect(() => {
+    onInstruction?.(
+      landed
+        ? "Filed"
+        : menu
+          ? "Pick website-redesign"
+          : isTouch()
+            ? "Long-press the task"
+            : "Right-click the task"
+    );
+  }, [menu, landed, onInstruction]);
 
   return (
     <Frame glow={!done}>
@@ -1089,7 +1303,13 @@ function BulkRow({
  * success and teaches nothing. One gesture, forced, shown before it's asked
  * for: hovering draws the range you're about to take.
  */
-export function SceneBulk({ onDone, done }: SceneProps) {
+export function SceneBulk({
+  onDone,
+  done,
+  onInstruction,
+  onStray,
+  onProgress,
+}: SceneProps) {
   const order = useMemo(() => BULK_ROWS.map((_, i) => `r${i}`), []);
   // Row 0 is handed to you — the mission is the second half of the gesture.
   const [sel, setSel] = useState<SelectionState>({ ids: ["r0"], anchor: "r0" });
@@ -1112,15 +1332,21 @@ export function SceneBulk({ onDone, done }: SceneProps) {
     // quietly undo the half of the gesture the tour set up.
     if (!e.shiftKey || index === 0) {
       setWrongClick(true);
+      onStray?.();
       window.setTimeout(() => setWrongClick(false), 450);
       return;
     }
+    onProgress?.();
     window.getSelection?.()?.removeAllRanges();
     setSel((s) => reduceSelection(s, order, order[index], "range"));
   };
 
   // What a shift-click right now would take — drawn before it's committed.
   const preview = hover !== null && hover > 0 && !applied ? hover : null;
+
+  useEffect(() => {
+    onInstruction?.(applied || done ? "Four in one click" : "Shift-click a row below");
+  }, [applied, done, onInstruction]);
 
   return (
     <Frame glow={!done}>
@@ -1200,20 +1426,24 @@ function RangeArrow({ rows }: { rows: number }) {
   // Rows are a fixed height with a fixed gap, so the geometry is arithmetic
   // rather than a measurement — no observers, no reflow, no lag behind the
   // pointer.
+  //
+  // Down the middle rather than the edge, dashed and half-transparent: it's a
+  // sketch of a range you haven't taken yet, and a solid line at the margin
+  // looked like a permanent part of the list.
   const ROW = 44;
   const GAP = 6;
   const top = ROW / 2;
   const height = rows * (ROW + GAP);
   return (
     <svg
-      className="pointer-events-none absolute -left-1 top-0 z-10 overflow-visible"
+      className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 overflow-visible"
       width="18"
       height={top + height}
       aria-hidden
     >
       <defs>
         <marker id="tut-arrow" markerWidth="7" markerHeight="7" refX="3.5" refY="3.5" orient="auto">
-          <path d="M0,0 L7,3.5 L0,7 z" fill="var(--primary)" />
+          <path d="M0,0 L7,3.5 L0,7 z" fill="var(--primary)" opacity="0.55" />
         </marker>
       </defs>
       <line
@@ -1223,7 +1453,9 @@ function RangeArrow({ rows }: { rows: number }) {
         y2={top + height - 9}
         stroke="var(--primary)"
         strokeWidth="2"
+        strokeDasharray="5 5"
         strokeLinecap="round"
+        opacity="0.55"
         markerEnd="url(#tut-arrow)"
         className="tutorial-arrow"
       />
