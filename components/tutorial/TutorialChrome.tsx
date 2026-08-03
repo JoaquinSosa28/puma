@@ -190,16 +190,12 @@ export function FlounderCard({
         <h2 className="m-0 mt-2 text-[19px] font-extrabold leading-tight tracking-tight text-ink">
           Not the brightest candle in the drawer.
         </h2>
-        <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          The tour was going to end eventually anyway — go and press things
-          until it makes sense, that works too.
-        </p>
-
         {/* Borrowed from the loudest man alive, because a four-beat tutorial
             defeating you is exactly the sort of small suffering he means. */}
         <blockquote className="m-0 mt-3 border-l-2 border-ink/20 pl-3">
           <p className="m-0 text-[12.5px] font-semibold italic leading-relaxed text-ink">
-            &ldquo;Suffering is the true test of life.&rdquo;
+            &ldquo;When you think that you are done, you&rsquo;re only 40% in to
+            what your body&rsquo;s capable of doing.&rdquo;
           </p>
           <p className="m-0 mt-0.5 font-mono text-[10px] text-faint">
             — David Goggins, about something harder than this
