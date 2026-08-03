@@ -798,3 +798,29 @@ html {
 .tutorial-arrow {
   animation: tutorialArrow 0.14s ease-out;
 }
+
+/* A cursor that mimes the gesture on a loop: drift in, click, pause, repeat.
+   Faster to understand than the sentence describing it. */
+@keyframes tutorialCursor {
+  0%, 12% { transform: translate(14px, -2px); opacity: 0; }
+  22% { transform: translate(0, 0); opacity: 1; }
+  38%, 46% { transform: translate(0, 2px); opacity: 1; }
+  85% { transform: translate(0, 0); opacity: 1; }
+  100% { transform: translate(14px, -2px); opacity: 0; }
+}
+
+.tutorial-cursor {
+  animation: tutorialCursor 2.6s ease-in-out infinite;
+}
+
+/* The click itself: a ring that snaps out at the moment of the press. */
+@keyframes tutorialCursorRing {
+  0%, 34% { transform: scale(0.3); opacity: 0; }
+  40% { transform: scale(0.5); opacity: 0.9; }
+  62% { transform: scale(1.5); opacity: 0; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+
+.tutorial-cursor-ring {
+  animation: tutorialCursorRing 2.6s ease-out infinite;
+}

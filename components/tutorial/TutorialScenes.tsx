@@ -10,12 +10,12 @@
 // server — it's the muscle memory that has to transfer, not the data.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MousePointerClick, Sparkles, Tag as TagIcon } from "lucide-react";
-import { checkCapture, nextHold, typedChars } from "@/lib/tutorial";
+import { nextHold, typedChars } from "@/lib/tutorial";
+import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import {
   reduceSelection,
   type SelectionState,
 } from "@/lib/task-selection";
-import { TokenChecks } from "@/components/tutorial/TutorialChrome";
 import { cn } from "@/lib/utils";
 
 const TASK_RED = "oklch(0.64 0.18 25)";
@@ -30,6 +30,11 @@ const ease = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 /** A window inside a beat, normalised to 0–1. */
 const phase = (p: number, from: number, to: number) =>
   Math.min(1, Math.max(0, (p - from) / (to - from)));
+
+/** No right mouse button on a phone, so the mime has to change with it. */
+const isTouch = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(pointer: fine)").matches === false;
 
 /** Missions report completion once; the overlay handles moving on. */
 export type SceneProps = { onDone: () => void; done: boolean };
@@ -70,6 +75,9 @@ function Caret() {
 
 const DAY_RE =
   /^(today|tonight|tomorrow|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i;
+/** The same words, findable anywhere in a line rather than anchored. */
+const DAY_RE_G =
+  /\b(today|tonight|tomorrow|mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi;
 
 /** Colour the bits the parser treats specially — the point of the first beat. */
 function tokenise(text: string) {
@@ -135,38 +143,270 @@ function Row({
 // ---------------------------------------------------------------------------
 // 1 — type anywhere · MISSION
 //
-// A real input, focused on arrival, parsing the same three tokens the real bar
-// does. Typing "pay rent friday #finance" here is the same motion as typing it
-// for real tomorrow.
+// Step-locked rather than open. "Write a task with a day and a tag" leaves
+// three things to guess at once and a blank box to guess them in; each step
+// here asks for exactly one keystroke's worth of idea, refuses the others, and
+// says why. The tag step teaches the thing nobody finds on their own: a
+// half-typed #tag completes on Tab, and rotates while more than one matches.
+//
+// The rotation runs through the app's own completeOmniToken, so what the tour
+// teaches and what the bar does can't drift apart.
+
+/** The sandbox's tags. Three match "p", exactly one matches "pu" — which is
+ *  the whole lesson: more letters, fewer options, one Tab. */
+const DEMO_TAGS = ["prime", "pumma", "personal"];
+
+const DAY_SUGGESTIONS = ["friday", "tomorrow", "monday"];
+
+/** Every day word the parser knows, for the "is this word finished?" check. */
+const DAY_WORD_LIST = [
+  "today", "tonight", "tomorrow",
+  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+];
+
+/**
+ * A finished day word: one the parser accepts that no longer one starts with.
+ *
+ * "fri" is a valid token, so matching on any-day-word snatched the step away
+ * mid-"friday" and then rejected the "day" still being typed. Waiting until
+ * the word can't grow lets people finish the word they're writing.
+ */
+function daySettled(text: string): boolean {
+  const word = (text.match(/[a-z]+$/i)?.[0] ?? "").toLowerCase();
+  if (!word) {
+    // A space or punctuation just ended whatever came before it.
+    const prev = (text.trimEnd().match(/[a-z]+$/i)?.[0] ?? "").toLowerCase();
+    return DAY_WORD_LIST.includes(prev);
+  }
+  if (!DAY_WORD_LIST.includes(word)) return false;
+  return !DAY_WORD_LIST.some((d) => d.length > word.length && d.startsWith(word));
+}
+
+type CaptureStep = "title" | "day" | "hash" | "letter" | "rotate" | "narrow" | "send";
+
+const STEP_ORDER: CaptureStep[] = ["title", "day", "hash", "letter", "rotate", "narrow", "send"];
+
+const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
+  title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
+  day: { ask: "Add a day.", why: "plain english, wherever you like in the line" },
+  hash: { ask: "Now press #", why: "that's how a tag starts" },
+  letter: { ask: "Type one letter: p", why: "just the one — then stop" },
+  rotate: { ask: "Now press Tab.", why: "three tags start with p — Tab walks them" },
+  narrow: { ask: "Type u", why: "more letters, fewer options" },
+  send: { ask: "Press Enter.", why: "one line, fully parsed" },
+};
 
 export function SceneType({ onDone, done }: SceneProps) {
   const [text, setText] = useState("");
-  const [captured, setCaptured] = useState<string | null>(null);
+  const [step, setStep] = useState<CaptureStep>("title");
+  const [tabs, setTabs] = useState(0);
   const [shake, setShake] = useState(false);
+  const [captured, setCaptured] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const checks = checkCapture(text);
+  const rotateRef = useRef<{ from: string; index: number; base: string } | null>(null);
+  // Typing arrives faster than React re-renders: paste, dictation and anyone
+  // typing quickly deliver several changes in a single tick, and a handler
+  // reading `text` from its render closure sees the same stale value for all
+  // of them — so only the last character survives. These mirror the state so
+  // each edit is judged against the one before it.
+  const textRef = useRef("");
+  const stepRef = useRef<CaptureStep>("title");
 
-  useEffect(() => {
-    inputRef.current?.focus();
+  const commit = useCallback((next: string) => {
+    textRef.current = next;
+    setText(next);
   }, []);
 
-  const submit = () => {
-    if (!checks.ok) {
-      // Refusing silently would read as a broken tutorial; the chips below
-      // already say which of the three parts is missing.
-      setShake(true);
-      window.setTimeout(() => setShake(false), 400);
+  const goStep = useCallback((next: CaptureStep) => {
+    stepRef.current = next;
+    setStep(next);
+  }, []);
+
+  const reject = useCallback(() => {
+    setShake(true);
+    window.setTimeout(() => setShake(false), 400);
+  }, []);
+
+  // The beat is about typing without clicking first, so it had better work
+  // without clicking first: any printable key re-takes the field if focus has
+  // wandered — onto the frame, a chip, anywhere.
+  useEffect(() => {
+    inputRef.current?.focus();
+    if (done) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.length !== 1) return;
+      if (document.activeElement === inputRef.current) return;
+      // Focus wandered — onto the frame, a chip, the backdrop. Take it back
+      // and replay the keystroke by hand, because focusing during keydown
+      // lands after the browser has already decided where the character goes.
+      // The beat is about typing without clicking first; it had better hold
+      // even when something has quietly stolen the field.
+      e.preventDefault();
+      inputRef.current?.focus();
+      handleChar(e.key);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, step, text, tabs]);
+
+  // The day suggestion drifts through a few options rather than naming one, so
+  // it reads as "words like these" instead of "type this exact word".
+  useEffect(() => {
+    if (step !== "day") return;
+    const id = window.setInterval(
+      () => setSuggestion((n) => (n + 1) % DAY_SUGGESTIONS.length),
+      1600
+    );
+    return () => window.clearInterval(id);
+  }, [step]);
+
+  const titleOf = (v: string) =>
+    v
+      .replace(/#[a-z0-9-]*/gi, " ")
+      // A fresh regex per call: a shared /g one carries lastIndex between
+      // calls and starts skipping matches.
+      .replace(new RegExp(DAY_RE_G.source, "gi"), " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  /**
+   * The value the field now holds, reduced to the one edit that made it — so
+   * a step can accept or refuse that edit. A paste of ten characters is taken
+   * as its first, which keeps the lesson to one keystroke at a time without
+   * having to forbid pasting outright.
+   */
+  function handleValue(next: string) {
+    if (done) return;
+    const current = textRef.current;
+    if (next.length < current.length) {
+      // Backspace, only within the step you're on: rubbing out a finished
+      // step would leave the lesson and the text disagreeing.
+      const st = stepRef.current;
+      if (st === "title" || st === "day") commit(next);
       return;
     }
-    setCaptured(text);
-    setText("");
+    if (next.length === current.length) return;
+    if (!next.startsWith(current)) return reject();
+    // One character at a time, even from a paste — the step machine judges
+    // keystrokes, and ten at once is ten decisions it never got to make.
+    for (const ch of next.slice(current.length)) handleChar(ch);
+  }
+
+  /** One character, judged against the step we're on. */
+  function handleChar(ch: string) {
+    if (done) return;
+    const current = textRef.current;
+    switch (stepRef.current) {
+      case "title": {
+        // A space is how you finish a word — and how this step ends, once
+        // there's actually something there.
+        if (ch === " " && titleOf(current).length >= 3) {
+          commit(current + " ");
+          goStep("day");
+          return;
+        }
+        commit(current + ch);
+        return;
+      }
+      case "day": {
+        const next = current + ch;
+        commit(next);
+        if (daySettled(next)) goStep("hash");
+        return;
+      }
+      case "hash": {
+        if (ch !== "#") return reject();
+        commit((current.endsWith(" ") ? current : current + " ") + "#");
+        goStep("letter");
+        return;
+      }
+      case "letter": {
+        if (ch.toLowerCase() !== "p") return reject();
+        commit(current + "p");
+        goStep("rotate");
+        return;
+      }
+      case "rotate":
+        // Typing more would work in real life, but then nobody would ever see
+        // the rotation — which is the only reason this beat exists.
+        return reject();
+      case "narrow": {
+        if (ch.toLowerCase() !== "u") return reject();
+        commit(current + "u");
+        rotateRef.current = null;
+        return;
+      }
+      case "send":
+        return reject();
+    }
+  }
+
+  /** Tab: the same completion the real bar runs, rotation and all. */
+  function handleTab() {
+    const st = stepRef.current;
+    if (st !== "rotate" && st !== "narrow") return reject();
+    const value = textRef.current;
+    const caret = value.length;
+    const again = rotateRef.current?.from === value;
+    const result = completeOmniToken(
+      value,
+      caret,
+      DEMO_TAGS,
+      again ? rotateRef.current!.index + 1 : undefined,
+      again ? rotateRef.current!.base : undefined
+    );
+    if (!result) return reject();
+
+    commit(result.text);
+    rotateRef.current = result.exact
+      ? null
+      : {
+          from: result.text.slice(0, result.caret),
+          index: again ? rotateRef.current!.index + 1 : 0,
+          base: again ? rotateRef.current!.base : tokenAtCaret(value, caret)?.word ?? "",
+        };
+
+    const seen = tabs + 1;
+    setTabs(seen);
+
+    if (st === "rotate") {
+      // Two presses is enough to see it move; then the better trick.
+      if (seen >= 2) {
+        window.setTimeout(() => {
+          commit(textRef.current.replace(/#[a-z0-9-]*$/i, "#p"));
+          rotateRef.current = null;
+          goStep("narrow");
+        }, 600);
+      }
+      return;
+    }
+    // narrow: one candidate left, so that Tab settled it.
+    if (result.exact) window.setTimeout(() => goStep("send"), 260);
+  }
+
+  const submit = () => {
+    if (stepRef.current !== "send") return reject();
+    setCaptured(textRef.current.trim());
+    commit("");
     onDone();
   };
 
+  const copy = STEP_COPY[step];
+  const stepNumber = STEP_ORDER.indexOf(step) + 1;
+
   return (
     <Frame glow={!done}>
-      <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-faint2">
-        no field focused — it just goes in
+      <div className="mb-3 flex items-baseline gap-2">
+        <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-background">
+          Step {stepNumber}/{STEP_ORDER.length}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-ink">
+          {done ? "Captured." : copy.ask}
+        </span>
       </div>
 
       <div
@@ -182,18 +422,37 @@ export function SceneType({ onDone, done }: SceneProps) {
         >
           task
         </span>
-        {/* The real value lives in a transparent input laid over the coloured
-            copy of it, so tokens can light up while you're typing them. */}
         <div className="relative min-w-0 flex-1">
-          <div className="pointer-events-none truncate text-[15px] font-medium text-ink">
-            {text ? tokenise(text) : <span className="text-faint2">pay rent friday #finance</span>}
+          {/* whitespace-pre, or HTML eats the spaces between the tokens and
+              "pay rent" is shown back as "payrent". */}
+          <div className="pointer-events-none flex items-center truncate whitespace-pre text-[15px] font-medium text-ink">
+            {text ? tokenise(text) : <span className="text-faint2">start typing…</span>}
             {!done && <Caret />}
+            {/* The drifting hint, parked at the caret. */}
+            {step === "day" && (
+              <span
+                key={suggestion}
+                className="tutorial-in ml-1 shrink-0 font-medium text-faint2"
+              >
+                {DAY_SUGGESTIONS[suggestion]}?
+              </span>
+            )}
           </div>
           <input
             ref={inputRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            // Text comes from the VALUE changing, not from keydown. A phone
+            // keyboard, an IME, dictation and paste all change the value
+            // without ever reporting a key — reading keydown looks fine on a
+            // laptop and silently ignores half the ways people type.
+            onChange={(e) => handleValue(e.target.value)}
             onKeyDown={(e) => {
+              // These two produce no text, so they can only be seen here.
+              if (e.key === "Tab") {
+                e.preventDefault();
+                handleTab();
+                return;
+              }
               if (e.key === "Enter") {
                 e.preventDefault();
                 submit();
@@ -204,23 +463,35 @@ export function SceneType({ onDone, done }: SceneProps) {
             className="absolute inset-0 w-full bg-transparent text-[15px] font-medium text-transparent caret-transparent outline-none"
           />
         </div>
-        <kbd className="shrink-0 rounded border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-faint">
-          ↵
-        </kbd>
+        {step === "send" && (
+          <kbd className="tutorial-nudge-soft shrink-0 rounded border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-ink">
+            ↵
+          </kbd>
+        )}
       </div>
 
-      <TokenChecks
-        checks={[
-          { label: "a title", ok: checks.hasTitle },
-          { label: "a day", ok: checks.hasDay },
-          { label: "a #tag", ok: checks.hasTag },
-        ]}
-      />
+      {/* The Tab prompt only exists while Tab is the answer. */}
+      {(step === "rotate" || step === "narrow") && !done ? (
+        <div className="mt-3 flex items-center justify-center gap-2.5">
+          <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
+            <KeyCap label="⇥ Tab" pressed={tabs} wide big />
+          </span>
+          <span className="font-mono text-[10.5px] text-faint">
+            {step === "rotate"
+              ? `${DEMO_TAGS.length} tags start with p — press again`
+              : "one match now — Tab lands it"}
+          </span>
+        </div>
+      ) : (
+        <p className="m-0 mt-3 text-center font-mono text-[10.5px] text-faint">
+          {shake ? "not that one — read the step" : copy.why}
+        </p>
+      )}
 
       <div className="mt-3 min-h-[46px]">
         {captured && (
           <Row
-            title={captured.replace(/#[a-z0-9-]+/gi, "").replace(/\s+/g, " ").trim()}
+            title={titleOf(captured)}
             accent={TASK_RED}
             className="tutorial-in"
           >
@@ -514,6 +785,31 @@ const TAG_OPTIONS = [
   { name: "health", color: HABIT_GREEN, project: false },
 ];
 
+/**
+ * Mimes the gesture on a loop until it's performed. "Right-click the task" is
+ * a sentence; a cursor arriving at the row and flashing its right button is
+ * the thing itself, and it needs no translating.
+ */
+function GhostCursor({ label }: { label: string }) {
+  return (
+    <span className="tutorial-cursor pointer-events-none absolute -right-1 top-1/2 z-20 flex items-center gap-1.5">
+      <svg width="18" height="22" viewBox="0 0 18 22" aria-hidden>
+        <path
+          d="M2 1.5 L2 17 L6 13.4 L8.8 19.6 L11.6 18.3 L8.8 12.2 L14 12.2 Z"
+          fill="var(--ink)"
+          stroke="var(--background)"
+          strokeWidth="1.3"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className="tutorial-cursor-ring absolute -left-1 -top-1 h-5 w-5 rounded-full border-2 border-primary" />
+      <span className="whitespace-nowrap rounded-md bg-ink px-1.5 py-0.5 font-mono text-[9px] font-bold text-background">
+        {label}
+      </span>
+    </span>
+  );
+}
+
 export function SceneTag({ onDone, done }: SceneProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [picked, setPicked] = useState(false);
@@ -553,7 +849,10 @@ export function SceneTag({ onDone, done }: SceneProps) {
             <Row
               title="Build hero section"
               accent={TASK_RED}
-              className={cn("cursor-context-menu select-none", !done && "tutorial-nudge")}
+              className={cn(
+                "relative cursor-context-menu select-none",
+                !done && "tutorial-nudge"
+              )}
               onContextMenu={(e) => {
                 e.preventDefault();
                 open(e.clientX, e.clientY);
@@ -566,6 +865,9 @@ export function SceneTag({ onDone, done }: SceneProps) {
               onTouchMove={() => window.clearTimeout(pressTimer.current)}
             >
               <span className="h-4 w-4 shrink-0 rounded-[5px] border-[1.8px] border-border" />
+              {!menu && (
+                <GhostCursor label={isTouch() ? "long-press" : "right-click"} />
+              )}
             </Row>
           )}
         </div>
