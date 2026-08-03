@@ -82,7 +82,11 @@ function Frame({
 
 function Caret() {
   return (
-    <span className="ml-px inline-block h-[15px] w-[2px] translate-y-[3px] animate-pulse bg-ink" />
+    // Sized in em and left to the row's own vertical centring. The old fixed
+    // 15px height, 3px nudge down and 1px left margin were three guesses that
+    // only lined up at one font size, and the caret sat visibly adrift of the
+    // character it was supposed to follow.
+    <span className="inline-block h-[1.15em] w-[2px] shrink-0 animate-pulse bg-ink" />
   );
 }
 
@@ -200,6 +204,57 @@ type CaptureStep = "title" | "day" | "hash" | "letter" | "rotate" | "narrow" | "
 
 const STEP_ORDER: CaptureStep[] = ["title", "day", "hash", "letter", "rotate", "narrow", "send"];
 
+/** How long a step waits before it stops hinting and just names the key. */
+const IDLE_MS = 5_000;
+
+/** The one key each step is actually waiting for. */
+const STEP_KEY: Record<CaptureStep, string> = {
+  title: "space",
+  day: "space",
+  hash: "#",
+  letter: "p",
+  rotate: "Tab",
+  narrow: "u",
+  send: "Enter",
+};
+
+/**
+ * Sat still for five seconds? Stop explaining and name the key.
+ *
+ * Only the key moves — a whole line bobbing about is noise, one word bobbing
+ * is a finger pointing at it. Driven from the tour's clock like every other
+ * animation here, because CSS keyframes are stopped dead under reduced motion
+ * and on a page the browser thinks is hidden.
+ */
+function PressHint({ label }: { label: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let t = 0;
+    return startTutorialClock((dt) => {
+      t = (t + dt / 1100) % 1;
+      const bob = Math.sin(t * Math.PI * 2);
+      el.style.transform = `translateY(${(bob * -2.2).toFixed(2)}px) scale(${(
+        1 + Math.max(0, bob) * 0.06
+      ).toFixed(3)})`;
+      el.style.opacity = (0.75 + 0.25 * (bob * 0.5 + 0.5)).toFixed(3);
+    }, false);
+  }, []);
+
+  return (
+    <span className="uppercase tracking-[0.14em]">
+      press{" "}
+      <span
+        ref={ref}
+        className="inline-block rounded-[4px] border border-ink/25 bg-ink/[0.07] px-1.5 py-px font-bold text-ink"
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
   title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
   day: { ask: "Add a day, then press space.", why: "plain english, anywhere in the line" },
@@ -242,14 +297,30 @@ export function SceneType({
     setGhost(g);
   }, []);
 
+  // Five seconds of nothing and the hint stops being prose. Reset by anything
+  // the step accepted, so it only ever fires at someone who has actually
+  // stalled rather than someone typing slowly.
+  const [idle, setIdle] = useState(false);
+  const idleTimer = useRef(0);
+  const stirIdle = useCallback(() => {
+    setIdle(false);
+    window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => setIdle(true), IDLE_MS);
+  }, []);
+  useEffect(() => {
+    stirIdle();
+    return () => window.clearTimeout(idleTimer.current);
+  }, [stirIdle]);
+
   const commit = useCallback(
     (next: string) => {
       textRef.current = next;
       setText(next);
+      stirIdle();
       // Anything the step accepted counts as getting on with it.
       onProgress?.();
     },
-    [onProgress]
+    [onProgress, stirIdle]
   );
 
   /** Tell the banner what to shout. */
@@ -257,10 +328,14 @@ export function SceneType({
     onInstruction?.(done ? "Captured." : STEP_COPY[step].ask);
   }, [step, done, onInstruction]);
 
-  const goStep = useCallback((next: CaptureStep) => {
-    stepRef.current = next;
-    setStep(next);
-  }, []);
+  const goStep = useCallback(
+    (next: CaptureStep) => {
+      stepRef.current = next;
+      setStep(next);
+      stirIdle();
+    },
+    [stirIdle]
+  );
 
   const reject = useCallback(() => {
     setShake(true);
@@ -574,9 +649,13 @@ export function SceneType({
                 <KeyCap label="⇥ Tab" pressed={tabs} wide big />
               </span>
               <span className="font-mono text-[10.5px] text-faint">
-                {step === "rotate"
-                  ? `${DEMO_TAGS.length} tags start with p — press again`
-                  : "one match now — Tab lands it"}
+                {idle ? (
+                  <PressHint label={STEP_KEY[step]} />
+                ) : step === "rotate" ? (
+                  `${DEMO_TAGS.length} tags start with p — press again`
+                ) : (
+                  "one match now — Tab lands it"
+                )}
               </span>
             </div>
             <p className="m-0 font-mono text-[9.5px] text-faint2">
@@ -585,7 +664,13 @@ export function SceneType({
           </>
         ) : (
           <p className="m-0 text-center font-mono text-[10.5px] text-faint">
-            {shake ? "not that one — read the step" : copy.why}
+            {shake ? (
+              "not that one — read the step"
+            ) : idle && !done ? (
+              <PressHint label={STEP_KEY[step]} />
+            ) : (
+              copy.why
+            )}
           </p>
         )}
       </div>

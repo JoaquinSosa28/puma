@@ -4,6 +4,7 @@ import {
   checkCapture,
   FLOUNDER_KEYS,
   FLOUNDER_MS,
+  flounderLimit,
   HOLD_MS,
   isFloundering,
   nextHold,
@@ -155,5 +156,18 @@ describe("knowing when to let someone go", () => {
 
   it("leaves someone alone while they're still getting on with it", () => {
     expect(isFloundering(FLOUNDER_MS - 1, FLOUNDER_KEYS - 1)).toBe(false);
+  });
+
+  it("gives the seven-step mission longer than the one-step ones", () => {
+    expect(flounderLimit("type")).toBeGreaterThan(flounderLimit("tab"));
+    // At the shorter limit, the long beat is still leaving you to it.
+    expect(isFloundering(FLOUNDER_MS, 0, flounderLimit("type"))).toBe(false);
+    expect(isFloundering(FLOUNDER_MS, 0, flounderLimit("tab"))).toBe(true);
+  });
+
+  it("uses the same limit for every beat that isn't the capture one", () => {
+    for (const b of BEATS.filter((x) => x.id !== "type")) {
+      expect(flounderLimit(b.id)).toBe(FLOUNDER_MS);
+    }
   });
 });

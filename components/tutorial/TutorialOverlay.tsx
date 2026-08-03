@@ -6,7 +6,7 @@
 // card sets up, and it's short enough to be one.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BEATS, isFloundering, progressAt } from "@/lib/tutorial";
+import { BEATS, flounderLimit, isFloundering, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
 import { setTutorialActive } from "@/lib/tutorial-lock";
 import { stallLimitMs, startTutorialClock } from "@/lib/tutorial-clock";
@@ -167,12 +167,18 @@ export function TutorialOverlay() {
   useEffect(() => {
     if (!playing || finished || dismissedFlounder || !isMission) return;
     const id = window.setInterval(() => {
-      if (isFloundering(performance.now() - beatOpenedAt.current, strayKeys.current)) {
+      if (
+        isFloundering(
+          performance.now() - beatOpenedAt.current,
+          strayKeys.current,
+          flounderLimit(beat.id)
+        )
+      ) {
         setFloundering(true);
       }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [playing, finished, dismissedFlounder, isMission, index]);
+  }, [playing, finished, dismissedFlounder, isMission, index, beat.id]);
 
   // A tour that scrolls out from under itself is worse than no tour.
   useEffect(() => {
