@@ -64,7 +64,7 @@ export async function createFromOmni(
   const settings = await getSettings(userId);
   const tags = await listTags(userId);
   const { timeZone, today: td } = await userToday();
-  const p = parseOmni(text, tags, undefined, undefined, timeZone);
+  const p = parseOmni(text, tags, undefined, { dateOrder: settings?.dateOrder }, timeZone);
   const newTagIds = await ensureTags(userId, p.newTagNames);
   // A stale client can send ids of tags/projects deleted since its last render —
   // silently drop dead links instead of persisting dangling references.
@@ -248,7 +248,7 @@ export async function addTask(
   const tags = await listTags(userId);
   const settings = await getSettings(userId);
   const { timeZone, today: td } = await userToday();
-  const p = parseOmni(parsed.data.text, tags, undefined, undefined, timeZone);
+  const p = parseOmni(parsed.data.text, tags, undefined, { dateOrder: settings?.dateOrder }, timeZone);
   const newTagIds = await ensureTags(userId, p.newTagNames);
   const tagIds = withLifeTags(
     [...new Set([...p.tagIds, ...newTagIds])],

@@ -51,6 +51,7 @@ const settingsPatchSchema = z
     lifeAutoOverrideMins: z.number().int().min(5).max(720).optional(),
     tagAutoClean: z.boolean().optional(),
     tagAutoCleanDays: z.number().int().min(1).max(365).optional(),
+    dateOrder: z.enum(["dmy", "mdy"]).optional(),
   })
   .strict();
 
@@ -72,6 +73,7 @@ export async function updateSettingsAction(patch: {
   lifeAutoOverrideMins?: number;
   tagAutoClean?: boolean;
   tagAutoCleanDays?: number;
+  dateOrder?: "dmy" | "mdy";
 }): Promise<ActionResult> {
   const parsed = settingsPatchSchema.safeParse(patch);
   if (!parsed.success) return { ok: false, error: "Invalid input" };

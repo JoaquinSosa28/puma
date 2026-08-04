@@ -5,6 +5,7 @@
 // either — see isReservedTagName, which every create/rename path checks.
 
 import type { OmniType } from "@/lib/types";
+import { DATE_WORDS, isDateToken } from "@/lib/date-tokens";
 
 /** "#high buy milk" — same three levels the picker offers. */
 export const RESERVED_PRIORITY: Record<string, "low" | "med" | "high"> = {
@@ -29,21 +30,23 @@ export const RESERVED_MODE: Record<string, "plan" | "ask"> = {
 };
 
 /**
- * Relative days that read naturally with a "#".
+ * Dates behind the same "#" as everything else.
  *
- * Deliberately short: chrono already understands "friday", "next week" and
- * "aug 4" from plain text, so this only covers the two the quick-pick offers
- * as buttons. Adding more would mean maintaining a date vocabulary that the
- * parser already handles better without a prefix.
+ * This used to be just today/tomorrow, on the grounds that chrono already read
+ * "friday" out of plain prose. It did — but it made the date the one thing you
+ * had to type differently from every other instruction, and a bare word can't
+ * be completed. Now "#friday", "#25/12" and "#work" are all the same gesture,
+ * and Tab finishes all three. Bare prose still parses, so nothing anyone has
+ * in their fingers stopped working.
  */
-export const RESERVED_DATE = ["today", "tomorrow"] as const;
+export const RESERVED_DATE = DATE_WORDS;
 
 /** Every word the capture bar claims, for completion and for validation. */
 export const RESERVED_WORDS: string[] = [
-  ...Object.keys(RESERVED_PRIORITY),
   ...Object.keys(RESERVED_TYPE),
+  ...Object.keys(RESERVED_PRIORITY),
   ...Object.keys(RESERVED_MODE),
-  ...RESERVED_DATE,
+  ...DATE_WORDS,
 ];
 
 const RESERVED_SET = new Set(RESERVED_WORDS);
@@ -56,5 +59,9 @@ const RESERVED_SET = new Set(RESERVED_WORDS);
  * someone build a workflow on a name that can't survive a round trip.
  */
 export function isReservedTagName(name: string): boolean {
-  return RESERVED_SET.has(name.trim().toLowerCase());
+  const w = name.trim().toLowerCase();
+  // Numeric dates are a shape rather than a word, so the set can't hold them:
+  // a tag called "4/8" would be eaten by the parser just as surely as one
+  // called "friday".
+  return RESERVED_SET.has(w) || isDateToken(w);
 }

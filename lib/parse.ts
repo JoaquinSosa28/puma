@@ -8,10 +8,22 @@ import {
   RESERVED_DATE,
 } from "@/lib/omni-reserved";
 import { iso, defaultNoteTitle, fakeLocalFromTz } from "@/lib/date";
+import { isDateToken, resolveDateToken, type DateOrder } from "@/lib/date-tokens";
 import { getDefaultTimezone } from "@/lib/timezone";
 
 /** Preview color for #tags that do not exist yet (created on save). */
 export const NEW_TAG_PREVIEW_COLOR = "oklch(0.58 0.06 265)";
+
+/**
+ * What a "#" can be followed by.
+ *
+ * Widened past [\w-] for numeric dates — "#25/12" has to be one token, not a
+ * tag called "25" next to some punctuation. Tag names can't contain / . so
+ * nothing that was a tag before parses differently now.
+ */
+export const OMNI_TOKEN_RE = /#([a-z0-9][\w./-]*)/gi;
+/** The same thing, anchored to the end, for "what am I typing right now". */
+export const OMNI_TOKEN_END_RE = /#([a-z0-9][\w./-]*)$/i;
 
 export type ParseResult = {
   title: string;
@@ -41,6 +53,8 @@ export type NoteParseResult = {
 type ParseOptions = {
   /** Skip date/priority parsing — for note capture */
   forNote?: boolean;
+  /** How "#7/8" is read. From settings; day-first unless told otherwise. */
+  dateOrder?: DateOrder;
 };
 
 export function parseOmni(
@@ -53,6 +67,7 @@ export function parseOmni(
   const tz = timeZone ?? getDefaultTimezone();
   const ref = referenceDate ?? fakeLocalFromTz(new Date(), tz);
   const pad = (n: number) => String(n).padStart(2, "0");
+  const dateOrder = options?.dateOrder ?? "dmy";
   let title = text;
   const tagIds: string[] = [];
   const pills: ParseResult["pills"] = [];
@@ -64,9 +79,9 @@ export function parseOmni(
   let typeToken: OmniType | null = null;
   let modeToken: "plan" | "ask" | null = null;
   let priorityToken: "low" | "med" | "high" | null = null;
-  let dateToken: (typeof RESERVED_DATE)[number] | null = null;
+  let dateToken: string | null = null;
 
-  const tagMatches = [...text.matchAll(/#([a-z0-9][\w-]*)/gi)];
+  const tagMatches = [...text.matchAll(new RegExp(OMNI_TOKEN_RE.source, "gi"))];
   for (const m of tagMatches) {
     const name = m[1].toLowerCase();
 
@@ -83,8 +98,10 @@ export function parseOmni(
         priorityToken = RESERVED_PRIORITY[name];
         continue;
       }
-      if ((RESERVED_DATE as readonly string[]).includes(name)) {
-        dateToken = name as (typeof RESERVED_DATE)[number];
+      // Any "#" that resolves to a date is a date, not a tag — words like
+      // "#friday" and shapes like "#25/12" alike.
+      if (resolveDateToken(name, ref, dateOrder)) {
+        dateToken = name;
         continue;
       }
     }
@@ -99,7 +116,7 @@ export function parseOmni(
       pills.push({ name, color: NEW_TAG_PREVIEW_COLOR, isNew: true });
     }
   }
-  title = title.replace(/#([a-z0-9][\w-]*)/gi, "").replace(/\s+/g, " ").trim();
+  title = title.replace(new RegExp(OMNI_TOKEN_RE.source, "gi"), "").replace(/\s+/g, " ").trim();
 
   let priority: "low" | "med" | "high" = priorityToken ?? "med";
   // TODO: the "!high" form predates "#high" and is kept only so existing
@@ -119,12 +136,11 @@ export function parseOmni(
   let due: string | null = null;
   let dateLabel: string | null = null;
   if (!options?.forNote && dateToken) {
-    const base = new Date(ref);
-    if (dateToken === "tomorrow") base.setDate(base.getDate() + 1);
-    due = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(
-      base.getDate()
-    )}`;
-    dateLabel = dateToken === "today" ? "Today" : "Tomorrow";
+    const hit = resolveDateToken(dateToken, ref, dateOrder);
+    if (hit) {
+      due = hit.date;
+      dateLabel = hit.label;
+    }
   }
   if (!options?.forNote && !due) {
     const parsed = chrono.parse(text, ref, { forwardDate: true });
@@ -145,7 +161,7 @@ export function parseOmni(
   const newTagNames = pills.filter((p) => p.isNew).map((p) => p.name);
 
   let pendingTag: ParseResult["pendingTag"] = null;
-  const pendingMatch = text.match(/#([a-z0-9][\w-]*)$/i);
+  const pendingMatch = text.match(OMNI_TOKEN_END_RE);
   if (pendingMatch) {
     const name = pendingMatch[1].toLowerCase();
     if (!pills.some((p) => p.name === name)) {
@@ -277,7 +293,8 @@ export type OmniInputToken =
       color: string;
       isNew: boolean;
     }
-  | { kind: "priority"; text: string; level: "low" | "med" | "high" };
+  | { kind: "priority"; text: string; level: "low" | "med" | "high" }
+  | { kind: "date"; text: string };
 
 /** Split omnibar text into plain text + inline #tag / !prio tokens for overlay rendering. */
 export function tokenizeOmniInput(
@@ -292,9 +309,19 @@ export function tokenizeOmniInput(
   const matches: Match[] = [];
 
   if (showTags) {
-    for (const m of text.matchAll(/#([a-z0-9][\w-]*)/gi)) {
+    for (const m of text.matchAll(new RegExp(OMNI_TOKEN_RE.source, "gi"))) {
       if (m.index === undefined) continue;
       const name = m[1].toLowerCase();
+      // A date is not a tag it hasn't heard of — it gets its own colour, or
+      // "#friday" reads as a tag you are about to create.
+      if (isDateToken(name)) {
+        matches.push({
+          start: m.index,
+          end: m.index + m[0].length,
+          token: { kind: "date", text: m[0] },
+        });
+        continue;
+      }
       const existing = tags.find((t) => t.name === name);
       matches.push({
         start: m.index,

@@ -74,6 +74,10 @@ export const settingsSchema = z.object({
   // When the 60-second tour was last finished. Null means it has never run,
   // which is the whole trigger — a nullable timestamp rather than a boolean so
   // "when did they see it" survives a later re-cut of the tour.
+  // How "#7/8" is read. Day-first everywhere except the US, and guessing from
+  // the browser locale would change what a saved capture meant when you
+  // travel — so it's a setting with an honest default.
+  dateOrder: z.enum(["dmy", "mdy"]).default("dmy"),
   tutorialSeenAt: z.string().nullable().default(null),
 });
 

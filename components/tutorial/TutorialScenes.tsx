@@ -204,6 +204,17 @@ type CaptureStep = "title" | "day" | "hash" | "letter" | "rotate" | "narrow" | "
 
 const STEP_ORDER: CaptureStep[] = ["title", "day", "hash", "letter", "rotate", "narrow", "send"];
 
+/**
+ * What has been typed toward the current step — the title so far, or the day
+ * word being written after it. Used to decide when enough has been said that
+ * the step can stop waiting on its clock.
+ */
+function wordAt(text: string, step: "title" | "day"): string {
+  if (step === "title") return text.trim();
+  const after = text.trimEnd().split(/\s+/).pop() ?? "";
+  return after;
+}
+
 /** How long a step waits before it stops hinting and just names the key. */
 const IDLE_MS = 5_000;
 
@@ -552,6 +563,12 @@ export function SceneType({
     onDone();
   };
 
+  // Four characters in and the step has been understood — waiting out the full
+  // five seconds to say "press space" is the tour being slow on purpose. Only
+  // the steps whose answer IS space; elsewhere the clock still rules.
+  const enoughTyped =
+    (step === "title" || step === "day") && wordAt(text, step).length >= 4;
+
   const copy = STEP_COPY[step];
   const stepNumber = STEP_ORDER.indexOf(step) + 1;
 
@@ -583,8 +600,13 @@ export function SceneType({
           {/* whitespace-pre, or HTML eats the spaces between the tokens and
               "pay rent" is shown back as "payrent". */}
           <div className="pointer-events-none flex items-center truncate whitespace-pre text-[15px] font-medium text-ink">
+            {/* With nothing typed the caret goes FIRST — it is standing where
+                the next character will land, which is the whole instruction.
+                Parked after the placeholder it read as the end of a sentence
+                nobody had written. */}
+            {!text && !done && <Caret />}
             {text ? tokenise(text) : <span className="text-faint2">start typing…</span>}
-            {!done && <Caret />}
+            {text && !done && <Caret />}
             {/* Tab's guess: after the caret, dimmed, and not yours until you
                 take it. Type instead and it's gone. */}
             {ghost && (
@@ -666,7 +688,7 @@ export function SceneType({
           <p className="m-0 text-center font-mono text-[10.5px] text-faint">
             {shake ? (
               "not that one — read the step"
-            ) : idle && !done ? (
+            ) : (idle || enoughTyped) && !done ? (
               <PressHint label={STEP_KEY[step]} />
             ) : (
               copy.why

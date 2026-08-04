@@ -35,8 +35,12 @@ const CLEARED_HOLD_MS = 1400;
  *  to be a thing you sit through. */
 const OUTRO_MS = 900;
 
-export function TutorialOverlay() {
+export function TutorialOverlay({ seen }: { seen: boolean }) {
   const router = useRouter();
+  // Read once, on mount. `seen` flips to true the instant the tour starts —
+  // it is written then so that abandoning it still counts — and re-reading it
+  // on every render would close the tour on its own first frame.
+  const [hidden] = useState(seen);
   const [playing, setPlaying] = useState(false);
   const [finished, setFinished] = useState(false);
   const [index, setIndex] = useState(0);
@@ -231,7 +235,7 @@ export function TutorialOverlay() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [playing, finished, beat.id, isMission]);
 
-  if (finished) return null;
+  if (hidden || finished) return null;
   if (!playing)
     return (
       <TutorialIntro

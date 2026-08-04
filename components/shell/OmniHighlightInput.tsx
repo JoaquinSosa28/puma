@@ -101,6 +101,21 @@ export const OmniHighlightInput = forwardRef<HTMLInputElement, Props>(
                   </span>
                 );
               }
+              if (token.kind === "date") {
+                // Its own colour: a date is understood, not a label you are
+                // about to invent, and it shouldn't read like a new tag.
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      color: "oklch(0.55 0.13 250)",
+                      backgroundColor: "oklch(0.55 0.13 250 / 0.13)",
+                    }}
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
               if (token.kind === "tag") {
                 return (
                   <InlineTagToken

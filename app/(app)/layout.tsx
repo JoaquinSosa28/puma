@@ -106,16 +106,15 @@ async function AppShell({ children }: { children: React.ReactNode }) {
                   {children}
                 </div>
                 <MobileDock lifeAuto={lifeAuto} />
-                {/* Null means it has never run. A brand-new account lands
-                    here with six empty boxes, which is exactly the moment
-                    the tour is for. */}
-                {/* `settings &&` matters: every account gets a settings row at
-                    signup, so a missing one means the read failed, not that
-                    someone is new — and greeting an existing user with the
-                    tour because of a database hiccup is the worse mistake. */}
-                {data.settings && data.settings.tutorialSeenAt == null && (
-                  <TutorialOverlay />
-                )}
+                {/* Always mounted; it decides for itself whether to appear.
+                    The gate used to live here, which meant any refresh during
+                    the tour re-evaluated it — and since the tour is recorded
+                    the moment it starts, that unmounted it mid-run. `settings`
+                    being null means the read failed rather than that someone is
+                    new, so that isn't a reason to show it either. */}
+                <TutorialOverlay
+                  seen={data.settings ? data.settings.tutorialSeenAt != null : true}
+                />
               </main>
             </AssistantProvider>
           </div>

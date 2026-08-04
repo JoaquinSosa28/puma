@@ -253,6 +253,19 @@ export function SettingsView({
                 onCheckedChange={(v) => update({ weekStart: v ? "sun" : "mon" })}
               />
             </SettingRow>
+            <SettingRow
+              label="Type dates month-first"
+              description={
+                settings?.dateOrder === "mdy"
+                  ? "“#8/7” in the capture bar means 7 August."
+                  : "“#8/7” in the capture bar means 8 July."
+              }
+            >
+              <Switch
+                checked={settings?.dateOrder === "mdy"}
+                onCheckedChange={(v) => update({ dateOrder: v ? "mdy" : "dmy" })}
+              />
+            </SettingRow>
             <div className="border-t border-border/60 py-3">
               <label className="mb-1.5 block text-sm text-ink">Timezone</label>
               <p className="mb-2 text-[12px] text-faint">
