@@ -12,6 +12,7 @@ import { setTutorialActive } from "@/lib/tutorial-lock";
 import { stallLimitMs, startTutorialClock } from "@/lib/tutorial-clock";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
+  BigAsk,
   FlounderCard,
   MissionBanner,
   QuitButton,
@@ -50,6 +51,9 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
   const [dismissedFlounder, setDismissedFlounder] = useState(false);
   /** The step's own ask, for the banner. Scenes know it; beats don't. */
   const [instruction, setInstruction] = useState<string | undefined>();
+  /** The exact key the current step wants, restated big under the card. */
+  const [keyHint, setKeyHint] = useState<{ key: string; type?: boolean } | null>(null);
+  const [wrong, setWrong] = useState(false);
   /** Watch beats only: 0–1 through the current scene. */
   const [p, setP] = useState(0);
 
@@ -149,6 +153,7 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
     // Belt and braces: a beat whose scene forgets to report an ask should
     // fall back to its own caption rather than shouting the last one's.
     setInstruction(undefined);
+    setKeyHint(null);
   }, [index]);
 
   // Progress within a beat counts too: a seven-step mission shouldn't accuse
@@ -160,6 +165,11 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
 
   const noteStray = useCallback(() => {
     strayKeys.current += 1;
+  }, []);
+
+  const flashWrong = useCallback(() => {
+    setWrong(true);
+    window.setTimeout(() => setWrong(false), 420);
   }, []);
 
   const takeInstruction = useCallback(
@@ -229,6 +239,9 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
       if (e.key.length === 1 || e.key === "Enter" || e.key === "Backspace") {
         e.preventDefault();
         strayKeys.current += 1;
+        // Swallowing a key silently reads as the app being broken. Say no.
+        setWrong(true);
+        window.setTimeout(() => setWrong(false), 420);
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -291,8 +304,19 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
             onInstruction={takeInstruction}
             onStray={noteStray}
             onProgress={noteProgress}
+            onKeyHint={setKeyHint}
+            onWrong={flashWrong}
           />
         </div>
+
+        {/* The same ask again, big, in the space under the card. */}
+        {isMission && keyHint && !cleared && (
+          <BigAsk
+            verb={keyHint.type ? "type" : "press"}
+            keyLabel={keyHint.type ? `‘${keyHint.key}’` : keyHint.key}
+            wrong={wrong}
+          />
+        )}
       </div>
 
       {/* Desktop: down the left, out of the way. Phone: a strip along the
@@ -345,6 +369,8 @@ function Scene({
   onInstruction,
   onStray,
   onProgress,
+  onKeyHint,
+  onWrong,
 }: {
   id: (typeof BEATS)[number]["id"];
   p: number;
@@ -354,8 +380,10 @@ function Scene({
   onInstruction: (text: string) => void;
   onStray: () => void;
   onProgress: () => void;
+  onKeyHint: (hint: { key: string; type?: boolean } | null) => void;
+  onWrong: () => void;
 }) {
-  const shared = { onDone, done, onInstruction, onStray, onProgress };
+  const shared = { onDone, done, onInstruction, onStray, onProgress, onKeyHint, onWrong };
   switch (id) {
     case "type":
       return <SceneType {...shared} />;

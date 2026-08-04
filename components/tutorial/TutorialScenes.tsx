@@ -50,6 +50,10 @@ export type SceneProps = {
    *  anything worked, not time since the step changed — otherwise someone
    *  typing their way through a long step gets told they're stuck. */
   onProgress?: () => void;
+  /** The exact key this step wants, so the overlay can restate it big. */
+  onKeyHint?: (hint: { key: string; type?: boolean } | null) => void;
+  /** A wrong key just landed — the overlay flashes its restatement too. */
+  onWrong?: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -218,15 +222,21 @@ function wordAt(text: string, step: "title" | "day"): string {
 /** How long a step waits before it stops hinting and just names the key. */
 const IDLE_MS = 5_000;
 
-/** The one key each step is actually waiting for. */
-const STEP_KEY: Record<CaptureStep, string> = {
-  title: "space",
-  day: "space",
-  hash: "#",
-  letter: "p",
-  rotate: "Tab",
-  narrow: "u",
-  send: "Enter",
+/**
+ * The one key each step is waiting for, and the verb that goes with it.
+ *
+ * You *press* a key that has a name on it — space, Tab, Enter. You *type* a
+ * character. "Press key: P" is neither, and it reads like a machine talking:
+ * the thing you do with a P is type it.
+ */
+const STEP_KEY: Record<CaptureStep, { key: string; type?: true }> = {
+  title: { key: "space" },
+  day: { key: "space" },
+  hash: { key: "#", type: true },
+  letter: { key: "p", type: true },
+  rotate: { key: "Tab" },
+  narrow: { key: "u", type: true },
+  send: { key: "Enter" },
 };
 
 /**
@@ -237,7 +247,7 @@ const STEP_KEY: Record<CaptureStep, string> = {
  * animation here, because CSS keyframes are stopped dead under reduced motion
  * and on a page the browser thinks is hidden.
  */
-function PressHint({ label }: { label: string }) {
+function PressHint({ label, type }: { label: string; type?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -255,12 +265,12 @@ function PressHint({ label }: { label: string }) {
 
   return (
     <span className="uppercase tracking-[0.14em]">
-      press{" "}
+      {type ? "type" : "press"}{" "}
       <span
         ref={ref}
         className="inline-block rounded-[4px] border border-ink/25 bg-ink/[0.07] px-1.5 py-px font-bold text-ink"
       >
-        {label}
+        {type ? `‘${label}’` : label}
       </span>
     </span>
   );
@@ -268,11 +278,11 @@ function PressHint({ label }: { label: string }) {
 
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
   title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
-  day: { ask: "Add a day, then press space.", why: "plain english, anywhere in the line" },
-  hash: { ask: "Press #", why: "that's how a tag starts" },
-  letter: { ask: "Type one letter: p", why: "just the one — then stop" },
+  day: { ask: "Add a day, then press space", why: "plain english, anywhere in the line" },
+  hash: { ask: "Type ‘#’", why: "that's how a tag starts" },
+  letter: { ask: "Type ‘p’", why: "just the one — then stop" },
   rotate: { ask: "Press Tab", why: "three tags start with p — Tab walks them" },
-  narrow: { ask: "Type u", why: "more letters, fewer options" },
+  narrow: { ask: "Type ‘u’", why: "more letters, fewer options" },
   send: { ask: "Press Enter", why: "one line, fully parsed" },
 };
 
@@ -282,6 +292,8 @@ export function SceneType({
   onInstruction,
   onStray,
   onProgress,
+  onKeyHint,
+  onWrong,
 }: SceneProps) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("title");
@@ -337,7 +349,9 @@ export function SceneType({
   /** Tell the banner what to shout. */
   useEffect(() => {
     onInstruction?.(done ? "Captured." : STEP_COPY[step].ask);
-  }, [step, done, onInstruction]);
+    onKeyHint?.(done ? null : STEP_KEY[step]);
+    return () => onKeyHint?.(null);
+  }, [step, done, onInstruction, onKeyHint]);
 
   const goStep = useCallback(
     (next: CaptureStep) => {
@@ -351,8 +365,9 @@ export function SceneType({
   const reject = useCallback(() => {
     setShake(true);
     onStray?.();
+    onWrong?.();
     window.setTimeout(() => setShake(false), 400);
-  }, [onStray]);
+  }, [onStray, onWrong]);
 
   // The beat is about typing without clicking first, so it had better work
   // without clicking first: any printable key re-takes the field if focus has
@@ -672,7 +687,7 @@ export function SceneType({
               </span>
               <span className="font-mono text-[10.5px] text-faint">
                 {idle ? (
-                  <PressHint label={STEP_KEY[step]} />
+                  <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
                 ) : step === "rotate" ? (
                   `${DEMO_TAGS.length} tags start with p — press again`
                 ) : (
@@ -689,7 +704,7 @@ export function SceneType({
             {shake ? (
               "not that one — read the step"
             ) : (idle || enoughTyped) && !done ? (
-              <PressHint label={STEP_KEY[step]} />
+              <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
             ) : (
               copy.why
             )}

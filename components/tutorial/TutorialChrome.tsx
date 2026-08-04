@@ -39,7 +39,7 @@ export function MissionBanner({
           {isMission ? `Mission ${index + 1}/${total}` : "Watch"}
         </span>
         {isMission && !cleared && (
-          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-white/40">
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-white/60">
             your turn
           </span>
         )}
@@ -53,8 +53,14 @@ export function MissionBanner({
           drags the whole scene up and down the screen while you are trying to
           type into it. Reserving the room costs a little whitespace on the
           short lines and buys a stage that never moves. */}
-      <div className="flex min-h-[62px] items-center justify-center sm:min-h-[82px]">
-        <p className="m-0 text-[24px] font-extrabold leading-tight tracking-tight text-white sm:text-[32px]">
+      <div className="flex min-h-[70px] items-center justify-center sm:min-h-[96px]">
+        <p
+          className="m-0 text-[28px] font-black leading-[1.06] tracking-tight text-white sm:text-[40px]"
+          /* A dark halo under white type: the stage behind it is a blurred
+             screenshot, and white-on-whatever-is-behind-it was the one thing
+             making the biggest line on screen hard to read. */
+          style={{ textShadow: "0 2px 18px rgba(0,0,0,0.75), 0 1px 3px rgba(0,0,0,0.55)" }}
+        >
           {cleared && beat.done ? `✓ ${beat.done}` : instruction ?? beat.caption}
         </p>
       </div>
@@ -66,13 +72,62 @@ export function MissionBanner({
             cleared
               // The payoff line was mid-green on a dark backdrop and barely
               // legible — the one line you actually want read.
-              ? "text-[15px] font-bold text-[oklch(0.84_0.16_152)]"
-              : "text-[13.5px] text-white/60"
+              ? "text-[16px] font-bold text-[oklch(0.86_0.17_152)]"
+              : "text-[14.5px] font-medium text-white/80"
           )}
         >
           {instruction ? beat.caption : beat.sub}
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The ask again, in the empty half of the screen below the card.
+ *
+ * The stage is a small card floating in a lot of dark, and the one thing you
+ * need — the key — was a 10px line inside it. Restating it underneath, at a
+ * size you can read from across the room, costs nothing: the space was doing
+ * nothing anyway, and the eye that has just looked down at the card is already
+ * there.
+ */
+export function BigAsk({
+  verb,
+  keyLabel,
+  wrong,
+}: {
+  verb: "press" | "type";
+  keyLabel: string;
+  /** Something else was pressed — say so rather than repeating the ask. */
+  wrong?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none flex select-none items-center justify-center gap-3",
+        wrong && "tutorial-shake"
+      )}
+    >
+      <span
+        className={cn(
+          "font-mono text-[13px] uppercase tracking-[0.2em] transition-colors",
+          wrong ? "text-tasks" : "text-white/45"
+        )}
+      >
+        {wrong ? "not that one —" : verb}
+      </span>
+      <span
+        className={cn(
+          "inline-flex min-w-[64px] items-center justify-center rounded-xl border-2 px-5 py-2 text-[34px] font-black leading-none tracking-tight transition-colors sm:text-[44px]",
+          wrong
+            ? "border-tasks/70 bg-tasks/15 text-tasks"
+            : "border-white/30 bg-white/10 text-white"
+        )}
+        style={{ textShadow: "0 2px 14px rgba(0,0,0,0.6)" }}
+      >
+        {keyLabel}
+      </span>
     </div>
   );
 }
