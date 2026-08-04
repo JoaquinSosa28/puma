@@ -718,6 +718,12 @@ export async function updateTaskDetail(
   if (!updated) return { ok: false, error: "Not found" };
 
   if (existing.projectId) await syncGoalsForProject(userId, existing.projectId);
+
+  // Whole-app on purpose. Scoping this to the routes that "obviously" show a
+  // task is a trap: every page renders its own Topbar, and that reads
+  // day-done counts off the task list — so editing a due date here changes
+  // what /habits and /notes should be showing too. Narrowing it left those
+  // stale, and a stale number is a worse bug than an extra fetch.
   revalidatePath("/", "layout");
   return { ok: true, data: updated };
 }
