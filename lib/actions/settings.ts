@@ -100,7 +100,11 @@ export async function updateSettingsAction(patch: {
 export async function markTutorialSeen(): Promise<ActionResult> {
   const userId = await requireUserId();
   await updateSettings(userId, { tutorialSeenAt: new Date().toISOString() });
-  revalidatePath("/", "layout");
+  // Deliberately no revalidatePath. This is written the moment the tour
+  // starts, and revalidating the layout re-renders the gate that decides
+  // whether the overlay exists — which tore the tour down on its own first
+  // frame. Nothing on screen depends on this flag until the next page load,
+  // and the overlay hides itself when it's finished.
   return { ok: true };
 }
 

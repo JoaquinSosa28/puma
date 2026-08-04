@@ -90,11 +90,20 @@ export function TaskDetailPanel({
       due?: string | null;
     }) => {
       startTransition(async () => {
+        // No router.refresh(). Every one of these actions ends in
+        // revalidatePath("/", "layout"), and Next returns the re-rendered tree
+        // with the action's own response — so the refresh was a second full
+        // round-trip for data we had already been sent.
+        //
+        // It is not just wasted: revalidating the root layout empties the
+        // client router cache for every route, so each refresh made the
+        // sidebar re-prefetch all nine of its links. This is the panel's hot
+        // path — it fires on every debounced keystroke in the description and
+        // on every field change.
         await updateTaskDetail({ id: task.id, ...patch });
-        router.refresh();
       });
     },
-    [router, task.id]
+    [task.id]
   );
 
   // Autosaves, and survives closing the panel / switching tasks mid-sentence.

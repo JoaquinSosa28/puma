@@ -109,7 +109,13 @@ async function AppShell({ children }: { children: React.ReactNode }) {
                 {/* Null means it has never run. A brand-new account lands
                     here with six empty boxes, which is exactly the moment
                     the tour is for. */}
-                {data.settings?.tutorialSeenAt == null && <TutorialOverlay />}
+                {/* `settings &&` matters: every account gets a settings row at
+                    signup, so a missing one means the read failed, not that
+                    someone is new — and greeting an existing user with the
+                    tour because of a database hiccup is the worse mistake. */}
+                {data.settings && data.settings.tutorialSeenAt == null && (
+                  <TutorialOverlay />
+                )}
               </main>
             </AssistantProvider>
           </div>

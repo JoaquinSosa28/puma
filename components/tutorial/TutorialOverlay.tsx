@@ -81,6 +81,8 @@ export function TutorialOverlay() {
   const finish = useCallback(() => {
     setOutro(true);
     void markTutorialSeen();
+    // (the start already recorded it — this just moves the timestamp to the
+    // moment it actually ended)
     window.setTimeout(() => {
       setFinished(true);
       router.refresh();
@@ -230,7 +232,21 @@ export function TutorialOverlay() {
   }, [playing, finished, beat.id, isMission]);
 
   if (finished) return null;
-  if (!playing) return <TutorialIntro onStart={() => setPlaying(true)} />;
+  if (!playing)
+    return (
+      <TutorialIntro
+        onStart={() => {
+          setPlaying(true);
+          // Recorded on START, not only on finish. The only ways it used to be
+          // written were reaching the outro, "Give up", or the ✕ — so anyone
+          // who began the tour and then reloaded, navigated away or closed the
+          // tab was greeted by it all over again next time, for ever. Whether
+          // they saw it through is not the question the flag answers; "has this
+          // account been shown the tour" is.
+          void markTutorialSeen();
+        }}
+      />
+    );
 
   const missionNumber = BEATS.slice(0, index).filter((b) => b.kind === "do").length;
   const missionTotal = BEATS.filter((b) => b.kind === "do").length;
