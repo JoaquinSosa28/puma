@@ -1,10 +1,8 @@
 "use client";
 
 import { HelpCircle } from "lucide-react";
+import { ABOUT_URL } from "@/lib/about-link";
 import { cn } from "@/lib/utils";
-
-/** Where the curious end up. */
-const ABOUT_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
 
 /**
  * The "?" beside the wordmark. Looks like an about/info affordance, and is —
