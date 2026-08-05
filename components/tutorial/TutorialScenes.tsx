@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MousePointerClick, Sparkles, Tag as TagIcon } from "lucide-react";
 import { nextHold, typedChars } from "@/lib/tutorial";
 import { startTutorialClock } from "@/lib/tutorial-clock";
-import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
+import { DATE_WORDS, resolveDateToken } from "@/lib/date-tokens";
+import { candidatesFor, completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import {
   reduceSelection,
   type SelectionState,
@@ -173,8 +174,7 @@ function Row({
  *  the whole lesson: more letters, fewer options, one Tab. */
 const DEMO_TAGS = ["prime", "pumma", "personal"];
 
-/** The day the mission lands on, and the options that cycle beside it. */
-const DEMO_DAY = "friday";
+/** The days that cycle beside the caret while you pick one. */
 const DAY_SUGGESTIONS = [
   "friday", "tomorrow", "monday", "yesterday", "saturday", "wednesday",
 ];
@@ -183,23 +183,17 @@ const DAY_SUGGESTIONS = [
 
 type CaptureStep =
   | "title"
-  | "dayLetter"
-  | "dayTab"
-  | "hash"
-  | "letter"
-  | "rotate"
-  | "narrow"
-  | "send";
+  | "dayHash"
+  | "dayWord"
+  | "tagHash"
+  | "tagWord";
 
 const STEP_ORDER: CaptureStep[] = [
   "title",
-  "dayLetter",
-  "dayTab",
-  "hash",
-  "letter",
-  "rotate",
-  "narrow",
-  "send",
+  "dayHash",
+  "dayWord",
+  "tagHash",
+  "tagWord",
 ];
 
 
@@ -212,15 +206,17 @@ const STEP_ORDER: CaptureStep[] = [
  * the thing you do with a P is type it.
  */
 const STEP_KEY: Record<CaptureStep, { key: string; type?: true }> = {
-  title: { key: "#", type: true },
-  dayLetter: { key: "f", type: true },
-  dayTab: { key: "Tab" },
-  hash: { key: "#", type: true },
-  letter: { key: "p", type: true },
-  rotate: { key: "Tab" },
-  narrow: { key: "u", type: true },
-  send: { key: "Enter" },
+  title: { key: "space" },
+  dayHash: { key: "#", type: true },
+  dayWord: { key: "Tab" },
+  tagHash: { key: "#", type: true },
+  tagWord: { key: "Enter" },
 };
+
+/** The bit after the last "#", which is the word the current step is about. */
+function tail(text: string): string {
+  return text.match(/#([a-z0-9-]*)$/i)?.[1] ?? "";
+}
 
 /** How much of a task counts as enough before the tour asks for the next thing. */
 const TITLE_ENOUGH = 4;
@@ -241,15 +237,28 @@ function askFor(
   done: boolean
 ): { ask: string; key: { key: string; type?: true } | null } {
   if (done) return { ask: "Captured.", key: null };
-  if (step === "title") {
-    return text.trim().length >= TITLE_ENOUGH
-      ? { ask: "Now type ‘#’", key: STEP_KEY.title }
-      : // No key chip yet: there isn't one. The caret sitting in an empty
-        // field is the whole instruction, and inventing a key to name here
-        // would be naming the next step's.
-        { ask: STEP_COPY.title.ask, key: null };
+  const typed = tail(text);
+  switch (step) {
+    case "title":
+      // Two asks in one step: write something, then end it. Naming the space
+      // before there is anything to end would be asking for the second before
+      // the first has happened.
+      return text.trim().length >= TITLE_ENOUGH
+        ? { ask: "Now press space", key: STEP_KEY.title }
+        : { ask: STEP_COPY.title.ask, key: null };
+    case "dayWord":
+      // Tab is offered, never demanded — type the whole word and the space
+      // that ends it does the same job.
+      return typed
+        ? { ask: "Tab finishes it", key: STEP_KEY.dayWord }
+        : { ask: STEP_COPY.dayWord.ask, key: null };
+    case "tagWord":
+      return typed.length >= 2
+        ? { ask: "Now press Enter", key: STEP_KEY.tagWord }
+        : { ask: STEP_COPY.tagWord.ask, key: null };
+    default:
+      return { ask: STEP_COPY[step].ask, key: STEP_KEY[step] };
   }
-  return { ask: STEP_COPY[step].ask, key: STEP_KEY[step] };
 }
 
 /**
@@ -291,14 +300,13 @@ function PressHint({ label, type }: { label: string; type?: boolean }) {
 
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
   title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
-
-  dayLetter: { ask: "Type ‘f’ for Friday", why: "dates start the same way tags do" },
-  dayTab: { ask: "Press Tab", why: "Tab finishes days, tags, priorities — all of it" },
-  hash: { ask: "Type ‘#’", why: "that's how a tag starts" },
-  letter: { ask: "Type ‘p’", why: "just the one — then stop" },
-  rotate: { ask: "Press Tab", why: "three tags start with p — Tab walks them" },
-  narrow: { ask: "Type ‘u’", why: "more letters, fewer options" },
-  send: { ask: "Press Enter", why: "one line, fully parsed" },
+  dayHash: { ask: "Type ‘#’", why: "dates start the same way tags do" },
+  dayWord: {
+    ask: "Type a day",
+    why: "mon, fri, tomorrow, 25/12 — whatever you'd say out loud",
+  },
+  tagHash: { ask: "Type ‘#’ again", why: "that's how a tag starts" },
+  tagWord: { ask: "Type a tag. Anything.", why: "one that doesn't exist yet gets created" },
 };
 
 export function SceneType({
@@ -405,7 +413,7 @@ export function SceneType({
   // The day suggestion drifts through a few options rather than naming one, so
   // it reads as "words like these" instead of "type this exact word".
   useEffect(() => {
-    if (step !== "title" && step !== "dayLetter") return;
+    if (step !== "dayWord") return;
     const id = window.setInterval(
       () => setSuggestion((n) => (n + 1) % DAY_SUGGESTIONS.length),
       1600
@@ -452,75 +460,76 @@ export function SceneType({
     switch (stepRef.current) {
       case "title": {
         // Type as much as you like, spaces and all — a task is usually more
-        // than one word, and refusing the gaps between someone's own words is
-        // not a lesson about anything. The "#" is what ends this step, which
-        // is also the first half of the next one.
-        if (ch === "#" && current.trim().length >= TITLE_ENOUGH) {
-          commit((current.endsWith(" ") ? current : current + " ") + "#");
-          goStep("dayLetter");
+        // than one word. The space AFTER there's something to end is what
+        // finishes this step.
+        if (ch === " " && current.trim().length >= TITLE_ENOUGH) {
+          commit(current.trimEnd() + " ");
+          goStep("dayHash");
           return;
         }
         commit(current + ch);
         return;
       }
-      case "dayLetter": {
-        if (ch.toLowerCase() !== DEMO_DAY[0]) return reject();
-        commit(current + DEMO_DAY[0]);
-        goStep("dayTab");
-        return;
-      }
-      case "dayTab":
-        // Tab finishes it — the whole point of putting dates behind the "#".
-        return reject();
-      case "hash": {
+      case "dayHash": {
         if (ch !== "#") return reject();
         commit((current.endsWith(" ") ? current : current + " ") + "#");
-        goStep("letter");
+        goStep("dayWord");
         return;
       }
-      case "letter": {
-        if (ch.toLowerCase() !== "p") return reject();
-        commit(current + "p");
-        goStep("rotate");
-        return;
-      }
-      case "rotate":
-        // Typing more would work in real life, but then nobody would ever see
-        // the rotation — which is the only reason this beat exists.
-        return reject();
-      case "narrow": {
-        if (ch.toLowerCase() !== "u") return reject();
-        // Your character replaces Tab's guess, exactly as it does in the bar.
+      case "dayWord": {
+        const typed = tail(current);
+        // A space ends the day — but only once it IS a day. Otherwise it's
+        // someone pressing space mid-word.
+        if (ch === " ") {
+          if (!resolveDateToken(typed, new Date())) return reject();
+          commit(current + " ");
+          goStep("tagHash");
+          return;
+        }
+        // Any letter that still leads somewhere. "f", "fr", "mo", "tomo" —
+        // whatever day you were going to write. The tour showed a list of
+        // days and then accepted exactly one of them, which was a lie.
+        const next = typed + ch.toLowerCase();
+        if (!candidatesFor(next, DATE_WORDS).length) return reject();
+        commit(current + ch.toLowerCase());
         setGuess("");
-        commit(current + "u");
         rotateRef.current = null;
         return;
       }
-      case "send":
-        // Only Enter from here. Another character would edit a line the tour
-        // has already declared finished.
-        return reject();
+      case "tagHash": {
+        if (ch !== "#") return reject();
+        commit((current.endsWith(" ") ? current : current + " ") + "#");
+        goStep("tagWord");
+        return;
+      }
+      case "tagWord": {
+        // A tag is whatever you say it is, so anything a tag may contain goes.
+        if (!/[a-z0-9-]/i.test(ch)) return reject();
+        commit(current + ch.toLowerCase());
+        setGuess("");
+        rotateRef.current = null;
+        return;
+      }
     }
   }
 
   /** Tab: the same completion the real bar runs, rotation and all. */
-  /** The part of the current #token that the user actually typed. */
-  function typedWord(value: string): string {
-    return value.match(/#([a-z0-9-]*)$/i)?.[1] ?? "";
-  }
 
   function handleTab() {
     const st = stepRef.current;
-    if (st !== "dayTab" && st !== "rotate" && st !== "narrow") return reject();
+    // Tab is a suggestion on these two steps, never a requirement: you can
+    // always just finish the word yourself.
+    if (st !== "dayWord" && st !== "tagWord") return reject();
     const value = textRef.current;
     const caret = value.length;
     const again = rotateRef.current?.from === value;
-    // The day step completes against the date vocabulary; the tag steps
-    // against the tags. Same function, same keystroke — which is the lesson.
+    // Days complete against the date vocabulary, tags against the tags. Same
+    // key, same feel — which is the thing worth learning.
+    const pool = st === "dayWord" ? DATE_WORDS : DEMO_TAGS;
     const result = completeOmniToken(
       value,
       caret,
-      st === "dayTab" ? [DEMO_DAY] : DEMO_TAGS,
+      pool,
       again ? rotateRef.current!.index + 1 : undefined,
       again ? rotateRef.current!.base : undefined
     );
@@ -532,13 +541,11 @@ export function SceneType({
       setGuess("");
       commit(result.text);
     } else {
-      setGuess(result.completion.slice(typedWord(value).length));
+      setGuess(result.completion.slice(tail(value).length));
     }
-    // Keyed on the text as it stands, not on what the completion would make
-    // it: the guess lives beside the field rather than in it, so the value is
-    // unchanged and a second Tab has to recognise itself as the same cycle —
-    // otherwise every press starts over and lands on the first candidate
-    // again, which looks exactly like Tab being broken.
+    // Keyed on the text as it stands rather than on what the completion would
+    // make it: the guess sits beside the field, so a second press has to
+    // recognise itself as the same cycle or it starts over every time.
     rotateRef.current = result.exact
       ? null
       : {
@@ -547,36 +554,21 @@ export function SceneType({
           base: again ? rotateRef.current!.base : tokenAtCaret(value, caret)?.word ?? "",
         };
 
-    const seen = tabs + 1;
-    setTabs(seen);
+    setTabs(tabs + 1);
     onProgress?.();
 
-    if (st === "dayTab") {
-      // One candidate, so that press finished it — on to the tag.
-      if (result.exact) {
-        rotateRef.current = null;
-        window.setTimeout(() => goStep("hash"), 300);
-      }
-      return;
+    // An exact completion wrote the trailing space too, so the day is done.
+    if (result.exact && st === "dayWord") {
+      window.setTimeout(() => goStep("tagHash"), 260);
     }
-
-    if (st === "rotate") {
-      // Two presses is enough to see it move; then the better trick. Your
-      // text is already just "#p" — only the guess beside it was changing.
-      if (seen >= 2) {
-        window.setTimeout(() => {
-          rotateRef.current = null;
-          goStep("narrow");
-        }, 600);
-      }
-      return;
-    }
-    // narrow: one candidate left, so that Tab settled it.
-    if (result.exact) window.setTimeout(() => goStep("send"), 260);
   }
 
   const submit = () => {
-    if (stepRef.current !== "send") return reject();
+    // Enter lands the whole line — but only once the tag it ends with is
+    // actually a tag.
+    if (stepRef.current !== "tagWord" || tail(textRef.current).length < 2) {
+      return reject();
+    }
     setCaptured((textRef.current + ghostRef.current).trim());
     setGuess("");
     commit("");
@@ -632,7 +624,7 @@ export function SceneType({
               </span>
             )}
             {/* The drifting hint, parked at the caret. */}
-            {step === "dayLetter" && (
+            {step === "dayWord" && (
               <span
                 key={suggestion}
                 className="tutorial-in ml-1 shrink-0 font-medium text-faint2"
@@ -666,7 +658,7 @@ export function SceneType({
             className="absolute inset-0 w-full bg-transparent text-[15px] font-medium text-transparent caret-transparent outline-none"
           />
         </div>
-        {step === "send" && (
+        {step === "tagWord" && tail(text).length >= 2 && (
           <kbd className="tutorial-nudge-soft shrink-0 rounded border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-ink">
             ↵
           </kbd>
@@ -678,10 +670,10 @@ export function SceneType({
           and without the reservation the whole card jumped 50px under the
           cursor at the exact moment someone was reading it. */}
       <div className="mt-3 flex min-h-[68px] flex-col items-center justify-center gap-1.5">
-        {(step === "dayTab" || step === "rotate" || step === "narrow") && !done ? (
+        {(step === "dayWord" || step === "tagWord") && tail(text) && !done ? (
           <>
             <div className="flex items-center gap-2.5">
-              <span className={step !== "narrow" ? "tutorial-nudge-soft" : undefined}>
+              <span className="tutorial-nudge-soft">
                 <KeyCap label="⇥ Tab" pressed={tabs} wide big />
               </span>
               <span className="font-mono text-[10.5px] text-faint">
