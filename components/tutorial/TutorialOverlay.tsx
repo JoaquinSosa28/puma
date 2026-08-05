@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { BEATS, flounderLimit, isFloundering, progressAt } from "@/lib/tutorial";
 import { markTutorialSeen } from "@/lib/actions/settings";
 import { setTutorialActive } from "@/lib/tutorial-lock";
+import { onTutorialReplay } from "@/lib/tutorial-replay";
 import { stallLimitMs, startTutorialClock } from "@/lib/tutorial-clock";
 import { TutorialIntro } from "@/components/tutorial/TutorialIntro";
 import {
@@ -60,6 +61,18 @@ export function TutorialOverlay({ seen }: { seen: boolean }) {
   // Without this, "Play the tour again" navigated home and nothing happened —
   // the overlay was already mounted on the settings page with the old value,
   // and only a full reload gave it a new one.
+  const rearm = useCallback(() => {
+    setHidden(false);
+    setFinished(false);
+    setPlaying(false);
+    setIndex(0);
+    setCleared(false);
+    setOutro(false);
+  }, []);
+
+  // The button says so directly, without waiting for the server to agree.
+  useEffect(() => onTutorialReplay(rearm), [rearm]);
+
   useEffect(() => {
     if (seen) return;
     setHidden(false);

@@ -222,6 +222,36 @@ const STEP_KEY: Record<CaptureStep, { key: string; type?: true }> = {
   send: { key: "Enter" },
 };
 
+/** How much of a task counts as enough before the tour asks for the next thing. */
+const TITLE_ENOUGH = 4;
+
+/**
+ * What to ask for right now.
+ *
+ * The title step is really two asks wearing one step: write something, then
+ * end it with "#". Showing both at once — "Type a task, then ‘#’" over a hint
+ * reading TYPE ‘#’ over an empty field — asks for the second before the first
+ * has happened, which is the one thing a tutorial must never do. So the step
+ * says one thing, and swaps to the next the moment there is enough typed to
+ * move on.
+ */
+function askFor(
+  step: CaptureStep,
+  text: string,
+  done: boolean
+): { ask: string; key: { key: string; type?: true } | null } {
+  if (done) return { ask: "Captured.", key: null };
+  if (step === "title") {
+    return text.trim().length >= TITLE_ENOUGH
+      ? { ask: "Now type ‘#’", key: STEP_KEY.title }
+      : // No key chip yet: there isn't one. The caret sitting in an empty
+        // field is the whole instruction, and inventing a key to name here
+        // would be naming the next step's.
+        { ask: STEP_COPY.title.ask, key: null };
+  }
+  return { ask: STEP_COPY[step].ask, key: STEP_KEY[step] };
+}
+
 /**
  * Sat still for five seconds? Stop explaining and name the key.
  *
@@ -260,7 +290,7 @@ function PressHint({ label, type }: { label: string; type?: boolean }) {
 }
 
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
-  title: { ask: "Type a task, then ‘#’", why: "no field focused — it just goes in" },
+  title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
 
   dayLetter: { ask: "Type ‘f’ for Friday", why: "dates start the same way tags do" },
   dayTab: { ask: "Press Tab", why: "Tab finishes days, tags, priorities — all of it" },
@@ -315,8 +345,10 @@ export function SceneType({
 
   /** Tell the banner what to shout. */
   useEffect(() => {
-    onInstruction?.(done ? "Captured." : STEP_COPY[step].ask);
-  }, [step, done, onInstruction]);
+    onInstruction?.(askFor(step, text, done).ask);
+    // `text` is a dependency on purpose: the title step's ask changes as soon
+    // as there is enough of a task to move on from.
+  }, [step, text, done, onInstruction]);
 
   const goStep = useCallback((next: CaptureStep) => {
     stepRef.current = next;
@@ -423,7 +455,7 @@ export function SceneType({
         // than one word, and refusing the gaps between someone's own words is
         // not a lesson about anything. The "#" is what ends this step, which
         // is also the first half of the next one.
-        if (ch === "#" && titleOf(current).length >= 3) {
+        if (ch === "#" && current.trim().length >= TITLE_ENOUGH) {
           commit((current.endsWith(" ") ? current : current + " ") + "#");
           goStep("dayLetter");
           return;
@@ -552,6 +584,7 @@ export function SceneType({
   };
 
   const copy = STEP_COPY[step];
+  const now = askFor(step, text, done);
   const stepNumber = STEP_ORDER.indexOf(step) + 1;
 
   return (
@@ -652,7 +685,7 @@ export function SceneType({
                 <KeyCap label="⇥ Tab" pressed={tabs} wide big />
               </span>
               <span className="font-mono text-[10.5px] text-faint">
-                <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
+                {now.key && <PressHint label={now.key.key} type={now.key.type} />}
               </span>
             </div>
             <p className="m-0 font-mono text-[9.5px] text-faint2">
@@ -664,10 +697,9 @@ export function SceneType({
             {shake ? (
               "not that one — read the step"
             ) : (
-              // From the first frame, switching with the step. It was gated on
-              // idling, which meant the one thing you needed showed up only
-              // after you'd been stuck for five seconds.
-              !done && <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
+              // Switching with the step, and absent when the step has no
+              // single key to name — an empty field asks for itself.
+              now.key && <PressHint label={now.key.key} type={now.key.type} />
             )}
           </p>
         )}
