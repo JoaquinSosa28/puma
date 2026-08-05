@@ -1383,10 +1383,10 @@ export function SceneTag({
 // behave here exactly as they will on the real list.
 
 const BULK_ROWS = [
-  "Draft launch email",
-  "Send invoice to client",
-  "Pay rent",
-  "Build hero section",
+  "Scroll IG for 2 hours",
+  "Play Deadlock",
+  "Call Mom",
+  "Rewrite the README again",
 ];
 
 /**
@@ -1809,11 +1809,18 @@ export function SceneBulkWatch({ p }: { p: number }) {
 // ---------------------------------------------------------------------------
 // 5 — ask it, or tell it · WATCH (an answer needs a model behind it)
 
+/**
+ * The honest pie chart. A demo that answers "where did my time go?" with
+ * "42% Website redesign" is a demo of somebody else's week — and the joke is
+ * the whole point of asking, because the number you did not want to see is
+ * exactly the one the question is for.
+ */
 const SLICES = [
-  { label: "Website redesign", value: 42, color: PROJECT_BLUE },
-  { label: "Side app MVP", value: 28, color: GOAL_PURPLE },
-  { label: "Admin", value: 18, color: HABIT_GREEN },
-  { label: "Unfiled", value: 12, color: FINANCE_AMBER },
+  { label: "PUMMA Development", value: 26, color: PROJECT_BLUE },
+  { label: "Waifu Discord Bot Development", value: 24, color: TASK_RED },
+  { label: "Minecraft 2.0 Development", value: 21, color: GOAL_PURPLE },
+  { label: "Anime Tier List", value: 22, color: FINANCE_AMBER },
+  { label: "Work", value: 7, color: HABIT_GREEN },
 ];
 
 export function SceneAssistant({ p }: { p: number }) {
@@ -1888,9 +1895,11 @@ export function SceneAssistant({ p }: { p: number }) {
                   Changeset draft · 3 operations
                 </p>
                 {[
-                  { t: "Pay rent", to: "Household" },
+                  // Filing an afternoon of Deadlock under "Research" is the
+                  // joke, and it is also exactly what the operation does.
+                  { t: "Scroll IG for 2 hours", to: "Research" },
+                  { t: "Play Deadlock", to: "Research" },
                   { t: "Call Mom", to: "Household" },
-                  { t: "Review PR #214", to: "Website redesign" },
                 ].map((op, i) => (
                   <div
                     key={op.t}
