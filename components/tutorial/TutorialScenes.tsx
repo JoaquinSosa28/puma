@@ -623,13 +623,16 @@ export function SceneType({
                 {ghost}
               </span>
             )}
-            {/* The drifting hint, parked at the caret. */}
+            {/* The drifting hint, parked at the caret. No question mark: it
+                read as a prompt to type one, and the "?" is not a character
+                the step accepts — so the punctuation was inviting the one
+                keystroke that gets refused. */}
             {step === "dayWord" && (
               <span
                 key={suggestion}
                 className="tutorial-in ml-1 shrink-0 font-medium text-faint2"
               >
-                {DAY_SUGGESTIONS[suggestion]}?
+                {DAY_SUGGESTIONS[suggestion]}
               </span>
             )}
           </div>
@@ -1815,8 +1818,12 @@ const SLICES = [
 
 export function SceneAssistant({ p }: { p: number }) {
   const asking = p < 0.5;
+  // Both lines are things a person would actually say. "File my unfiled
+  // tasks" was the app's own vocabulary talking back at you — nobody calls a
+  // task unfiled, they call it not in a project. The scene shows exactly that
+  // happening underneath, so the words may as well match the picture.
   const q = typedChars("where did my time go?", p, 0.02, 0.16);
-  const cmd = typedChars("file my unfiled tasks", p, 0.5, 0.63);
+  const cmd = typedChars("assign all my free tasks to a project", p, 0.5, 0.66);
   const chartIn = ease(phase(p, 0.2, 0.42));
   const draftIn = phase(p, 0.66, 0.84);
 
