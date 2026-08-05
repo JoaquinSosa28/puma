@@ -83,55 +83,6 @@ export function MissionBanner({
   );
 }
 
-/**
- * The ask again, in the empty half of the screen below the card.
- *
- * The stage is a small card floating in a lot of dark, and the one thing you
- * need — the key — was a 10px line inside it. Restating it underneath, at a
- * size you can read from across the room, costs nothing: the space was doing
- * nothing anyway, and the eye that has just looked down at the card is already
- * there.
- */
-export function BigAsk({
-  verb,
-  keyLabel,
-  wrong,
-}: {
-  verb: "press" | "type";
-  keyLabel: string;
-  /** Something else was pressed — say so rather than repeating the ask. */
-  wrong?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "pointer-events-none flex select-none items-center justify-center gap-3",
-        wrong && "tutorial-shake"
-      )}
-    >
-      <span
-        className={cn(
-          "font-mono text-[13px] uppercase tracking-[0.2em] transition-colors",
-          wrong ? "text-tasks" : "text-white/45"
-        )}
-      >
-        {wrong ? "not that one —" : verb}
-      </span>
-      <span
-        className={cn(
-          "inline-flex min-w-[64px] items-center justify-center rounded-xl border-2 px-5 py-2 text-[34px] font-black leading-none tracking-tight transition-colors sm:text-[44px]",
-          wrong
-            ? "border-tasks/70 bg-tasks/15 text-tasks"
-            : "border-white/30 bg-white/10 text-white"
-        )}
-        style={{ textShadow: "0 2px 14px rgba(0,0,0,0.6)" }}
-      >
-        {keyLabel}
-      </span>
-    </div>
-  );
-}
-
 export function TutorialChecklist({
   beats,
   index,

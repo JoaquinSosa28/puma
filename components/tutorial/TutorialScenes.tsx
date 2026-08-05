@@ -50,10 +50,6 @@ export type SceneProps = {
    *  anything worked, not time since the step changed — otherwise someone
    *  typing their way through a long step gets told they're stuck. */
   onProgress?: () => void;
-  /** The exact key this step wants, so the overlay can restate it big. */
-  onKeyHint?: (hint: { key: string; type?: boolean } | null) => void;
-  /** A wrong key just landed — the overlay flashes its restatement too. */
-  onWrong?: () => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -177,50 +173,36 @@ function Row({
  *  the whole lesson: more letters, fewer options, one Tab. */
 const DEMO_TAGS = ["prime", "pumma", "personal"];
 
-const DAY_SUGGESTIONS = ["friday", "tomorrow", "monday"];
-
-/** Every day word the parser knows, for the "is this word finished?" check. */
-const DAY_WORD_LIST = [
-  "today", "tonight", "tomorrow",
-  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
-  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+/** The day the mission lands on, and the options that cycle beside it. */
+const DEMO_DAY = "friday";
+const DAY_SUGGESTIONS = [
+  "friday", "tomorrow", "monday", "yesterday", "saturday", "wednesday",
 ];
 
-/**
- * A finished day word: one the parser accepts that no longer one starts with.
- *
- * "fri" is a valid token, so matching on any-day-word snatched the step away
- * mid-"friday" and then rejected the "day" still being typed. Waiting until
- * the word can't grow lets people finish the word they're writing.
- */
-function daySettled(text: string): boolean {
-  const word = (text.match(/[a-z]+$/i)?.[0] ?? "").toLowerCase();
-  if (!word) {
-    // A space or punctuation just ended whatever came before it.
-    const prev = (text.trimEnd().match(/[a-z]+$/i)?.[0] ?? "").toLowerCase();
-    return DAY_WORD_LIST.includes(prev);
-  }
-  if (!DAY_WORD_LIST.includes(word)) return false;
-  return !DAY_WORD_LIST.some((d) => d.length > word.length && d.startsWith(word));
-}
 
-type CaptureStep = "title" | "day" | "hash" | "letter" | "rotate" | "narrow" | "send";
 
-const STEP_ORDER: CaptureStep[] = ["title", "day", "hash", "letter", "rotate", "narrow", "send"];
+type CaptureStep =
+  | "title"
+  | "dayLetter"
+  | "dayTab"
+  | "hash"
+  | "letter"
+  | "rotate"
+  | "narrow"
+  | "send";
 
-/**
- * What has been typed toward the current step — the title so far, or the day
- * word being written after it. Used to decide when enough has been said that
- * the step can stop waiting on its clock.
- */
-function wordAt(text: string, step: "title" | "day"): string {
-  if (step === "title") return text.trim();
-  const after = text.trimEnd().split(/\s+/).pop() ?? "";
-  return after;
-}
+const STEP_ORDER: CaptureStep[] = [
+  "title",
+  "dayLetter",
+  "dayTab",
+  "hash",
+  "letter",
+  "rotate",
+  "narrow",
+  "send",
+];
 
-/** How long a step waits before it stops hinting and just names the key. */
-const IDLE_MS = 5_000;
+
 
 /**
  * The one key each step is waiting for, and the verb that goes with it.
@@ -230,8 +212,9 @@ const IDLE_MS = 5_000;
  * the thing you do with a P is type it.
  */
 const STEP_KEY: Record<CaptureStep, { key: string; type?: true }> = {
-  title: { key: "space" },
-  day: { key: "space" },
+  title: { key: "#", type: true },
+  dayLetter: { key: "f", type: true },
+  dayTab: { key: "Tab" },
   hash: { key: "#", type: true },
   letter: { key: "p", type: true },
   rotate: { key: "Tab" },
@@ -264,11 +247,11 @@ function PressHint({ label, type }: { label: string; type?: boolean }) {
   }, []);
 
   return (
-    <span className="uppercase tracking-[0.14em]">
-      {type ? "type" : "press"}{" "}
+    <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.18em]">
+      {type ? "type" : "press"}
       <span
         ref={ref}
-        className="inline-block rounded-[4px] border border-ink/25 bg-ink/[0.07] px-1.5 py-px font-bold text-ink"
+        className="inline-block rounded-[7px] border-2 border-ink/25 bg-ink/[0.07] px-3 py-1 text-[17px] font-black tracking-normal text-ink"
       >
         {type ? `‘${label}’` : label}
       </span>
@@ -277,8 +260,10 @@ function PressHint({ label, type }: { label: string; type?: boolean }) {
 }
 
 const STEP_COPY: Record<CaptureStep, { ask: string; why: string }> = {
-  title: { ask: "Type a task. Anything.", why: "no field focused — it just goes in" },
-  day: { ask: "Add a day, then press space", why: "plain english, anywhere in the line" },
+  title: { ask: "Type a task, then ‘#’", why: "no field focused — it just goes in" },
+
+  dayLetter: { ask: "Type ‘f’ for Friday", why: "dates start the same way tags do" },
+  dayTab: { ask: "Press Tab", why: "Tab finishes days, tags, priorities — all of it" },
   hash: { ask: "Type ‘#’", why: "that's how a tag starts" },
   letter: { ask: "Type ‘p’", why: "just the one — then stop" },
   rotate: { ask: "Press Tab", why: "three tags start with p — Tab walks them" },
@@ -292,8 +277,6 @@ export function SceneType({
   onInstruction,
   onStray,
   onProgress,
-  onKeyHint,
-  onWrong,
 }: SceneProps) {
   const [text, setText] = useState("");
   const [step, setStep] = useState<CaptureStep>("title");
@@ -320,54 +303,31 @@ export function SceneType({
     setGhost(g);
   }, []);
 
-  // Five seconds of nothing and the hint stops being prose. Reset by anything
-  // the step accepted, so it only ever fires at someone who has actually
-  // stalled rather than someone typing slowly.
-  const [idle, setIdle] = useState(false);
-  const idleTimer = useRef(0);
-  const stirIdle = useCallback(() => {
-    setIdle(false);
-    window.clearTimeout(idleTimer.current);
-    idleTimer.current = window.setTimeout(() => setIdle(true), IDLE_MS);
-  }, []);
-  useEffect(() => {
-    stirIdle();
-    return () => window.clearTimeout(idleTimer.current);
-  }, [stirIdle]);
-
   const commit = useCallback(
     (next: string) => {
       textRef.current = next;
       setText(next);
-      stirIdle();
       // Anything the step accepted counts as getting on with it.
       onProgress?.();
     },
-    [onProgress, stirIdle]
+    [onProgress]
   );
 
   /** Tell the banner what to shout. */
   useEffect(() => {
     onInstruction?.(done ? "Captured." : STEP_COPY[step].ask);
-    onKeyHint?.(done ? null : STEP_KEY[step]);
-    return () => onKeyHint?.(null);
-  }, [step, done, onInstruction, onKeyHint]);
+  }, [step, done, onInstruction]);
 
-  const goStep = useCallback(
-    (next: CaptureStep) => {
-      stepRef.current = next;
-      setStep(next);
-      stirIdle();
-    },
-    [stirIdle]
-  );
+  const goStep = useCallback((next: CaptureStep) => {
+    stepRef.current = next;
+    setStep(next);
+  }, []);
 
   const reject = useCallback(() => {
     setShake(true);
     onStray?.();
-    onWrong?.();
     window.setTimeout(() => setShake(false), 400);
-  }, [onStray, onWrong]);
+  }, [onStray]);
 
   // The beat is about typing without clicking first, so it had better work
   // without clicking first: any printable key re-takes the field if focus has
@@ -413,7 +373,7 @@ export function SceneType({
   // The day suggestion drifts through a few options rather than naming one, so
   // it reads as "words like these" instead of "type this exact word".
   useEffect(() => {
-    if (step !== "day") return;
+    if (step !== "title" && step !== "dayLetter") return;
     const id = window.setInterval(
       () => setSuggestion((n) => (n + 1) % DAY_SUGGESTIONS.length),
       1600
@@ -443,7 +403,7 @@ export function SceneType({
       // Backspace, only within the step you're on: rubbing out a finished
       // step would leave the lesson and the text disagreeing.
       const st = stepRef.current;
-      if (st === "title" || st === "day") commit(next);
+      if (st === "title") commit(next);
       return;
     }
     if (next.length === current.length) return;
@@ -459,25 +419,27 @@ export function SceneType({
     const current = textRef.current;
     switch (stepRef.current) {
       case "title": {
-        // A space is how you finish a word — and how this step ends, once
-        // there's actually something there.
-        if (ch === " " && titleOf(current).length >= 3) {
-          commit(current + " ");
-          goStep("day");
+        // Type as much as you like, spaces and all — a task is usually more
+        // than one word, and refusing the gaps between someone's own words is
+        // not a lesson about anything. The "#" is what ends this step, which
+        // is also the first half of the next one.
+        if (ch === "#" && titleOf(current).length >= 3) {
+          commit((current.endsWith(" ") ? current : current + " ") + "#");
+          goStep("dayLetter");
           return;
         }
         commit(current + ch);
         return;
       }
-      case "day": {
-        // A finished day word wants the space that ends it — the same
-        // keystroke Tab-completion would have added for you. Any OTHER space
-        // is just a space: people write "pay rent on friday", and refusing
-        // the gaps between their own words is not a lesson about days.
-        commit(current + ch);
-        if (ch === " " && daySettled(current)) goStep("hash");
+      case "dayLetter": {
+        if (ch.toLowerCase() !== DEMO_DAY[0]) return reject();
+        commit(current + DEMO_DAY[0]);
+        goStep("dayTab");
         return;
       }
+      case "dayTab":
+        // Tab finishes it — the whole point of putting dates behind the "#".
+        return reject();
       case "hash": {
         if (ch !== "#") return reject();
         commit((current.endsWith(" ") ? current : current + " ") + "#");
@@ -517,14 +479,16 @@ export function SceneType({
 
   function handleTab() {
     const st = stepRef.current;
-    if (st !== "rotate" && st !== "narrow") return reject();
+    if (st !== "dayTab" && st !== "rotate" && st !== "narrow") return reject();
     const value = textRef.current;
     const caret = value.length;
     const again = rotateRef.current?.from === value;
+    // The day step completes against the date vocabulary; the tag steps
+    // against the tags. Same function, same keystroke — which is the lesson.
     const result = completeOmniToken(
       value,
       caret,
-      DEMO_TAGS,
+      st === "dayTab" ? [DEMO_DAY] : DEMO_TAGS,
       again ? rotateRef.current!.index + 1 : undefined,
       again ? rotateRef.current!.base : undefined
     );
@@ -555,6 +519,15 @@ export function SceneType({
     setTabs(seen);
     onProgress?.();
 
+    if (st === "dayTab") {
+      // One candidate, so that press finished it — on to the tag.
+      if (result.exact) {
+        rotateRef.current = null;
+        window.setTimeout(() => goStep("hash"), 300);
+      }
+      return;
+    }
+
     if (st === "rotate") {
       // Two presses is enough to see it move; then the better trick. Your
       // text is already just "#p" — only the guess beside it was changing.
@@ -578,12 +551,6 @@ export function SceneType({
     onDone();
   };
 
-  // Four characters in and the step has been understood — waiting out the full
-  // five seconds to say "press space" is the tour being slow on purpose. Only
-  // the steps whose answer IS space; elsewhere the clock still rules.
-  const enoughTyped =
-    (step === "title" || step === "day") && wordAt(text, step).length >= 4;
-
   const copy = STEP_COPY[step];
   const stepNumber = STEP_ORDER.indexOf(step) + 1;
 
@@ -593,9 +560,8 @@ export function SceneType({
         <span className="shrink-0 rounded-full bg-ink px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-background">
           Step {stepNumber}/{STEP_ORDER.length}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-ink">
-          {done ? "Captured." : copy.ask}
-        </span>
+        {/* No ask here. It is already the biggest line on the screen; saying
+            it again in 13px next to a step counter just made two of them. */}
       </div>
 
       <div
@@ -633,7 +599,7 @@ export function SceneType({
               </span>
             )}
             {/* The drifting hint, parked at the caret. */}
-            {step === "day" && (
+            {step === "dayLetter" && (
               <span
                 key={suggestion}
                 className="tutorial-in ml-1 shrink-0 font-medium text-faint2"
@@ -679,20 +645,14 @@ export function SceneType({
           and without the reservation the whole card jumped 50px under the
           cursor at the exact moment someone was reading it. */}
       <div className="mt-3 flex min-h-[68px] flex-col items-center justify-center gap-1.5">
-        {(step === "rotate" || step === "narrow") && !done ? (
+        {(step === "dayTab" || step === "rotate" || step === "narrow") && !done ? (
           <>
             <div className="flex items-center gap-2.5">
-              <span className={step === "rotate" ? "tutorial-nudge-soft" : undefined}>
+              <span className={step !== "narrow" ? "tutorial-nudge-soft" : undefined}>
                 <KeyCap label="⇥ Tab" pressed={tabs} wide big />
               </span>
               <span className="font-mono text-[10.5px] text-faint">
-                {idle ? (
-                  <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
-                ) : step === "rotate" ? (
-                  `${DEMO_TAGS.length} tags start with p — press again`
-                ) : (
-                  "one match now — Tab lands it"
-                )}
+                <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
               </span>
             </div>
             <p className="m-0 font-mono text-[9.5px] text-faint2">
@@ -703,14 +663,21 @@ export function SceneType({
           <p className="m-0 text-center font-mono text-[10.5px] text-faint">
             {shake ? (
               "not that one — read the step"
-            ) : (idle || enoughTyped) && !done ? (
-              <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
             ) : (
-              copy.why
+              // From the first frame, switching with the step. It was gated on
+              // idling, which meant the one thing you needed showed up only
+              // after you'd been stuck for five seconds.
+              !done && <PressHint label={STEP_KEY[step].key} type={STEP_KEY[step].type} />
             )}
           </p>
         )}
       </div>
+
+      {/* The reason, at the bottom, as the aside it is — it explains the step
+          rather than instructing it, and it was competing with the key. */}
+      <p className="m-0 mt-3 text-center font-mono text-[10.5px] leading-relaxed text-faint2">
+        {done ? "* one line, fully parsed" : `* ${copy.why}`}
+      </p>
 
       <div className="mt-3 min-h-[46px]">
         {captured && (
