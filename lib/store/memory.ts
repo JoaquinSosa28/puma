@@ -5,23 +5,23 @@ import { oid } from "@/lib/date";
 export type MemoryStore = SeedData & { seeded: boolean };
 
 const globalForStore = globalThis as unknown as {
-  __pumaStore?: MemoryStore;
+  __pummaStore?: MemoryStore;
 };
 
 const SEED_USER_ID = "seed-user-alex";
 
 export function getStore(): MemoryStore {
-  if (!globalForStore.__pumaStore) {
+  if (!globalForStore.__pummaStore) {
     const seed = createSeedData(SEED_USER_ID);
-    globalForStore.__pumaStore = { ...seed, seeded: true };
+    globalForStore.__pummaStore = { ...seed, seeded: true };
   }
-  return globalForStore.__pumaStore;
+  return globalForStore.__pummaStore;
 }
 
 export function resetStore(): MemoryStore {
   const seed = createSeedData(SEED_USER_ID);
-  globalForStore.__pumaStore = { ...seed, seeded: true };
-  return globalForStore.__pumaStore;
+  globalForStore.__pummaStore = { ...seed, seeded: true };
+  return globalForStore.__pummaStore;
 }
 
 export function getCurrentUserId(): string {

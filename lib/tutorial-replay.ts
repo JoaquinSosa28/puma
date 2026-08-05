@@ -13,7 +13,7 @@
  * link is a button that looks broken. The tour records itself the moment it
  * starts, so the write can happen afterwards, in the background, unwatched.
  */
-const EVENT = "puma:tutorial-replay";
+const EVENT = "pumma:tutorial-replay";
 
 export function requestTutorialReplay(): void {
   window.dispatchEvent(new Event(EVENT));

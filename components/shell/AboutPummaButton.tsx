@@ -10,14 +10,14 @@ const ABOUT_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
  * The "?" beside the wordmark. Looks like an about/info affordance, and is —
  * for a given value of informative.
  */
-export function AboutPumaButton({ className }: { className?: string }) {
+export function AboutPummaButton({ className }: { className?: string }) {
   return (
     <a
       href={ABOUT_URL}
       target="_blank"
       rel="noopener noreferrer"
-      title="What is PUMA?"
-      aria-label="What is PUMA?"
+      title="What is PUMMA?"
+      aria-label="What is PUMMA?"
       className={cn(
         "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-faint2 transition-colors hover:bg-hover hover:text-ink",
         className

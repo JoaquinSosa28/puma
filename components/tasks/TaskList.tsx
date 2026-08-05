@@ -304,7 +304,7 @@ export function TaskList({
               >
                 {done && (
                   <Check
-                    className="h-[11px] w-[11px] animate-puma-pop text-white"
+                    className="h-[11px] w-[11px] animate-pumma-pop text-white"
                     strokeWidth={3.2}
                   />
                 )}
@@ -441,7 +441,7 @@ export function TaskList({
               >
                 {picked ? (
                   <Check
-                    className="h-[11px] w-[11px] animate-puma-pop text-white"
+                    className="h-[11px] w-[11px] animate-pumma-pop text-white"
                     strokeWidth={3.2}
                   />
                 ) : done ? (
@@ -464,7 +464,7 @@ export function TaskList({
                 )}
               >
                 {done && (
-                  <Check className="h-[11px] w-[11px] animate-puma-pop text-white" strokeWidth={3.2} />
+                  <Check className="h-[11px] w-[11px] animate-pumma-pop text-white" strokeWidth={3.2} />
                 )}
               </button>
             )}

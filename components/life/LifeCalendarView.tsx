@@ -142,7 +142,7 @@ export function LifeCalendarView({
         lifeSpanYears={lifeSpanYears}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-0 animate-puma-view">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-0 animate-pumma-view">
         {!birthDate ? (
           <div
             className="rounded-[14px] border-2 border-dashed border-border bg-surface2/50 px-6 py-12 text-center"

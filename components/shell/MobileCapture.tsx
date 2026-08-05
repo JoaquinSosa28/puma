@@ -117,7 +117,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
 
   const openWith = (t: OmniType) => {
     // Tell the shell a capture is opening (the dock closes its More menu).
-    window.dispatchEvent(new CustomEvent("puma:capture-opening"));
+    window.dispatchEvent(new CustomEvent("pumma:capture-opening"));
     setType(t);
     // Opening the sheet from the Assistant page means you want the assistant,
     // same as the desktop bar switching itself over there.
@@ -138,10 +138,10 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
       if (isTutorialActive()) return;
       if (e.key === "Escape") setOpen(false);
     };
-    window.addEventListener("puma:capture", onCapture);
+    window.addEventListener("pumma:capture", onCapture);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("puma:capture", onCapture);
+      window.removeEventListener("pumma:capture", onCapture);
       window.removeEventListener("keydown", onKey);
     };
   }, [capture.type]);
@@ -249,7 +249,7 @@ export function MobileCapture({ tags, projects, defaultType = "task" }: Props) {
           type="button"
           aria-label="Capture"
           onClick={() => openWith(capture.type)}
-          className="group flex h-10 w-10 shrink-0 animate-puma-pop items-center justify-center rounded-full border-2 border-background text-background shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition-all duration-300 hover:scale-105 active:scale-90"
+          className="group flex h-10 w-10 shrink-0 animate-pumma-pop items-center justify-center rounded-full border-2 border-background text-background shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition-all duration-300 hover:scale-105 active:scale-90"
           style={{ background: sectionMetaFor(pathname).color }}
         >
           <Plus

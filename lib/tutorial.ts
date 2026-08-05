@@ -3,7 +3,7 @@
 // Every beat earns its place by teaching something a person would not work out
 // on their own. Filters, delete buttons and the settings page are deliberately
 // absent: they have labels, and a tutorial that reads labels out loud is the
-// kind people skip. What's here instead is the stuff that makes PUMA PUMA —
+// kind people skip. What's here instead is the stuff that makes PUMMA PUMMA —
 // type-anywhere capture, tags as filing rather than labelling, and an
 // assistant that proposes instead of doing.
 //

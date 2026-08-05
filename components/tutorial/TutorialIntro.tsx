@@ -52,7 +52,7 @@ export function TutorialIntro({ onStart }: { onStart: () => void }) {
           Sixty seconds, then it&apos;s yours.
         </h2>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          Six things about PUMA you would never guess on your own — and you
+          Six things about PUMMA you would never guess on your own — and you
           drive. No feature tour, no checklist of buttons.
         </p>
 

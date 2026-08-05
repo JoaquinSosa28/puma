@@ -73,11 +73,11 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
   // Any capture opening (dock +, top-bar twin, keyboard) dismisses the menu.
   useEffect(() => {
     const close = () => setMoreOpen(false);
-    window.addEventListener("puma:capture", close);
-    window.addEventListener("puma:capture-opening", close);
+    window.addEventListener("pumma:capture", close);
+    window.addEventListener("pumma:capture-opening", close);
     return () => {
-      window.removeEventListener("puma:capture", close);
-      window.removeEventListener("puma:capture-opening", close);
+      window.removeEventListener("pumma:capture", close);
+      window.removeEventListener("pumma:capture-opening", close);
     };
   }, []);
 
@@ -87,7 +87,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
 
   const openCapture = (type?: string) => {
     window.dispatchEvent(
-      new CustomEvent("puma:capture", { detail: { type: type ?? "task" } })
+      new CustomEvent("pumma:capture", { detail: { type: type ?? "task" } })
     );
   };
 
@@ -98,7 +98,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
           type="button"
           aria-label="Close menu"
           onClick={() => setMoreOpen(false)}
-          className="animate-puma-fade fixed inset-0 z-[39] bg-black/25 lg:hidden"
+          className="animate-pumma-fade fixed inset-0 z-[39] bg-black/25 lg:hidden"
         />
       )}
       <div
@@ -109,8 +109,8 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
         {/* The "More" bloom: a floating glass panel above the dock — fixed
             height on purpose (it's a menu, not a sheet). */}
         {moreOpen && (
-          <div className="animate-puma-bloom pointer-events-auto absolute inset-x-3 bottom-[calc(100%+12px)] max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-            <p className="animate-puma-rise mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
+          <div className="animate-pumma-bloom pointer-events-auto absolute inset-x-3 bottom-[calc(100%+12px)] max-h-[calc(100dvh-140px)] overflow-y-auto rounded-2xl border border-border bg-surface/95 p-3.5 shadow-[0_16px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+            <p className="animate-pumma-rise mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2">
               Spaces
             </p>
             <div className="grid grid-cols-2 gap-1.5">
@@ -123,7 +123,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
                     href={hrefWithLife(item.href, life)}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      "animate-puma-rise flex items-center gap-2.5 rounded-xl border-2 px-3 py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95",
+                      "animate-pumma-rise flex items-center gap-2.5 rounded-xl border-2 px-3 py-3 text-[13px] font-semibold transition-all duration-150 active:scale-95",
                       !active && "border-border bg-surface text-muted"
                     )}
                     style={{
@@ -150,12 +150,12 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
               })}
             </div>
             <p
-              className="animate-puma-rise mb-1.5 mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2"
+              className="animate-pumma-rise mb-1.5 mt-3.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-faint2"
               style={{ animationDelay: "160ms" }}
             >
               Life area
             </p>
-            <div className="animate-puma-rise" style={{ animationDelay: "190ms" }}>
+            <div className="animate-pumma-rise" style={{ animationDelay: "190ms" }}>
               <LifeAreaToggle variant="fun" auto={lifeAuto} className="mb-0" />
             </div>
           </div>
@@ -244,7 +244,7 @@ export function MobileDock({ lifeAuto }: { lifeAuto?: LifeAutoConfig }) {
             setMoreOpen(false);
             openCapture(activeItem?.captureType ?? "task");
           }}
-          className="pointer-events-auto group flex h-10 w-10 animate-puma-pop items-center justify-center rounded-full border-2 border-background text-background shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition-all duration-300 hover:scale-105 active:scale-90"
+          className="pointer-events-auto group flex h-10 w-10 animate-pumma-pop items-center justify-center rounded-full border-2 border-background text-background shadow-[0_4px_14px_rgba(0,0,0,0.25)] transition-all duration-300 hover:scale-105 active:scale-90"
           style={{ background: activeItem?.color ?? "var(--ink)" }}
         >
           <Plus

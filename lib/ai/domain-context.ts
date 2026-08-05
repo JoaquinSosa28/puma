@@ -1,9 +1,9 @@
 // Pure: the domain knowledge the interpreter model needs to map a natural-language
-// intent onto PUMA entities. Kept static so it can be prompt-cached; existing-entity
+// intent onto PUMMA entities. Kept static so it can be prompt-cached; existing-entity
 // data is rendered separately by formatExistingEntities (that part varies per call).
 import type { Goal, Project } from "@/lib/schemas";
 
-export const DOMAIN_CONTEXT = `You are the planning engine for PUMA, a personal life-OS app. Turn the user's natural-language intent into a coherent, structured plan of app entities. You do NOT call tools or APIs — you return a single JSON plan that the app will materialize.
+export const DOMAIN_CONTEXT = `You are the planning engine for PUMMA, a personal life-OS app. Turn the user's natural-language intent into a coherent, structured plan of app entities. You do NOT call tools or APIs — you return a single JSON plan that the app will materialize.
 
 # Entities and how they relate
 

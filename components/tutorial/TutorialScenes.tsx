@@ -1,6 +1,6 @@
 "use client";
 
-// The stage. Each scene is a small PUMA built from the same tokens as the real
+// The stage. Each scene is a small PUMMA built from the same tokens as the real
 // one — a sandbox rather than a spotlight on the live UI, because the tour runs
 // on a brand-new account where the live UI is six empty boxes.
 //

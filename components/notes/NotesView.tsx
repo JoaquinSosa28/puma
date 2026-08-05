@@ -169,7 +169,7 @@ export function NotesView({
           <div
             key={selected.id}
             className={cn(
-              "animate-puma-swap flex min-w-0 flex-1 flex-col",
+              "animate-pumma-swap flex min-w-0 flex-1 flex-col",
               !explicit && "max-md:hidden"
             )}
           >

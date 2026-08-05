@@ -1158,7 +1158,7 @@ function AppliedView({
         <p className="m-0 text-[17px] font-semibold tracking-tight text-ink">
           {undone
             ? "Reverted. Deletions, if any, were already gone."
-            : "It's in your PUMA. Most of it is empty on purpose."}
+            : "It's in your PUMMA. Most of it is empty on purpose."}
         </p>
       </div>
 

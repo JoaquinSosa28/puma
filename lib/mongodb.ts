@@ -6,8 +6,8 @@ import {
 } from "@/lib/db-connection-error";
 
 const globalForMongo = globalThis as unknown as {
-  __pumaMongoClient?: Promise<MongoClient>;
-  __pumaMongoWarm?: Promise<void>;
+  __pummaMongoClient?: Promise<MongoClient>;
+  __pummaMongoWarm?: Promise<void>;
 };
 
 const MONGO_OPTIONS = {
@@ -47,8 +47,8 @@ function connect(): Promise<MongoClient> {
 }
 
 function resetMongoClient(): void {
-  globalForMongo.__pumaMongoClient = undefined;
-  globalForMongo.__pumaMongoWarm = undefined;
+  globalForMongo.__pummaMongoClient = undefined;
+  globalForMongo.__pummaMongoWarm = undefined;
 }
 
 /** Called once at server boot so the first page visit is not blocked on connect. */
@@ -56,8 +56,8 @@ export function warmMongoConnection(): Promise<void> {
   if (process.env.DATA_SOURCE !== "mongodb") {
     return Promise.resolve();
   }
-  if (!globalForMongo.__pumaMongoWarm) {
-    globalForMongo.__pumaMongoWarm = (async () => {
+  if (!globalForMongo.__pummaMongoWarm) {
+    globalForMongo.__pummaMongoWarm = (async () => {
       const db = await getDb();
       // Open several pooled sockets concurrently so the first real request's
       // parallel batch doesn't serialize on cold TLS handshakes.
@@ -65,11 +65,11 @@ export function warmMongoConnection(): Promise<void> {
         Array.from({ length: WARM_SOCKETS }, () => db.command({ ping: 1 }))
       );
     })().catch((err) => {
-      globalForMongo.__pumaMongoWarm = undefined;
+      globalForMongo.__pummaMongoWarm = undefined;
       throw err;
     });
   }
-  return globalForMongo.__pumaMongoWarm;
+  return globalForMongo.__pummaMongoWarm;
 }
 
 /** Returns a connected Db, caching the client across hot reloads / requests. */
@@ -79,14 +79,14 @@ export async function getDb(): Promise<Db> {
       "Database is not configured for this environment. Set DATA_SOURCE=mongodb to use MongoDB."
     );
   }
-  if (!globalForMongo.__pumaMongoClient) {
-    globalForMongo.__pumaMongoClient = connect().catch((err) => {
+  if (!globalForMongo.__pummaMongoClient) {
+    globalForMongo.__pummaMongoClient = connect().catch((err) => {
       resetMongoClient();
       throw err;
     });
   }
   try {
-    const client = await globalForMongo.__pumaMongoClient;
+    const client = await globalForMongo.__pummaMongoClient;
     return client.db(process.env.MONGODB_DB ?? "puma");
   } catch (err) {
     resetMongoClient();

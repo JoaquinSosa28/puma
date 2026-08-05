@@ -20,9 +20,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "P.U.M.A — Procrastination Ultimate Management App",
+  title: "P.U.M.M.A — Procrastination Ultimate Megasor Monster Annihilator",
   description: "Personal life-management dashboard",
-  appleWebApp: { capable: true, title: "PUMA", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "PUMMA", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -58,7 +58,7 @@ export default async function RootLayout({
               toastOptions={{
                 classNames: {
                   toast:
-                    "animate-puma-toast bg-ink text-background font-semibold border-none",
+                    "animate-pumma-toast bg-ink text-background font-semibold border-none",
                   actionButton: "font-mono text-[11px] text-faint2",
                 },
               }}

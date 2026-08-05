@@ -70,7 +70,7 @@
   --radius-omni: 14px;
 }
 
-@keyframes pumaToast {
+@keyframes pummaToast {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -81,7 +81,7 @@
   }
 }
 
-@keyframes pumaView {
+@keyframes pummaView {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -92,7 +92,7 @@
   }
 }
 
-@keyframes pumaPop {
+@keyframes pummaPop {
   0% {
     transform: scale(0.6);
   }
@@ -143,16 +143,16 @@ body {
   background: transparent;
 }
 
-.animate-puma-toast {
-  animation: pumaToast 0.2s ease;
+.animate-pumma-toast {
+  animation: pummaToast 0.2s ease;
 }
 
-.animate-puma-view {
-  animation: pumaView 0.2s ease;
+.animate-pumma-view {
+  animation: pummaView 0.2s ease;
 }
 
-.animate-puma-pop {
-  animation: pumaPop 0.25s ease;
+.animate-pumma-pop {
+  animation: pummaPop 0.25s ease;
 }
 
 .omni-box {
@@ -467,7 +467,7 @@ html {
   }
 }
 
-@keyframes pumaSheetUp {
+@keyframes pummaSheetUp {
   from {
     transform: translateY(100%);
   }
@@ -496,15 +496,15 @@ html {
   }
 }
 
-.animate-puma-sheet-up {
-  animation: pumaSheetUp 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+.animate-pumma-sheet-up {
+  animation: pummaSheetUp 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.animate-puma-fade {
+.animate-pumma-fade {
   animation: pumaFadeIn 0.2s ease-out;
 }
 
-.animate-puma-rise {
+.animate-pumma-rise {
   animation: pumaRise 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -519,7 +519,7 @@ html {
   }
 }
 
-.animate-puma-swap {
+.animate-pumma-swap {
   animation: pumaSwap 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -534,7 +534,7 @@ html {
   }
 }
 
-.animate-puma-bloom {
+.animate-pumma-bloom {
   transform-origin: bottom center;
   animation: pumaBloom 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }

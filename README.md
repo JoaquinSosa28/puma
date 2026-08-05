@@ -1,4 +1,4 @@
-# PUMA — Procrastination Ultimate Management App
+# PUMMA — Procrastination Ultimate Megasor Monster Annihilator
 
 A calm, single-screen **personal life OS**: tasks, habits, goals, projects and
 notes, tied together by an agenda, a memento-mori life calendar, and an AI
@@ -109,7 +109,7 @@ URL and `SERVER_ACTIONS_ALLOWED_ORIGINS` to your domain.
 
 ## License
 
-PUMA is **source-available** under the
+PUMMA is **source-available** under the
 [PolyForm Noncommercial License 1.0.0](LICENSE). The source is public and the
 license is permissive about everything except making money with it.
 
@@ -122,7 +122,7 @@ company, selling it or a modified version, running it as a paid or ad-supported
 hosted service, or bundling it into a product you charge for.
 
 That line is the license's, not a summary you should rely on — the
-[LICENSE](LICENSE) text governs. If you want to use PUMA commercially, that's
+[LICENSE](LICENSE) text governs. If you want to use PUMMA commercially, that's
 genuinely fine and usually cheap: email
 [joaquinsosa2810@gmail.com](mailto:joaquinsosa2810@gmail.com) and ask.
 

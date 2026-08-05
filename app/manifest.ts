@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PUMA — Procrastination Ultimate Management App",
-    short_name: "PUMA",
+    name: "PUMMA — Procrastination Ultimate Megasor Monster Annihilator",
+    short_name: "PUMMA",
     description: "Tasks, habits, goals, projects and notes in one quiet dashboard.",
     start_url: "/",
     display: "standalone",

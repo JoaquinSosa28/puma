@@ -50,7 +50,7 @@ export async function GET() {
   return new NextResponse(JSON.stringify(payload, null, 2), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="puma-export-${stamp}.json"`,
+      "Content-Disposition": `attachment; filename="pumma-export-${stamp}.json"`,
       "Cache-Control": "no-store, private",
     },
   });

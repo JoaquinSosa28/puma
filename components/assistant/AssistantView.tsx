@@ -56,7 +56,7 @@ export function AssistantView({
         birthDate={birthDate}
         lifeSpanYears={lifeSpanYears}
       />
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-6 max-lg:pb-28 animate-puma-view">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-6 max-lg:pb-28 animate-pumma-view">
         {!aiReady ? (
           <ApiKeyNeeded />
         ) : status === "pending" ? (
@@ -133,7 +133,7 @@ function EmptyState({ onSubmit }: { onSubmit: (text: string) => void }) {
           Ask about your data, or describe what to build.
         </p>
         <p className="m-0 mt-2 text-[13.5px] leading-relaxed text-muted">
-          Use the bar above. I read what&apos;s already in PUMA; when you ask for
+          Use the bar above. I read what&apos;s already in PUMMA; when you ask for
           structure I propose the shape — the words inside it stay yours.
         </p>
       </div>
@@ -187,7 +187,7 @@ function ExampleColumn({
 // the ghost dashboard previews the shape of what's coming instead of leaving
 // a blank page hanging.
 const THINK_PHASES = [
-  "Reading your PUMA",
+  "Reading your PUMMA",
   "Crunching the numbers",
   "Choosing how to show it",
   "Polishing",

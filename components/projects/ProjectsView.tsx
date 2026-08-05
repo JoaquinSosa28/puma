@@ -112,7 +112,7 @@ export function ProjectsView({
             : undefined
         }
       />
-      <div className="flex min-h-0 flex-1 flex-col pb-6 animate-puma-view">
+      <div className="flex min-h-0 flex-1 flex-col pb-6 animate-pumma-view">
         {/* The rail renders in here, portaled from inside the board's
             DndContext so its cards can receive dropped tasks. Without a board
             there's nothing to drag, so it renders plainly instead. */}
@@ -197,7 +197,7 @@ export function ProjectsView({
             </div>
             {selection.active ? (
               <>
-                <div className="hidden min-h-0 overflow-hidden animate-puma-swap lg:block">
+                <div className="hidden min-h-0 overflow-hidden animate-pumma-swap lg:block">
                   {isDesktop && (
                     <BulkEditPanel
                       tasks={selectedTasks}
@@ -227,7 +227,7 @@ export function ProjectsView({
                     each other (see lib/use-media-query). */}
                 <div
                   key={editingTask.id}
-                  className="hidden min-h-0 overflow-hidden animate-puma-swap lg:block"
+                  className="hidden min-h-0 overflow-hidden animate-pumma-swap lg:block"
                 >
                   {isDesktop && <TaskDetailPanel
                     task={editingTask}

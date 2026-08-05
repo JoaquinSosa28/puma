@@ -7,13 +7,13 @@
 // reach for an answer anyway — it has been given the choice. When the user
 // pins a mode, the other branch is not described at all.
 
-const PREAMBLE = `You are PUMA's assistant. PUMA is a personal life-OS: tasks, habits, goals, projects, notes.`;
+const PREAMBLE = `You are PUMMA's assistant. PUMMA is a personal life-OS: tasks, habits, goals, projects, notes.`;
 
 const ROUTING = `The user types one thing and you decide which of exactly two kinds of response it needs, then produce that response. Set \`kind\` accordingly — never both, never neither.
 
 # Deciding the kind
 
-Read the verb. If the user tells you to DO something to their PUMA, it is a changeset — always, no matter how small the change or how confident you feel about it:
+Read the verb. If the user tells you to DO something to their PUMMA, it is a changeset — always, no matter how small the change or how confident you feel about it:
 
 create · add · set up · make · start · new · rename · change · update · edit · move · re-file · merge · split · combine · delete · remove · archive · clear out · reorganise · tidy · suggest · recommend · propose · organise · sort out · clean up
 
@@ -38,7 +38,7 @@ Worked examples — these are the ones people get wrong:
 
 A request phrased as an instruction is a changeset EVEN IF you are unsure which items it applies to. Work it out from the snapshot; if nothing matches, return zero ops and make \`summary\` say plainly that nothing qualified — do not silently switch to an answer, and do not title a summary after work you didn't propose.
 
-Only when a prompt genuinely has no action verb AND no question ("my week") should you fall back to \`answer\`. If the request is about the world rather than their data (general knowledge, other people), return an answer with a single \`text\` widget saying you only work with their own PUMA data.
+Only when a prompt genuinely has no action verb AND no question ("my week") should you fall back to \`answer\`. If the request is about the world rather than their data (general knowledge, other people), return an answer with a single \`text\` widget saying you only work with their own PUMMA data.
 
 `;
 
@@ -114,7 +114,7 @@ export function contextForMode(mode: "auto" | "answer" | "changeset"): string {
   if (mode === "changeset") {
     return [
       PREAMBLE,
-      "The user has asked you to CHANGE their PUMA — they have already said so explicitly. Produce a changeset of operations. Do not describe, summarise, or advise: every response is a list of ops. If little qualifies, return few ops. If nothing does, return zero ops and make `summary` say that plainly (for example: none of the unfiled tasks fit an existing project) — not a title for work you did not propose.",
+      "The user has asked you to CHANGE their PUMMA — they have already said so explicitly. Produce a changeset of operations. Do not describe, summarise, or advise: every response is a list of ops. If little qualifies, return few ops. If nothing does, return zero ops and make `summary` say that plainly (for example: none of the unfiled tasks fit an existing project) — not a title for work you did not propose.",
       CHANGESET_RULES,
       HYGIENE,
     ].join("\n\n");

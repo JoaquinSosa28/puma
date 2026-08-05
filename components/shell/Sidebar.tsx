@@ -24,8 +24,8 @@ import {
   type LifeAutoConfig,
 } from "./LifeAreaToggle";
 import { SignOutButton } from "@/components/auth/SignOutButton";
-import { PumaWordmark } from "@/components/shell/PumaWordmark";
-import { AboutPumaButton } from "@/components/shell/AboutPumaButton";
+import { PummaWordmark } from "@/components/shell/PummaWordmark";
+import { AboutPummaButton } from "@/components/shell/AboutPummaButton";
 import { DemoBanner } from "@/components/shell/DemoBanner";
 import type { Tag, Task, Note } from "@/lib/schemas";
 
@@ -79,8 +79,8 @@ export function Sidebar({
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-[13px] font-extrabold text-background">
           P
         </div>
-        <PumaWordmark className="text-[15px] font-bold tracking-tight" />
-        <AboutPumaButton />
+        <PummaWordmark className="text-[15px] font-bold tracking-tight" />
+        <AboutPummaButton />
         <div className="ml-auto">
           <ThemeToggle />
         </div>

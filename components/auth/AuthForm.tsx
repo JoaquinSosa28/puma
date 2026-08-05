@@ -50,14 +50,14 @@ export function AuthForm({
         <div className="mb-6 text-center">
           <Link
             href="/"
-            aria-label="Back to PUMA home"
+            aria-label="Back to PUMMA home"
             className="group inline-flex flex-col items-center no-underline"
           >
             <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-[12px] bg-ink font-mono text-lg font-bold text-background transition-transform group-hover:-translate-y-0.5">
               P
             </span>
             <span className="text-lg font-extrabold tracking-tight text-ink">
-              P.U.M.A
+              P.U.M.M.A
             </span>
           </Link>
           <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-faint">

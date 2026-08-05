@@ -66,10 +66,10 @@ function buildAuth() {
 
 type AuthInstance = ReturnType<typeof buildAuth>;
 
-const globalForAuth = globalThis as unknown as { __pumaAuth?: AuthInstance };
+const globalForAuth = globalThis as unknown as { __pummaAuth?: AuthInstance };
 
 /** Lazily constructed so memory-mode dev never needs Mongo/auth env. */
 export function getAuth(): AuthInstance {
-  if (!globalForAuth.__pumaAuth) globalForAuth.__pumaAuth = buildAuth();
-  return globalForAuth.__pumaAuth;
+  if (!globalForAuth.__pummaAuth) globalForAuth.__pummaAuth = buildAuth();
+  return globalForAuth.__pummaAuth;
 }

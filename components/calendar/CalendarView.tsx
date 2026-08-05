@@ -138,7 +138,7 @@ export function CalendarView({
         birthDate={birthDate}
         lifeSpanYears={lifeSpanYears}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-puma-view lg:flex-row lg:gap-[18px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden pb-6 animate-pumma-view lg:flex-row lg:gap-[18px]">
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
           <div className="flex items-center gap-3 px-5 py-4">
             <h3 className="m-0 min-w-[190px] text-lg font-extrabold tracking-tight">

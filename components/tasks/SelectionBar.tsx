@@ -25,7 +25,7 @@ export function SelectionBar({
       className="pointer-events-none fixed inset-x-0 z-[45] flex justify-center px-3 lg:hidden"
       style={{ bottom: "calc(5.25rem + env(safe-area-inset-bottom))" }}
     >
-      <div className="animate-puma-bloom pointer-events-auto flex w-full max-w-[440px] items-center gap-2 rounded-2xl border border-border bg-surface/95 p-2 pl-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+      <div className="animate-pumma-bloom pointer-events-auto flex w-full max-w-[440px] items-center gap-2 rounded-2xl border border-border bg-surface/95 p-2 pl-3.5 shadow-[0_12px_36px_rgba(0,0,0,0.24)] backdrop-blur-xl">
         <CheckSquare className="h-4 w-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 text-[13px] font-semibold text-ink">
           {count} selected

@@ -265,7 +265,7 @@ export function GoalsView({
         lifeSpanYears={lifeSpanYears}
       />
       <div
-        className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[13px] border border-border bg-surface animate-puma-view lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]"
+        className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[13px] border border-border bg-surface animate-pumma-view lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)]"
         style={{ boxShadow: "2px 2px 0 var(--shadow)" }}
       >
         <div className="min-h-0 overflow-y-auto p-3 max-lg:pb-28 lg:border-r lg:border-border2 lg:p-4">
@@ -360,7 +360,7 @@ export function GoalsView({
         <div className="hidden min-h-0 overflow-hidden bg-surface2/20 lg:block">
           {selectedGoal ? (
             isDesktop && (
-            <div key={selectedGoal.id} className="animate-puma-swap h-full">
+            <div key={selectedGoal.id} className="animate-pumma-swap h-full">
             <GoalDetailPanel
               goal={selectedGoal}
               tags={tags}
