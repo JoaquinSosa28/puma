@@ -11,9 +11,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Repo is named "-puma" (leading dash), which is not a valid Docker image
-  # name, so we publish under a clean name: ghcr.io/<owner>/puma
-  IMAGE_NAME: ${{ github.repository_owner }}/puma
+  # Spelled out rather than taken from ${{ github.repository }}: the image name
+  # is part of the deploy contract with the server, and deriving it from the
+  # repo would silently retag everything the day the repo is renamed.
+  IMAGE_NAME: ${{ github.repository_owner }}/pumma
 
 jobs:
   # Quality gate: no image is published unless typecheck, lint, unit tests,
