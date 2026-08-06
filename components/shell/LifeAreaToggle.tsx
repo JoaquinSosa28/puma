@@ -33,7 +33,7 @@ export type LifeAutoConfig = {
 };
 
 /** Manual-override marker: while now < until, the auto-switcher stays hands-off. */
-const OVERRIDE_KEY = "puma-life-override";
+const OVERRIDE_KEY = "pumma-life-override";
 
 function readOverrideUntil(): number | null {
   try {
@@ -70,7 +70,7 @@ function scheduledMode(cfg: LifeAutoConfig, timeZone: string): LifeView {
 
 function readLifeCookie(): LifeView {
   if (typeof document === "undefined") return "both";
-  const match = document.cookie.match(/(?:^|;\s*)puma-life=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)pumma-life=([^;]*)/);
   return parseLifeView(match?.[1]);
 }
 

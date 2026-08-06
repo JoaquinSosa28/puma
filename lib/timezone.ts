@@ -1,6 +1,6 @@
 /** IANA timezone helpers — safe on server and client (no next/headers). */
 
-export const TIMEZONE_COOKIE = "puma-timezone";
+export const TIMEZONE_COOKIE = "pumma-timezone";
 
 const COMMON_TIMEZONES = [
   "Pacific/Honolulu",

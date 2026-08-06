@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { TIMEZONE_COOKIE } from "@/lib/timezone";
 
 /**
- * Writes the browser's IANA timezone into the `puma-timezone` cookie once, if it
+ * Writes the browser's IANA timezone into the `pumma-timezone` cookie once, if it
  * isn't already set. This makes date math use the user's real timezone out of the
  * box, and — because server reads are cookie-first — lets server actions resolve
  * the timezone without a getSettings() DB round-trip. Never overrides an existing

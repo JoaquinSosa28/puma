@@ -2,7 +2,10 @@ import type { LifeArea, LifeView } from "@/lib/types";
 
 export type { LifeArea, LifeView };
 
-export const LIFE_AREA_COOKIE = "puma-life";
+// Renamed with the move to pumma.app. Cookies are per-origin, so nothing
+// carried over from the old host anyway — this was the one moment the rename
+// cost nothing.
+export const LIFE_AREA_COOKIE = "pumma-life";
 export const DEFAULT_LIFE_VIEW: LifeView = "both";
 
 export function parseLifeView(value?: string | null): LifeView {

@@ -10,7 +10,7 @@ Built with **Next.js 15** (App Router, React Server Components, Server Actions),
 in-memory with zero setup for local use, or against MongoDB Atlas with real
 accounts for hosting.
 
-- **Live:** [puma.joaquinsosa.dev](https://puma.joaquinsosa.dev)
+- **Live:** [pumma.app](https://pumma.app)
 - **License:** [PolyForm Noncommercial 1.0.0](LICENSE) — read it, run it, fork
   it, self-host it for free, forever, for anything that isn't commercial.
   See [License](#license).

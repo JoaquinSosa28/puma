@@ -87,7 +87,7 @@ export async function getDb(): Promise<Db> {
   }
   try {
     const client = await globalForMongo.__pummaMongoClient;
-    return client.db(process.env.MONGODB_DB ?? "puma");
+    return client.db(process.env.MONGODB_DB ?? "pumma");
   } catch (err) {
     resetMongoClient();
     rethrowAsDbConnectionError(err);

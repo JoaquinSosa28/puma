@@ -19,7 +19,7 @@ function buildAuth() {
     connectTimeoutMS: 5_000,
     maxPoolSize: 5,
   });
-  const db = client.db(process.env.MONGODB_DB ?? "puma");
+  const db = client.db(process.env.MONGODB_DB ?? "pumma");
 
   return betterAuth({
     database: mongodbAdapter(db),

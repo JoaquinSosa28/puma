@@ -22,7 +22,7 @@ function key(): Buffer {
         "BETTER_AUTH_SECRET must be set when DATA_SOURCE=mongodb (secret-at-rest key)"
       );
     }
-    return createHash("sha256").update("puma-dev-insecure-secret").digest();
+    return createHash("sha256").update("pumma-dev-insecure-secret").digest();
   }
   return createHash("sha256").update(secret).digest();
 }
