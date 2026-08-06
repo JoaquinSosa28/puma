@@ -26,13 +26,27 @@ export const WEEKDAYS: Record<string, number> = {
 /** The relative words, in the order the completion menu should offer them. */
 export const RELATIVE_DAYS = ["today", "tomorrow", "yesterday"] as const;
 
-/** Every date word the bar answers to — for completion and for tag validation. */
-export const DATE_WORDS: string[] = [
+/**
+ * What Tab offers you.
+ *
+ * Long names only. The short forms are still typeable and still resolve — they
+ * are just not separate candidates, because a pool holding both "fri" and
+ * "friday" can never settle: "fri" matches two things, so completion rotates
+ * between two spellings of the same day and Tab appears to be broken.
+ */
+export const DATE_COMPLETIONS: string[] = [
   ...RELATIVE_DAYS,
-  // Long names first: they read better in a completion list, and the short
-  // forms still match because completion is prefix-based.
   "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+];
+
+/**
+ * Every date word the bar answers to. Wider than the completion list: this is
+ * what "is this a date?" and "could this still become one?" ask, so it has to
+ * know the abbreviations people actually type.
+ */
+export const DATE_WORDS: string[] = [
+  ...DATE_COMPLETIONS,
+  "mon", "tue", "tues", "wed", "weds", "thu", "thur", "thurs", "fri", "sat", "sun",
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");

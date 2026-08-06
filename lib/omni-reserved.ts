@@ -5,7 +5,7 @@
 // either — see isReservedTagName, which every create/rename path checks.
 
 import type { OmniType } from "@/lib/types";
-import { DATE_WORDS, isDateToken } from "@/lib/date-tokens";
+import { DATE_COMPLETIONS, isDateToken } from "@/lib/date-tokens";
 
 /** "#high buy milk" — same three levels the picker offers. */
 export const RESERVED_PRIORITY: Record<string, "low" | "med" | "high"> = {
@@ -39,14 +39,17 @@ export const RESERVED_MODE: Record<string, "plan" | "ask"> = {
  * and Tab finishes all three. Bare prose still parses, so nothing anyone has
  * in their fingers stopped working.
  */
-export const RESERVED_DATE = DATE_WORDS;
+// The completion list, not every spelling: offering "fri" and "friday" as
+// separate candidates means Tab rotates between two names for the same day
+// and never lands. Short forms still parse — see isDateToken below.
+export const RESERVED_DATE = DATE_COMPLETIONS;
 
 /** Every word the capture bar claims, for completion and for validation. */
 export const RESERVED_WORDS: string[] = [
   ...Object.keys(RESERVED_TYPE),
   ...Object.keys(RESERVED_PRIORITY),
   ...Object.keys(RESERVED_MODE),
-  ...DATE_WORDS,
+  ...DATE_COMPLETIONS,
 ];
 
 const RESERVED_SET = new Set(RESERVED_WORDS);

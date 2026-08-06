@@ -12,7 +12,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MousePointerClick, Sparkles, Tag as TagIcon } from "lucide-react";
 import { nextHold, typedChars } from "@/lib/tutorial";
 import { startTutorialClock } from "@/lib/tutorial-clock";
-import { DATE_WORDS, resolveDateToken } from "@/lib/date-tokens";
+import {
+  DATE_COMPLETIONS,
+  DATE_WORDS,
+  resolveDateToken,
+} from "@/lib/date-tokens";
 import { candidatesFor, completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
 import {
   reduceSelection,
@@ -358,10 +362,18 @@ export function SceneType({
     // as there is enough of a task to move on from.
   }, [step, text, done, onInstruction]);
 
-  const goStep = useCallback((next: CaptureStep) => {
-    stepRef.current = next;
-    setStep(next);
-  }, []);
+  const goStep = useCallback(
+    (next: CaptureStep) => {
+      stepRef.current = next;
+      setStep(next);
+      // A guess belongs to the step that offered it. Carrying "day" out of the
+      // day step left "#fri day" sitting in the field while the tour asked for
+      // a tag — text the user never typed and could not delete.
+      setGuess("");
+      rotateRef.current = null;
+    },
+    [setGuess]
+  );
 
   const reject = useCallback(() => {
     setShake(true);
@@ -525,7 +537,7 @@ export function SceneType({
     const again = rotateRef.current?.from === value;
     // Days complete against the date vocabulary, tags against the tags. Same
     // key, same feel — which is the thing worth learning.
-    const pool = st === "dayWord" ? DATE_WORDS : DEMO_TAGS;
+    const pool = st === "dayWord" ? DATE_COMPLETIONS : DEMO_TAGS;
     const result = completeOmniToken(
       value,
       caret,
@@ -557,10 +569,12 @@ export function SceneType({
     setTabs(tabs + 1);
     onProgress?.();
 
-    // An exact completion wrote the trailing space too, so the day is done.
-    if (result.exact && st === "dayWord") {
-      window.setTimeout(() => goStep("tagHash"), 260);
-    }
+    // An exact completion wrote the trailing space too, so the day is done —
+    // and the step moves on in the same frame. Waiting a beat first left a
+    // window where the token had a trailing space, so "what am I typing" read
+    // as empty and the card flickered back to "Type a day" over a day that was
+    // already written.
+    if (result.exact && st === "dayWord") goStep("tagHash");
   }
 
   const submit = () => {
@@ -627,7 +641,7 @@ export function SceneType({
                 read as a prompt to type one, and the "?" is not a character
                 the step accepts — so the punctuation was inviting the one
                 keystroke that gets refused. */}
-            {step === "dayWord" && (
+            {step === "dayWord" && !tail(text) && (
               <span
                 key={suggestion}
                 className="tutorial-in ml-1 shrink-0 font-medium text-faint2"

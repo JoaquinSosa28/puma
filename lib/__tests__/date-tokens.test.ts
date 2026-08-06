@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { DATE_WORDS, isDateToken, resolveDateToken } from "@/lib/date-tokens";
+import {
+  DATE_COMPLETIONS,
+  DATE_WORDS,
+  isDateToken,
+  resolveDateToken,
+} from "@/lib/date-tokens";
+import { candidatesFor } from "@/lib/omni-complete";
 
 // A Tuesday, so "this week" and "next week" are both reachable in the tests.
 const TUE = new Date(2026, 7, 4); // 2026-08-04
@@ -103,5 +109,29 @@ describe("the completion vocabulary", () => {
 
   it("puts the long names first, so the list reads as English", () => {
     expect(DATE_WORDS.indexOf("monday")).toBeLessThan(DATE_WORDS.indexOf("mon"));
+  });
+});
+
+describe("the completion list can actually settle", () => {
+  it("offers one candidate per abbreviation, so Tab lands", () => {
+    // The bug this exists for: a pool holding "fri" AND "friday" makes "fri"
+    // match two things, so Tab rotated between two spellings of the same day
+    // for ever and looked broken.
+    for (const short of ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]) {
+      expect(candidatesFor(short, DATE_COMPLETIONS), short).toHaveLength(1);
+    }
+    expect(candidatesFor("tomo", DATE_COMPLETIONS)).toEqual(["tomorrow"]);
+    expect(candidatesFor("y", DATE_COMPLETIONS)).toEqual(["yesterday"]);
+  });
+
+  it("still resolves the short forms it no longer offers", () => {
+    for (const w of DATE_WORDS) {
+      expect(resolveDateToken(w, TUE), w).not.toBeNull();
+    }
+  });
+
+  it("keeps a genuinely ambiguous prefix ambiguous", () => {
+    // "t" really could be four different days — rotating there is correct.
+    expect(candidatesFor("t", DATE_COMPLETIONS).length).toBeGreaterThan(1);
   });
 });
