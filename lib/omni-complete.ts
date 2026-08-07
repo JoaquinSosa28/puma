@@ -64,6 +64,74 @@ export function commonPrefix(words: string[]): string {
 }
 
 /**
+ * Step the token at the caret on to the next capture type.
+ *
+ * Tab's first job is completing what you are typing. Once there is nothing
+ * left to complete — the token is already "#task", spelled out in full — the
+ * key is otherwise dead, and the only thing it can usefully mean is "not that
+ * one, the next one". So "#task" becomes "#habit", then "#goal", then "#note",
+ * then round again, and a bare "#" starts at the first.
+ *
+ * Returns null for anything mid-word: "#ta" still has a completion to offer
+ * and this must not pre-empt it, and "#work" is a tag that has nothing to do
+ * with types. Callers therefore try this only when they are not already part
+ * way through cycling a token's candidates.
+ *
+ * No trailing space, unlike a settled completion — the whole point is that you
+ * can press Tab again.
+ */
+export function cycleTypeAtCaret(
+  text: string,
+  caret: number,
+  typeWords: string[],
+  step = 1
+): OmniCompletion | null {
+  if (!typeWords.length) return null;
+  const n = typeWords.length;
+  const at = (word: string) => typeWords.indexOf(word);
+  const stepTo = (i: number) => typeWords[(((i + step) % n) + n) % n];
+
+  const token = tokenAtCaret(text, caret);
+
+  if (token) {
+    if (token.prefix !== "#") return null;
+    const i = at(token.word);
+    // A word that is neither empty nor a type is somebody else's token.
+    if (token.word && i === -1) return null;
+
+    // i === -1 is the bare "#", and (-1 + 1) lands on the first type.
+    const next = stepTo(i);
+    const completed = `#${next}`;
+    return {
+      text: `${text.slice(0, token.start)}${completed}${text.slice(caret)}`,
+      caret: token.start + completed.length,
+      completion: next,
+      exact: false,
+    };
+  }
+
+  // Just settled: completing "#ta" writes "#task " with a trailing space, and
+  // that space puts the token out of tokenAtCaret's reach. Pressing Tab again
+  // there plainly means the same thing as pressing it a moment earlier, so the
+  // settled token is reopened in place — space and caret left alone, since you
+  // are still positioned to carry on writing prose.
+  const settled = text.slice(0, caret).match(/#([a-z0-9-]+) $/i);
+  if (!settled) return null;
+  const i = at(settled[1].toLowerCase());
+  if (i === -1) return null;
+
+  const next = stepTo(i);
+  const start = caret - settled[0].length;
+  const completed = `#${next} `;
+  return {
+    text: `${text.slice(0, start)}${completed}${text.slice(caret)}`,
+    caret: start + completed.length,
+    completion: next,
+    exact: false,
+  };
+}
+
+/**
  * Complete the token at the caret.
  *
  * Fills in as far as every candidate agrees. If that lands on exactly one

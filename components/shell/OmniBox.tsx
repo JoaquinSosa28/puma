@@ -23,8 +23,12 @@ import { PriorityQuickPick } from "@/components/shell/PriorityQuickPick";
 import type { TaskPriority } from "@/lib/types";
 import { OmniHighlightInput } from "@/components/shell/OmniHighlightInput";
 import { isEditableTarget } from "@/lib/is-editable-target";
-import { completeOmniToken, tokenAtCaret } from "@/lib/omni-complete";
-import { RESERVED_WORDS } from "@/lib/omni-reserved";
+import {
+  completeOmniToken,
+  cycleTypeAtCaret,
+  tokenAtCaret,
+} from "@/lib/omni-complete";
+import { RESERVED_TYPE_WORDS, RESERVED_WORDS } from "@/lib/omni-reserved";
 import { useAssistant } from "@/components/assistant/AssistantProvider";
 import { isTutorialActive } from "@/lib/tutorial-lock";
 import { useTimezone } from "@/components/shell/TimeZoneProvider";
@@ -265,6 +269,32 @@ export function OmniBox({
         // Tab again on the same token steps to the next option; touching the
         // text at all starts the cycle over from the narrowed set.
         const again = rotateRef.current?.from === before;
+
+        // A token that is already a type spelled out in full — "#task" — has
+        // nothing left to complete, so Tab means "not that one, the next one"
+        // and swaps it for "#habit". Only when not mid-cycle: rotating from
+        // "#h" passes through "habit" on its way to "health", and stealing
+        // that press would strand the rotation.
+        // A bare "#" is left alone: Tab there already cycles the bar's own
+        // capture type below, which is the same intent by another route.
+        const bareHash = tokenAtCaret(value, caretNow)?.word === "";
+        if (!again && !bareHash) {
+          // Forwards only: this whole branch is behind `!e.shiftKey`, and
+          // shift-Tab is already spoken for by the backwards mode cycle below.
+          const cycled = cycleTypeAtCaret(value, caretNow, RESERVED_TYPE_WORDS);
+          if (cycled) {
+            e.preventDefault();
+            setText(cycled.text);
+            // Nothing to remember: the next press re-reads the token, finds
+            // another type word, and steps on from there.
+            rotateRef.current = null;
+            requestAnimationFrame(() =>
+              el.setSelectionRange(cycled.caret, cycled.caret)
+            );
+            return;
+          }
+        }
+
         const done = completeOmniToken(
           value,
           caretNow,

@@ -23,6 +23,13 @@ export const RESERVED_TYPE: Record<string, OmniType> = {
   note: "note",
 };
 
+/**
+ * The type words in the order Tab steps through them, so "#task" → "#habit"
+ * → "#goal" → "#note" is the same everywhere it's offered. Object key order
+ * would do it today, but it is not something to leave to chance.
+ */
+export const RESERVED_TYPE_WORDS: string[] = ["task", "habit", "goal", "note"];
+
 /** "#ask what's overdue" switches the bar out of capture mode. */
 export const RESERVED_MODE: Record<string, "plan" | "ask"> = {
   plan: "plan",
