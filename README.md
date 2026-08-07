@@ -124,7 +124,7 @@ hosted service, or bundling it into a product you charge for.
 That line is the license's, not a summary you should rely on — the
 [LICENSE](LICENSE) text governs. If you want to use PUMMA commercially, that's
 genuinely fine and usually cheap: email
-[joaquinsosa2810@gmail.com](mailto:joaquinsosa2810@gmail.com) and ask.
+[sosa.panzardi@gmail.com](mailto:sosa.panzardi@gmail.com) and ask.
 
 To be precise about a word people care about: this is *not* an OSI-approved
 open-source license, because the noncommercial restriction fails the
