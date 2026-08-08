@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { decryptAllFor, decryptFor, encryptFor } from "@/lib/db/mongo/encrypted";
 import { newId } from "@/lib/store/memory";
 import { toDto, type Note, noteSchema } from "@/lib/schemas";
 import type { NoteDoc } from "@/lib/schemas";
@@ -12,13 +13,15 @@ export async function listNotes(userId: string): Promise<Note[]> {
   const c = await col();
   // createdAt desc approximates the memory store's unshift (newest first).
   const docs = await c.find({ userId }).sort({ createdAt: -1 }).toArray();
-  return docs.map((n) => toDto(noteSchema.parse(n)));
+  const plain = await decryptAllFor("notes", userId, docs);
+  return plain.map((n) => toDto(noteSchema.parse(n)));
 }
 
 export async function getNote(userId: string, id: string): Promise<Note | null> {
   const c = await col();
   const doc = await c.findOne({ _id: id, userId });
-  return doc ? toDto(noteSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(noteSchema.parse(await decryptFor("notes", userId, doc)));
 }
 
 export async function insertNote(
@@ -26,7 +29,7 @@ export async function insertNote(
 ): Promise<Note> {
   const c = await col();
   const full = { ...doc, _id: doc._id ?? newId() } as NoteDoc;
-  await c.insertOne(full);
+  await c.insertOne(await encryptFor("notes", full.userId, full));
   return toDto(noteSchema.parse(full));
 }
 
@@ -38,10 +41,11 @@ export async function updateNote(
   const c = await col();
   const doc = await c.findOneAndUpdate(
     { _id: id, userId },
-    { $set: patch },
+    { $set: await encryptFor("notes", userId, patch) },
     { returnDocument: "after" }
   );
-  return doc ? toDto(noteSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(noteSchema.parse(await decryptFor("notes", userId, doc)));
 }
 
 export async function deleteNote(userId: string, id: string): Promise<boolean> {

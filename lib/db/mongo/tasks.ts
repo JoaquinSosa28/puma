@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { decryptAllFor, decryptFor, encryptFor } from "@/lib/db/mongo/encrypted";
 import { newId } from "@/lib/store/memory";
 import { toDto, type Task, taskSchema } from "@/lib/schemas";
 import type { Subtask, TaskDoc } from "@/lib/schemas";
@@ -13,13 +14,15 @@ export async function listTasks(userId: string): Promise<Task[]> {
   // createdAt desc approximates the memory store's unshift (newest first);
   // order asc keeps same-day seed tasks stable. UI re-sorts where it matters.
   const docs = await c.find({ userId }).sort({ createdAt: -1, order: 1 }).toArray();
-  return docs.map((t) => toDto(taskSchema.parse(t)));
+  const plain = await decryptAllFor("tasks", userId, docs);
+  return plain.map((t) => toDto(taskSchema.parse(t)));
 }
 
 export async function getTask(userId: string, id: string): Promise<Task | null> {
   const c = await col();
   const doc = await c.findOne({ _id: id, userId });
-  return doc ? toDto(taskSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(taskSchema.parse(await decryptFor("tasks", userId, doc)));
 }
 
 export async function getTasksByDue(
@@ -72,7 +75,9 @@ export async function insertTask(
     ...doc,
     _id: doc._id ?? newId(),
   } as TaskDoc;
-  await c.insertOne(full);
+  // Encrypt on the way in, return the plaintext we already hold — no second
+  // round trip, and the caller gets what it just wrote.
+  await c.insertOne(await encryptFor("tasks", full.userId, full));
   return toDto(taskSchema.parse(full));
 }
 
@@ -84,10 +89,11 @@ export async function updateTask(
   const c = await col();
   const doc = await c.findOneAndUpdate(
     { _id: id, userId },
-    { $set: patch },
+    { $set: await encryptFor("tasks", userId, patch) },
     { returnDocument: "after" }
   );
-  return doc ? toDto(taskSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(taskSchema.parse(await decryptFor("tasks", userId, doc)));
 }
 
 export async function getRunningTimerTask(userId: string): Promise<Task | null> {

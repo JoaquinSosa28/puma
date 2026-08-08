@@ -12,6 +12,11 @@ const envSchema = z
     ANTHROPIC_API_KEY: z.string().optional(),
     ASSISTANT_MODEL: z.string().optional(),
     BETTER_AUTH_SECRET: z.string().min(32).optional(),
+    // Wraps every user's data key. Separate from BETTER_AUTH_SECRET on
+    // purpose: they protect different things and should be rotatable
+    // independently. See lib/crypto/master-key.ts.
+    DATA_ENCRYPTION_KEY: z.string().optional(),
+    DATA_ENCRYPTION_PROVIDER: z.enum(["env", "kms"]).optional(),
     BETTER_AUTH_URL: z.string().optional(),
     // Hosted-mode seam — optional; the access gate only arms with
     // BILLING_ENABLED=1, and self-hosted installs never set these.
@@ -27,6 +32,30 @@ const envSchema = z
         message: "MONGODB_URI is required when DATA_SOURCE=mongodb",
         input: ctx.value,
         path: ["MONGODB_URI"],
+      });
+    }
+    if (ctx.value.DATA_SOURCE === "mongodb" && !ctx.value.DATA_ENCRYPTION_KEY) {
+      ctx.issues.push({
+        code: "custom",
+        message:
+          "DATA_ENCRYPTION_KEY is required when DATA_SOURCE=mongodb " +
+          "(generate: openssl rand -base64 32). Back it up before first use — " +
+          "losing it means losing every user's content.",
+        input: ctx.value,
+        path: ["DATA_ENCRYPTION_KEY"],
+      });
+    }
+    if (
+      ctx.value.DATA_ENCRYPTION_KEY &&
+      Buffer.from(ctx.value.DATA_ENCRYPTION_KEY, "base64").length !== 32
+    ) {
+      ctx.issues.push({
+        code: "custom",
+        message:
+          "DATA_ENCRYPTION_KEY must decode to exactly 32 bytes " +
+          "(generate: openssl rand -base64 32)",
+        input: ctx.value,
+        path: ["DATA_ENCRYPTION_KEY"],
       });
     }
     if (ctx.value.DATA_SOURCE === "mongodb" && !ctx.value.BETTER_AUTH_SECRET) {

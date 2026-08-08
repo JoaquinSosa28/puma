@@ -4,8 +4,18 @@
  *
  *   npm run db:indexes
  */
-import { MongoClient } from "mongodb";
+import { Db, MongoClient } from "mongodb";
 import { loadScriptEnv } from "./_env";
+
+/** Drop an index if it exists; say so, and never fail the run if it doesn't. */
+async function dropIfPresent(db: Db, collection: string, index: string) {
+  try {
+    await db.collection(collection).dropIndex(index);
+    console.log(`  dropped ${collection}.${index}`);
+  } catch {
+    // IndexNotFound, or the collection doesn't exist yet. Both fine.
+  }
+}
 
 async function main() {
   loadScriptEnv();
@@ -28,8 +38,21 @@ async function main() {
       .createIndex({ userId: 1, habitId: 1, date: 1 }, { unique: true });
     await db.collection("habits").createIndex({ userId: 1 });
     await db.collection("goals").createIndex({ userId: 1, category: 1, order: 1 });
-    await db.collection("tags").createIndex({ userId: 1, name: 1 }, { unique: true });
-    await db.collection("notes").createIndex({ title: "text", body: "text" });
+    // Tag names are encrypted, and every write produces different bytes — a
+    // unique index on the name would constrain nothing. `nameKey` is the
+    // deterministic stand-in that carries the constraint instead. Partial, so
+    // rows not yet backfilled don't all collide on a missing field.
+    await db
+      .collection("tags")
+      .createIndex(
+        { userId: 1, nameKey: 1 },
+        { unique: true, partialFilterExpression: { nameKey: { $exists: true } } }
+      );
+    await dropIfPresent(db, "tags", "userId_1_name_1");
+    // The text index on note content was never queried — nothing in lib/ uses
+    // $text — and it cannot work against ciphertext. Search is a client-side
+    // filter over already-loaded notes.
+    await dropIfPresent(db, "notes", "title_text_body_text");
     await db.collection("settings").createIndex({ userId: 1 }, { unique: true });
     await db
       .collection("lifeWeeks")

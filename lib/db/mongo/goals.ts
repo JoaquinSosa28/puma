@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { decryptAllFor, decryptFor, encryptFor } from "@/lib/db/mongo/encrypted";
 import { newId } from "@/lib/store/memory";
 import { toDto, type Goal, goalSchema } from "@/lib/schemas";
 import type { GoalDoc, HabitDoc, ProjectDoc, TaskDoc } from "@/lib/schemas";
@@ -21,7 +22,8 @@ export async function listGoals(userId: string): Promise<Goal[]> {
     .find({ userId })
     .sort({ order: 1, createdAt: 1 })
     .toArray();
-  return docs.map((g) => toDto(goalSchema.parse(g)));
+  const plain = await decryptAllFor("goals", userId, docs);
+  return plain.map((g) => toDto(goalSchema.parse(g)));
 }
 
 export async function insertGoal(
@@ -29,7 +31,7 @@ export async function insertGoal(
 ): Promise<Goal> {
   const c = await col();
   const full = { ...doc, _id: doc._id ?? newId() } as GoalDoc;
-  await c.insertOne(full);
+  await c.insertOne(await encryptFor("goals", full.userId, full));
   return toDto(goalSchema.parse(full));
 }
 
@@ -41,10 +43,11 @@ export async function updateGoal(
   const c = await col();
   const doc = await c.findOneAndUpdate(
     { _id: id, userId },
-    { $set: patch },
+    { $set: await encryptFor("goals", userId, patch) },
     { returnDocument: "after" }
   );
-  return doc ? toDto(goalSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(goalSchema.parse(await decryptFor("goals", userId, doc)));
 }
 
 export async function deleteGoal(userId: string, id: string): Promise<boolean> {

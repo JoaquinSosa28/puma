@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { decryptAllFor, decryptFor, encryptFor } from "@/lib/db/mongo/encrypted";
 import { newId } from "@/lib/store/memory";
 import { toDto, type LifeWeek, lifeWeekSchema } from "@/lib/schemas";
 import type { LifeWeekDoc } from "@/lib/schemas";
@@ -12,7 +13,8 @@ async function col() {
 export async function listLifeWeeks(userId: string): Promise<LifeWeek[]> {
   const c = await col();
   const docs = await c.find({ userId }).toArray();
-  return docs.map((w) => toDto(lifeWeekSchema.parse(w)));
+  const plain = await decryptAllFor("lifeWeeks", userId, docs);
+  return plain.map((w) => toDto(lifeWeekSchema.parse(w)));
 }
 
 export async function getLifeWeek(
@@ -21,7 +23,8 @@ export async function getLifeWeek(
 ): Promise<LifeWeek | null> {
   const c = await col();
   const doc = await c.findOne({ userId, weekStart: weekStart.slice(0, 10) });
-  return doc ? toDto(lifeWeekSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(lifeWeekSchema.parse(await decryptFor("lifeWeeks", userId, doc)));
 }
 
 export async function upsertLifeWeek(
@@ -39,9 +42,11 @@ export async function upsertLifeWeek(
   // userId in the filter is defense-in-depth: a doc can only ever be replaced
   // within its owner's scope, so a stray/spoofed _id can't clobber another
   // account's row (it would insert a fresh owned doc instead).
-  await c.replaceOne({ _id: full._id, userId: doc.userId }, full, {
-    upsert: true,
-  });
+  await c.replaceOne(
+    { _id: full._id, userId: doc.userId },
+    await encryptFor("lifeWeeks", doc.userId, full),
+    { upsert: true }
+  );
   return toDto(lifeWeekSchema.parse(full));
 }
 

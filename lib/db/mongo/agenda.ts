@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { decryptAllFor, decryptFor, encryptFor } from "@/lib/db/mongo/encrypted";
 import { newId } from "@/lib/store/memory";
 import { toDto, type AgendaItem, agendaItemSchema } from "@/lib/schemas";
 import type { AgendaItemDoc } from "@/lib/schemas";
@@ -11,7 +12,8 @@ async function col() {
 export async function listAgenda(userId: string): Promise<AgendaItem[]> {
   const c = await col();
   const docs = await c.find({ userId }).toArray();
-  return docs.map((a) => toDto(agendaItemSchema.parse(a)));
+  const plain = await decryptAllFor("agenda", userId, docs);
+  return plain.map((a) => toDto(agendaItemSchema.parse(a)));
 }
 
 export async function insertAgendaItem(
@@ -19,7 +21,7 @@ export async function insertAgendaItem(
 ): Promise<AgendaItem> {
   const c = await col();
   const full = agendaItemSchema.parse({ ...doc, _id: doc._id ?? newId() });
-  await c.insertOne(full);
+  await c.insertOne(await encryptFor("agenda", full.userId, full));
   return toDto(full);
 }
 
@@ -29,7 +31,8 @@ export async function getAgendaItem(
 ): Promise<AgendaItem | null> {
   const c = await col();
   const doc = await c.findOne({ _id: id, userId });
-  return doc ? toDto(agendaItemSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(agendaItemSchema.parse(await decryptFor("agenda", userId, doc)));
 }
 
 export async function updateAgendaItem(
@@ -40,10 +43,11 @@ export async function updateAgendaItem(
   const c = await col();
   const doc = await c.findOneAndUpdate(
     { _id: id, userId },
-    { $set: patch },
+    { $set: await encryptFor("agenda", userId, patch) },
     { returnDocument: "after" }
   );
-  return doc ? toDto(agendaItemSchema.parse(doc)) : null;
+  if (!doc) return null;
+  return toDto(agendaItemSchema.parse(await decryptFor("agenda", userId, doc)));
 }
 
 export async function deleteAgendaItem(
